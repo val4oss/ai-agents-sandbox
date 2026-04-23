@@ -1,0 +1,7 @@
+build
+
+# Ignore everything in sandbox/ (runtime home dir contents)
+sandbox/**
+
+# Keep the directory tracked
+!sandbox/.gitkeep

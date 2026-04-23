@@ -1,0 +1,6 @@
+[init]
+    defaultBranch = main
+[core]
+    editor = vim
+[safe]
+    directory = ~/workspace/*
