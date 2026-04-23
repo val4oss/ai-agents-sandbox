@@ -93,7 +93,6 @@ RUN npm install -g @google/gemini-cli && \
 # Copy scripts
 # ------------
 COPY --chmod=755 scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
-COPY --chmod=755 scripts/healthcheck.sh /usr/local/bin/healthcheck.sh
 
 # =====================================
 # Default home provisioning (skel-like)
@@ -120,9 +119,6 @@ ENV HOME=/home/aiuser \
     TERM=xterm-256color
 
 WORKDIR /home/$AI_USER
-
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD /usr/local/bin/healthcheck.sh
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["bash", "--login"]
