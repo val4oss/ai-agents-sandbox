@@ -110,6 +110,8 @@ USER $AI_USER
 # Environment variables
 # ---------------------
 ENV HOME=/home/aiuser \
+    HOSTNAME=ai-sandbox \
+    CONTAINER_ID=ai-sandbox \
     PATH=/usr/local/bin:/usr/bin:/bin \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

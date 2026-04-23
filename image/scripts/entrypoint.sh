@@ -31,6 +31,9 @@ check_auth() {
     fi
 }
 
+echo ""
+neofetch
+
 cat << 'EOF'
 ╔══════════════════════════════════════════════════════════════╗
 ║         AI Agents Sandbox v0.1 — Secure Mode                 ║
@@ -41,7 +44,8 @@ cat << 'EOF'
 ║    • claude       → Claude Code                              ║
 ║                                                              ║
 ║  Directory :                                                 ║
-║    ~  → all projects, git clones, config (read/write)        ║
+║    ~           → Home, config                                ║
+║    ~/workspace → all projects, git clones                    ║
 ╚══════════════════════════════════════════════════════════════╝
 EOF
 
@@ -50,7 +54,7 @@ echo "── Authentication status ───────────────
 
 check_auth "GitHub (gh)" \
     "gh auth status" \
-    "gh auth login"
+    "gh auth login --scopes 'copilot'"
 
 echo "  ✅ GitHub Copilot : built-in (gh copilot suggest / explain)"
 
@@ -59,9 +63,15 @@ check_auth "Gemini CLI" \
     "gemini auth login"
 
 check_auth "Claude Code" \
-    "test -f $HOME/.claude/credentials.json || test -n \"\${ANTHROPIC_API_KEY:-}\"" \
+    "claude auth status" \
     "claude auth login  (or: export ANTHROPIC_API_KEY=sk-...)"
 
+
+echo "────────────────────────────────────────────────────────"
+echo ""
+echo "── Notes ───────────────────────────────────────────────"
+echo " To install though Vertex Ai, connect to Google Cloud with: "
+echo "  gcloud auth application-default login"
 echo "────────────────────────────────────────────────────────"
 echo ""
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Session started — UID=$(id -u) | $(uname -n)"
