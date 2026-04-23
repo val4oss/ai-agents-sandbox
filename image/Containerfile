@@ -58,6 +58,19 @@ RUN zypper --non-interactive addrepo \
     zypper clean --all && \
     rm -rf /var/cache/zypp/*
 
+# ================
+# Google Cloud SDK
+# ----------------
+RUN rpm --import https://packages.cloud.google.com/yum/doc/rpm-package-key-v10.gpg && \
+    zypper refresh && \
+    zypper --non-interactive addrepo \
+        https://packages.cloud.google.com/yum/repos/cloud-sdk-el10-x86_64 \
+        google-cloud-cli && \
+    zypper --non-interactive --gpg-auto-import-keys refresh google-cloud-cli && \
+    zypper --non-interactive install --no-recommends google-cloud-cli && \
+    zypper clean --all && \
+    rm -rf /var/cache/zypp/*
+
 # ====================
 # Create non-root user
 # --------------------
