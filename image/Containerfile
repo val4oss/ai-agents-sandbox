@@ -33,7 +33,7 @@ RUN zypper --non-interactive refresh && \
         jq \
         python3 \
         python3-pip \
-        python3-virtualenv \
+        neofetch \
         nodejs \
         npm \
         wget \
@@ -110,7 +110,7 @@ USER $AI_USER
 # Environment variables
 # ---------------------
 ENV HOME=/home/aiuser \
-    PATH=/home/aiuser/venv/bin:/usr/local/bin:/usr/bin:/bin \
+    PATH=/usr/local/bin:/usr/bin:/bin \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     GH_CONFIG_DIR=/home/aiuser/.config/gh \

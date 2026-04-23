@@ -19,13 +19,6 @@ done
 
 # ─────────────────────────────────────────────────────────────────────────────
 
-if [ ! -d "$HOME/venv" ]; then
-    echo "[*] Creating Python virtualenv..."
-    python3 -m virtualenv "$HOME/venv"
-    echo "[✓] Virtualenv ready."
-fi
-
-
 # Check authentication status
 check_auth() {
     local tool=$1
