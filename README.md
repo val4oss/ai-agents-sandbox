@@ -91,22 +91,15 @@ ai-sandbox/
 
 ### 📊 Resource limits
 
-Resource limits (`--memory`, `--cpus`, `--pids-limit`) require cgroup v2
-delegation to be active for your user session. They are **not enabled by
-default** to ensure compatibility with all rootless Podman setups.
-
-To enable them, verify delegation is active:
+| Measure | Flag | Effect |
+|---|---|---|
+| Memory limit |  | Needs to use podman machine |
+| CPU limit |  | Needs to use podman machine |
+| Process limit | `pids_limit = 100` | Container cannot spawn more than 100 processes |
 
 ```bash
 cat /sys/fs/cgroup/user.slice/user-$(id -u).slice/cgroup.controllers
 # expected: cpuset cpu io memory hugetlb pids rdma misc
-```
-
-If `memory`, `cpu`, and `pids` are listed, add the following flags to the
-`podman run` call in `run.sh`:
-
-```
---memory=8g --cpus=4 --pids-limit=500
 ```
 
 ---
