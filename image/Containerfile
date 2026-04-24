@@ -6,8 +6,10 @@
 
 FROM registry.opensuse.org/opensuse/tumbleweed:latest
 
+ARG AGENT="copilot gemini claude"
+
 LABEL maintainer="val4oss" \
-      description="AI Agents sandbox — Copilot + Gemini + Claude, rootless" \
+      description="AI Agents sandbox —${AGENT}, rootless" \
       version="0.1" \
       security.caps="none" \
       security.network="slirp4netns" \
@@ -49,27 +51,35 @@ RUN zypper --non-interactive addrepo \
     rm -rf /var/cache/zypp/*
 
 # ===============
-# GitHub CLI (gh)
+# GitHub CLI (gh) - installed when AGENT contains copilot
 # ---------------
-RUN zypper --non-interactive addrepo \
-        https://cli.github.com/packages/rpm/gh-cli.repo && \
-    zypper --non-interactive --gpg-auto-import-keys refresh gh-cli && \
-    zypper --non-interactive install --no-recommends gh && \
-    zypper clean --all && \
-    rm -rf /var/cache/zypp/*
+RUN case " $AGENT " in \
+    *\ copilot\ *) \
+        zypper --non-interactive addrepo \
+            https://cli.github.com/packages/rpm/gh-cli.repo && \
+        zypper --non-interactive --gpg-auto-import-keys refresh gh-cli && \
+        zypper --non-interactive install --no-recommends gh && \
+        zypper clean --all && \
+        rm -rf /var/cache/zypp/* \
+    ;; \
+    esac
 
 # ================
-# Google Cloud SDK
+# Google Cloud SDK - installed when AGENT contains gemini or claude
 # ----------------
-RUN rpm --import https://packages.cloud.google.com/yum/doc/rpm-package-key-v10.gpg && \
-    zypper refresh && \
-    zypper --non-interactive addrepo \
-        https://packages.cloud.google.com/yum/repos/cloud-sdk-el10-x86_64 \
-        google-cloud-cli && \
-    zypper --non-interactive --gpg-auto-import-keys refresh google-cloud-cli && \
-    zypper --non-interactive install --no-recommends google-cloud-cli && \
-    zypper clean --all && \
-    rm -rf /var/cache/zypp/*
+RUN case " $AGENT " in \
+    *\ gemini\ *|*\ claude\ *) \
+        rpm --import https://packages.cloud.google.com/yum/doc/rpm-package-key-v10.gpg && \
+        zypper refresh && \
+        zypper --non-interactive addrepo \
+            https://packages.cloud.google.com/yum/repos/cloud-sdk-el10-x86_64 \
+            google-cloud-cli && \
+        zypper --non-interactive --gpg-auto-import-keys refresh google-cloud-cli && \
+        zypper --non-interactive install --no-recommends google-cloud-cli && \
+        zypper clean --all && \
+        rm -rf /var/cache/zypp/* \
+    ;; \
+    esac
 
 # ====================
 # Create non-root user
@@ -84,10 +94,12 @@ RUN groupadd --gid $AI_GID $AI_USER && \
       $AI_USER
 
 # =========
-# AI agents
+# AI agents - installed selectively based on AGENT list
 # ---------
-RUN npm install -g @google/gemini-cli && \
-    npm install -g @anthropic-ai/claude-code
+RUN case " $AGENT " in *\ gemini\ *) \
+        npm install -g @google/gemini-cli ;; esac; \
+    case " $AGENT " in *\ claude\ *) \
+        npm install -g @anthropic-ai/claude-code ;; esac
 
 # ============
 # Copy scripts
@@ -116,7 +128,8 @@ ENV HOME=/home/aiuser \
     PYTHONUNBUFFERED=1 \
     GH_CONFIG_DIR=/home/aiuser/.config/gh \
     NPM_CONFIG_PREFIX=/home/aiuser/.npm-global \
-    TERM=xterm-256color
+    TERM=xterm-256color \
+    AGENT="${AGENT}"
 
 WORKDIR /home/$AI_USER
 

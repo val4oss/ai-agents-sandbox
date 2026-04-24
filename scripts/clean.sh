@@ -5,21 +5,28 @@ SANDBOX_DIR="$ROOT_D/sandbox"
 CONTAINER_NAME="ai-agents-sandbox"
 
 usage() {
-    echo "Usage: $0 [--all]"
+    echo "Usage: $0 [--all] [<agent>]"
     echo ""
     echo "  (no flag)  Remove the container only (auth and workspace preserved)"
+    echo "  <agent>    Remove the agent-specific container (claude|copilot|gemini)"
     echo "  --all      Remove the container + all auth tokens in sandbox/home/"
     echo "             (workspace is always preserved)"
     exit 1
 }
 
 CLEAN_ALL=false
+AGENT=""
 for arg in "$@"; do
     case "$arg" in
         --all) CLEAN_ALL=true ;;
+        claude|copilot|gemini) AGENT="$arg" ;;
         *) usage ;;
     esac
 done
+
+if [ -n "$AGENT" ]; then
+    CONTAINER_NAME="${CONTAINER_NAME}-${AGENT}"
+fi
 
 # Remove container
 if podman container exists "$CONTAINER_NAME"; then

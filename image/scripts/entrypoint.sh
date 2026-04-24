@@ -1,6 +1,15 @@
 #!/bin/sh
 
 SKEL_D="/usr/share/ai-sandbox"
+AGENT="${AGENT:-claude copilot gemini}"
+
+# Return 0 if agent is enabled, 1 otherwise
+agent_enabled() {
+    case " $AGENT " in
+        *" $1 "*)   return 0 ;;
+        *)          return 1 ;;
+    esac
+}
 
 # ── Home provisioning (first-run or after clean) ─────────────────────────────
 # Files are copied only if they do not already exist (cp -n).
@@ -12,9 +21,24 @@ mkdir -p \
 
 cp -n "$SKEL_D/skel/.gitconfig" "$HOME/.gitconfig" 2>/dev/null || true
 
-for agent in "$SKEL_D/agents/copilot/"*.md; do
-    cp -n "$agent" "$HOME/.copilot/agents/" 2>/dev/null || true
-done
+# Provision sub-agents for each relevant agent
+provision_agents() {
+    _agent_name="$1"
+    _target_dir="$2"
+    _src_dir="$SKEL_D/agents/${_agent_name}"
+    if [ -d "$_src_dir" ]; then
+        mkdir -p "$_target_dir"
+        for f in "$_src_dir"/*; do
+            if [ -f "$f" ]; then
+                cp -n "$f" "$_target_dir/" 2>/dev/null || true
+            fi
+        done
+    fi
+}
+
+agent_enabled "claude"  && provision_agents "claude"  "$HOME/.claude/agents"
+agent_enabled "copilot" && provision_agents "copilot" "$HOME/.copilot/agents"
+agent_enabled "gemini"  && provision_agents "gemini"  "$HOME/.gemini/agents"
 
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -33,47 +57,57 @@ check_auth() {
 echo ""
 neofetch
 
-cat << 'EOF'
-╔══════════════════════════════════════════════════════════════╗
-║         AI Agents Sandbox v0.1 — Secure Mode                 ║
-╠══════════════════════════════════════════════════════════════╣
-║  Available agents :                                          ║
-║    • gh copilot   → GitHub Copilot CLI                       ║
-║    • gemini       → Gemini CLI                               ║
-║    • claude       → Claude Code                              ║
-║                                                              ║
-║  Directory :                                                 ║
-║    ~           → Home, config                                ║
-║    ~/workspace → all projects, git clones                    ║
-╚══════════════════════════════════════════════════════════════╝
-EOF
+# Build banner  lines for active agents
+agent_lines=""
+agent_enabled "copilot" && agent_lines="${agent_lines}║    • gh copilot   → GitHub Copilot CLI                       ║\n"
+agent_enabled "gemini"   && agent_lines="${agent_lines}║    • gemini       → Gemini CLI                               ║\n"
+agent_enabled "claude"   && agent_lines="${agent_lines}║    • claude       → Claude Code                              ║\n"
+
+echo "╔══════════════════════════════════════════════════════════════╗"
+echo "║         AI Agents Sandbox v0.1 — Secure Mode                 ║" 
+echo "╠══════════════════════════════════════════════════════════════╣"
+echo "║  Available agents :                                          ║"
+printf "$agent_lines"
+echo "║                                                              ║"
+echo "║  Directory :                                                 ║"
+echo "║    ~           → Home, config                                ║"
+echo "║    ~/workspace → all projects, git clones                    ║"
+echo "╚══════════════════════════════════════════════════════════════╝"
 
 echo ""
 echo "── Authentication status ───────────────────────────────"
 
-check_auth "GitHub (gh)" \
-    "gh auth status" \
-    "gh auth login --scopes 'copilot'"
+if agent_enabled "copilot"; then
+    check_auth "GitHub (gh)" \
+        "gh auth status" \
+        "gh auth login --scopes 'copilot'"
+    echo "  ✅ GitHub Copilot : built-in (gh copilot suggest / explain)"
+fi
 
-echo "  ✅ GitHub Copilot : built-in (gh copilot suggest / explain)"
+if agent_enabled "gemini"; then
+    check_auth "Gemini CLI" \
+        "test -f $HOME/.gemini/credentials.json" \
+        "gemini auth login"
+fi
 
-check_auth "Gemini CLI" \
-    "test -f $HOME/.gemini/credentials.json" \
-    "gemini auth login"
-
-check_auth "Claude Code" \
-    "claude auth status" \
-    "claude auth login  (or: export ANTHROPIC_API_KEY=sk-...)"
-
+if agent_enabled "claude"; then
+    check_auth "Claude Code" \
+        "claude auth status" \
+        "claude auth login  (or: export ANTHROPIC_API_KEY=sk-...)"
+fi
 
 echo "────────────────────────────────────────────────────────"
 echo ""
-echo "── Notes ───────────────────────────────────────────────"
-echo " To install though Vertex Ai, connect to Google Cloud with: "
-echo "  gcloud auth application-default login"
-echo "────────────────────────────────────────────────────────"
-echo ""
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Session started — UID=$(id -u) | $(uname -n)"
+
+if agent_enabled "claude" || agent_enabled "gemini"; then
+    echo "── Notes ───────────────────────────────────────────────"
+    echo " To install though Vertex Ai, connect to Google Cloud with: "
+    echo "  gcloud auth application-default login"
+    echo "────────────────────────────────────────────────────────"
+    echo ""
+fi
+
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Session started — UID=$(id -u) | $(uname -n) | agent(s)=${AGENT}"
 echo ""
 
 exec "$@"
