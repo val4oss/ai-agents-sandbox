@@ -1,10 +1,8 @@
-#!/bin/bash
-set -euo pipefail
+#!/bin/sh
 
-ROOT_D="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_D="$(cd "$(dirname "$0")/.." && pwd)"
 SANDBOX_DIR="$ROOT_D/sandbox"
 CONTAINER_NAME="ai-agents-sandbox"
-IMAGE_NAME="ai-agents-sandbox"
 
 usage() {
     echo "Usage: $0 [--all]"

@@ -1,7 +1,6 @@
-#!/bin/bash
-set -euo pipefail
+#!/bin/sh
 
-SCRIPT_D="$(dirname "${BASH_SOURCE[0]}")"
+SCRIPT_D="$(dirname "$0")"
 ROOT_D="$(cd "${SCRIPT_D}/.." && pwd)"
 SANDBOX_DIR="$ROOT_D/sandbox"
 CONTAINER_NAME="ai-agents-sandbox"

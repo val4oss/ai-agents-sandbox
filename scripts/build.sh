@@ -1,7 +1,6 @@
-#!/bin/bash
-set -euo pipefail
+#!/bin/sh
 
-ROOT_D="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_D="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_D="${ROOT_D}/build"
 IMG_D="${ROOT_D}/image"
 IMG_NAME="ai-agents-sandbox"

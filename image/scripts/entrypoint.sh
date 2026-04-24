@@ -1,5 +1,4 @@
-#!/bin/bash
-set -euo pipefail
+#!/bin/sh
 
 SKEL_D="/usr/share/ai-sandbox"
 
@@ -21,13 +20,13 @@ done
 
 # Check authentication status
 check_auth() {
-    local tool=$1
-    local check_cmd=$2
-    local hint=$3
-    if eval "$check_cmd" &>/dev/null; then
-        echo "  ✅ $tool : authenticated"
+    _tool=$1
+    _check_cmd=$2
+    _hint=$3
+    if eval "$_check_cmd" > /dev/null 2>&1; then
+        echo "  ✅ $_tool : authenticated"
     else
-        echo "  ⚠️  $tool : not authenticated — run : $hint"
+        echo "  ⚠️  $_tool : not authenticated — run : $_hint"
     fi
 }
 
