@@ -123,8 +123,8 @@ podman info | grep rootless   # expected: rootless: true
 
 ```bash
 # Clone this repository
-git clone https://github.com/val4oss/ai-sandbox.git
-cd ai-sandbox
+git clone https://github.com/val4oss/ai-agents-sandbox.git
+cd ai-agents-sandbox
 ```
 
 The `sandbox/` directory is mounted as `/home/aiuser` at runtime. On first
@@ -273,9 +273,9 @@ gh copilot --version
 ```bash
 # Inside the container — workspace is ready at ~/workspace
 cd ~/workspace
-gh repo clone val4oss/ai-sandbox
+git clone val4oss/ai-agents-sandbox
 
-cd ai-sandbox
+cd ai-agents-sandbox
 
 # Ask Copilot to suggest a command
 gh copilot suggest "write a bash function to check if a podman container is running"
