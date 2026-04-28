@@ -69,10 +69,11 @@ RUN case " $AGENT " in \
 # ----------------
 RUN case " $AGENT " in \
     *\ gemini\ *|*\ claude\ *) \
+        REPO_ARCH=$(uname -m) && \
         rpm --import https://packages.cloud.google.com/yum/doc/rpm-package-key-v10.gpg && \
         zypper refresh && \
         zypper --non-interactive addrepo \
-            https://packages.cloud.google.com/yum/repos/cloud-sdk-el10-x86_64 \
+            https://packages.cloud.google.com/yum/repos/cloud-sdk-el10-${REPO_ARCH} \
             google-cloud-cli && \
         zypper --non-interactive --gpg-auto-import-keys refresh google-cloud-cli && \
         zypper --non-interactive install --no-recommends google-cloud-cli && \
