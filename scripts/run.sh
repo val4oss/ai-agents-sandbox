@@ -7,7 +7,7 @@ CONTAINER_NAME="ai-agents-sandbox"
 IMAGE_NAME="ai-agents-sandbox"
 KRUN_BIN="/usr/bin/krun"
 
-VALID_AGENTS="$(grep "^AGENTS := " Makefile | sed 's/.*:= //')"
+VALID_AGENTS="$(grep "^AGENTS.*:= " Makefile | sed 's/.*:= //')"
 validate_agent() {
     _agent="$1"
     for _agt_v in $VALID_AGENTS; do
@@ -42,14 +42,14 @@ check_microvm() {
     if [ ! -x "$KRUN_BIN" ]; then
         printf '[!] krun not found at %s\n' "$KRUN_BIN"
         printf '    Install it  : install krun via your package manager\n'
-        printf '    Skip microVM: %s\n' "$_fallback"
+        printf '    Skip microVM with: %s\n' "$_fallback"
         exit 1
     fi
 
     if [ ! -c /dev/kvm ]; then
         printf '[!] /dev/kvm not found — KVM is not available on this host\n'
         printf '    Enable it   : load the kvm_amd or kvm_intel kernel module\n'
-        printf '    Skip microVM: %s\n' "$_fallback"
+        printf '    Skip microVM with: %s\n' "$_fallback"
         exit 1
     fi
 
@@ -83,9 +83,10 @@ check_microvm() {
         if [ "$_nested_amd" != "1" ] && \
            [ "$_nested_intel" != "Y" ] && [ "$_nested_intel" != "1" ] && \
            [ "$_nested_arm"   != "Y" ] && [ "$_nested_arm"   != "1" ]; then
-            printf '[!] Running inside a VM — nested virtualisation not detected\n'
-            printf '    krun may fail; enable nested virt on your hypervisor \n'
-            printf '    or skip with: %s\n' "$_fallback"
+            printf '[!] Running inside a VM where nested virtualisation not'
+            printf 'detected kun may fail; enable nested virt on your'
+            printf 'hypervisor.\n'
+            printf '    Skip microVM with: %s\n' "$_fallback"
         fi
     fi
 }
@@ -127,14 +128,15 @@ if podman container exists "$CONTAINER_NAME"; then
     fi
 fi
 
-echo "[*] Creating isolated container..."
-set -- \
-    --name "$CONTAINER_NAME" \
-    --volume "$SANDBOX_DIR":/home/aiuser:z \
-    --tmpfs /tmp:rw,noexec,nosuid,size=1g
-
+EXTRA_OPTS=""
 if [ "$USE_KRUN" = "1" ]; then
-    set -- --runtime "$KRUN_BIN" --annotation io.krun.memory=2048 "$@"
+    EXTRA_OPTS="--ulimit nproc=100:100 --annotation krun.cpus=2"
 fi
 
-podman run -it "$@" "${IMAGE_NAME}:latest"
+echo "[*] Creating isolated container..."
+podman run -it \
+    --name "$CONTAINER_NAME" \
+    --volume "$SANDBOX_DIR":/home/aiuser:z \
+    --tmpfs /tmp:rw,noexec,nosuid,size=1g\
+    $EXTRA_OPTS \
+    "${IMAGE_NAME}:latest"

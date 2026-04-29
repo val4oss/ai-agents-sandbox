@@ -163,10 +163,40 @@ podman info | grep rootless   # expected: rootless: true
 
 ### Optional: krun for microVM isolation (recommended)
 
+MicroVM mode requires `krun` (crun with libkrun support) and matching runtime
+libraries. The versions bundled with the base OS are often too old — use the
+**Virtualization:containers** repository which ships tested, compatible builds.
+
+#### openSUSE Tumbleweed
+
 ```bash
-sudo zypper install krun
+sudo zypper install crun libkrun1 libkrunfw5
 sudo usermod -aG kvm "$USER"   # log out and back in afterwards
 ```
+
+#### openSUSE Leap 16.0
+
+The base Leap repo ships outdated libkrun builds (1.x from 2023) that are
+incompatible with the current crun. Add the Virtualization:containers repo
+first:
+
+```bash
+sudo zypper addrepo \
+  https://download.opensuse.org/repositories/Virtualization:/containers/16.0/ \
+  Virtualization_containers
+sudo zypper addrepo \
+  https://download.opensuse.org/repositories/Virtualization/16.0/ \
+  Virtualization
+sudo zypper --gpg-auto-import-keys refresh Virtualization_containers \
+  Virtualization
+sudo zypper install --from Virtualization_containers crun
+sudo zypper install --from Virtualization libkrun1 libkrunfw5
+sudo usermod -aG kvm "$USER"   # log out and back in afterwards
+```
+
+Minimum required versions: `crun ≥ 1.22`, `libkrun ≥ 1.17`, `libkrunfw ≥ 5`.
+
+---
 
 `make run` will detect krun automatically and enable microVM mode. If krun is
 not installed or KVM is unavailable, the script prints what is missing and how

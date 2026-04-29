@@ -6,7 +6,7 @@ IMG_D="${ROOT_D}/image"
 IMG_NAME="ai-agents-sandbox"
 IMG_TAG="0.1"
 
-VALID_AGENTS="$(grep "^AGENTS := " Makefile | sed 's/.*:= //')"
+VALID_AGENTS="$(grep "^AGENTS.*:= " Makefile | sed 's/.*:= //')"
 
 validate_agent() {
     _agent="$1"
