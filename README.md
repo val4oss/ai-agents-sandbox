@@ -92,6 +92,50 @@ ai-agents-sandbox/
 | Persistence via host volume | Tokens stored in `sandbox/` under your control |
 | Isolated from real `~/.config` | Container never sees your SSH keys, GPG keys or `.netrc` |
 
+### 🧊 MicroVM isolation (krun)
+
+When `krun` is installed and KVM is available, `make run` automatically starts
+each container inside a dedicated **microVM** backed by KVM rather than sharing
+the host kernel. The attack path becomes:
+
+```
+container process
+  → escape namespaces    (caps / seccomp / rootless — existing defence)
+  → exploit microVM kernel  (separate minimal kernel, tiny attack surface)
+  → escape KVM hypervisor   (hardware boundary: Intel VT-x / AMD-V)
+  → reach host kernel
+```
+
+| Gain | Detail |
+|---|---|
+| Separate kernel | A container kernel exploit stays inside the microVM |
+| Hardware boundary | Two extra escape layers vs. namespace-only isolation |
+| Network | TSI (Transparent Socket Impersonation) replaces slirp4netns — internet access is preserved |
+
+Use `make run no-microvm` (or `make run <agent> no-microvm`) to opt out when
+KVM is not available or not desired.
+
+#### macOS
+
+KVM is not available on macOS, so krun does not apply. `make run` detects
+macOS automatically, prints a notice, and falls back to standard mode without
+requiring `no-microvm`.
+
+Podman on macOS runs every container inside a Linux VM managed by
+`podman machine` and backed by **Apple Hypervisor.framework**. That VM is
+itself a hardware-level boundary between the container and the macOS host,
+providing isolation comparable to what krun adds on Linux — with no extra
+configuration needed.
+
+```
+container process
+  → escape namespaces    (caps / seccomp / rootless — existing defence)
+  → reach podman machine VM kernel   (hardware boundary via Hypervisor.framework)
+  → reach macOS host
+```
+
+---
+
 ### 📊 Resource limits
 
 | Measure | Flag | Effect |
@@ -116,6 +160,20 @@ sudo zypper install podman slirp4netns
 # Verify rootless mode is active
 podman info | grep rootless   # expected: rootless: true
 ```
+
+### Optional: krun for microVM isolation (recommended)
+
+```bash
+sudo zypper install krun
+sudo usermod -aG kvm "$USER"   # log out and back in afterwards
+```
+
+`make run` will detect krun automatically and enable microVM mode. If krun is
+not installed or KVM is unavailable, the script prints what is missing and how
+to fix it, or how to skip microVM with `no-microvm`.
+
+> If your host is itself a VM, nested virtualisation must be enabled on the
+> hypervisor (AMD: `kvm_amd.nested=1`, Intel: `kvm_intel.nested=1`).
 
 ---
 
@@ -176,15 +234,17 @@ podman image inspect ai-agents-sandbox:latest | grep -E "User|Size"
 ## Usage
 
 ```bash
-make build            # Build the all-in-one image
-make build <agent>    # Build an agent-specific image (claude | copilot | gemini)
-make run              # Start (or resume) the all-in-one container
-make run <agent>      # Start (or resume) an agent-specific container
-make clean            # Remove the container (auth and workspace preserved)
-make clean <agent>    # Remove a specific agent container
-make clean-all        # Remove the container + all auth tokens (workspace preserved)
-make clean-all <agent># Remove a specific agent container + its auth tokens
-make help             # Show all available commands
+make build              # Build the all-in-one image
+make build <agent>      # Build an agent-specific image (claude | copilot | gemini)
+make run                # Start (or resume) the all-in-one container (microVM if available)
+make run <agent>        # Start (or resume) an agent-specific container
+make run no-microvm     # Start without microVM isolation
+make run <agent> no-microvm  # Start agent-specific container without microVM
+make clean              # Remove the container (auth and workspace preserved)
+make clean <agent>      # Remove a specific agent container
+make clean-all          # Remove the container + all auth tokens (workspace preserved)
+make clean-all <agent>  # Remove a specific agent container + its auth tokens
+make help               # Show all available commands
 ```
 
 Or directly with the scripts if `make` is not available:
