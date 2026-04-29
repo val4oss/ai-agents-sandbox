@@ -11,6 +11,17 @@ agent_enabled() {
     esac
 }
 
+if [ "$(id -u)" = "0" ] && id aiuser >/dev/null 2>&1; then
+    _uid="$(id -u aiuser)"
+    _guid="$(id -g aiuser)"
+    _home="$(getent passwd aiuser | cut -d: -f6)"
+    export HOME="$_home"
+    export USER="aiuser"
+    export LOGNAME="aiuser"
+    cd "$HOME" 2>/dev/null || true
+    exec setpriv --reuid="$_uid" --regid="$_guid" --init-groups "$0" "$@"
+fi
+
 # ── Home provisioning (first-run or after clean) ─────────────────────────────
 # Files are copied only if they do not already exist (cp -n).
 # This allows users to customise their home without losing changes on restart.

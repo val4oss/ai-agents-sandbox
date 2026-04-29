@@ -1,8 +1,8 @@
 # AI Agents Sandbox
 
-A secure, isolated container environment for running AI coding agents
-(GitHub Copilot, Gemini CLI, Claude Code) on **openSUSE Tumbleweed**
-using rootless Podman.
+A secure, isolated environment for running AI coding agents (GitHub Copilot,
+Gemini CLI, Claude Code) on **openSUSE Tumbleweed** using rootless container
+(Podman) and microvm (libkrun).
 
 > Credentials are **never baked into the image**.
 > Authentication is performed at runtime and persisted via a mounted
@@ -92,13 +92,63 @@ ai-agents-sandbox/
 | Persistence via host volume | Tokens stored in `sandbox/` under your control |
 | Isolated from real `~/.config` | Container never sees your SSH keys, GPG keys or `.netrc` |
 
+### 🧊 MicroVM isolation (krun)
+
+When `krun` is installed and KVM is available, `make run` automatically starts
+each container inside a dedicated **microVM** backed by KVM rather than sharing
+the host kernel. The attack path becomes:
+
+```
+container process
+  → escape namespaces    (caps / seccomp / rootless — existing defence)
+  → exploit microVM kernel  (separate minimal kernel, tiny attack surface)
+  → escape KVM hypervisor   (hardware boundary: Intel VT-x / AMD-V)
+  → reach host kernel
+```
+
+| Gain | Detail |
+|---|---|
+| Separate kernel | A container kernel exploit stays inside the microVM |
+| Hardware boundary | Two extra escape layers vs. namespace-only isolation |
+| Network | TSI (Transparent Socket Impersonation) replaces slirp4netns — internet access is preserved |
+
+Use `make run no-microvm` (or `make run <agent> no-microvm`) to opt out when
+KVM is not available or not desired.
+
+#### macOS
+
+KVM is not available on macOS, so krun does not apply. `make run` detects
+macOS automatically, prints a notice, and falls back to standard mode without
+requiring `no-microvm`.
+
+Podman on macOS runs every container inside a Linux VM managed by
+`podman machine` and backed by **Apple Hypervisor.framework**. That VM is
+itself a hardware-level boundary between the container and the macOS host,
+providing isolation comparable to what krun adds on Linux — with no extra
+configuration needed.
+
+```
+container process
+  → escape namespaces    (caps / seccomp / rootless — existing defence)
+  → reach podman machine VM kernel   (hardware boundary via Hypervisor.framework)
+  → reach macOS host
+```
+
+---
+
 ### 📊 Resource limits
 
 | Measure | Flag | Effect |
 |---|---|---|
-| Memory limit |  | Needs to use podman machine |
-| CPU limit |  | Needs to use podman machine |
+| Memory limit | `krun.ram_mib=4096` | **microvm** only. Set in krun_vm.json OR annotations |
+| CPU limit | `krun.cpus=2` | **microvm** only. Set in krun_vm.json OR annotations |
 | Process limit | `pids_limit = 100` | Container cannot spawn more than 100 processes |
+
+> cpu and memory limits for microVMs can be set via `krun_vm.json` (for
+> `crun --version` < `1.27`) or directly as container annotations
+> (`--annotation "krun.cpus=2" --annotation "krun.ram_mib=4096"`). The defaults
+> are 2 CPUs and 4 GB RAM, which are sufficient for typical agent workloads
+> while keeping the attack surface minimal.
 
 ```bash
 cat /sys/fs/cgroup/user.slice/user-$(id -u).slice/cgroup.controllers
@@ -116,6 +166,50 @@ sudo zypper install podman slirp4netns
 # Verify rootless mode is active
 podman info | grep rootless   # expected: rootless: true
 ```
+
+### Optional: krun for microVM isolation (recommended)
+
+MicroVM mode requires `krun` (crun with libkrun support) and matching runtime
+libraries. The versions bundled with the base OS are often too old — use the
+**Virtualization:containers** repository which ships tested, compatible builds.
+
+#### openSUSE Tumbleweed
+
+```bash
+sudo zypper install crun libkrun1 libkrunfw5
+sudo usermod -aG kvm "$USER"   # log out and back in afterwards
+```
+
+#### openSUSE Leap 16.0
+
+The base Leap repo ships outdated libkrun builds (1.x from 2023) that are
+incompatible with the current crun. Add the Virtualization:containers repo
+first:
+
+```bash
+sudo zypper addrepo \
+  https://download.opensuse.org/repositories/Virtualization:/containers/16.0/ \
+  Virtualization_containers
+sudo zypper addrepo \
+  https://download.opensuse.org/repositories/Virtualization/16.0/ \
+  Virtualization
+sudo zypper --gpg-auto-import-keys refresh Virtualization_containers \
+  Virtualization
+sudo zypper install --from Virtualization_containers crun
+sudo zypper install --from Virtualization libkrun1 libkrunfw5
+sudo usermod -aG kvm "$USER"   # log out and back in afterwards
+```
+
+Minimum required versions: `crun ≥ 1.22`, `libkrun ≥ 1.17`, `libkrunfw ≥ 5`.
+
+---
+
+`make run` will detect krun automatically and enable microVM mode. If krun is
+not installed or KVM is unavailable, the script prints what is missing and how
+to fix it, or how to skip microVM with `no-microvm`.
+
+> If your host is itself a VM, nested virtualisation must be enabled on the
+> hypervisor (AMD: `kvm_amd.nested=1`, Intel: `kvm_intel.nested=1`).
 
 ---
 
@@ -176,15 +270,17 @@ podman image inspect ai-agents-sandbox:latest | grep -E "User|Size"
 ## Usage
 
 ```bash
-make build            # Build the all-in-one image
-make build <agent>    # Build an agent-specific image (claude | copilot | gemini)
-make run              # Start (or resume) the all-in-one container
-make run <agent>      # Start (or resume) an agent-specific container
-make clean            # Remove the container (auth and workspace preserved)
-make clean <agent>    # Remove a specific agent container
-make clean-all        # Remove the container + all auth tokens (workspace preserved)
-make clean-all <agent># Remove a specific agent container + its auth tokens
-make help             # Show all available commands
+make build              # Build the all-in-one image
+make build <agent>      # Build an agent-specific image (claude | copilot | gemini)
+make run                # Start (or resume) the all-in-one container (microVM if available)
+make run <agent>        # Start (or resume) an agent-specific container
+make run no-microvm     # Start without microVM isolation
+make run <agent> no-microvm  # Start agent-specific container without microVM
+make clean              # Remove the container (auth and workspace preserved)
+make clean <agent>      # Remove a specific agent container
+make clean-all          # Remove the container + all auth tokens (workspace preserved)
+make clean-all <agent>  # Remove a specific agent container + its auth tokens
+make help               # Show all available commands
 ```
 
 Or directly with the scripts if `make` is not available:

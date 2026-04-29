@@ -39,6 +39,7 @@ RUN zypper --non-interactive refresh && \
         nodejs \
         npm \
         wget \
+        xclip \
     && zypper clean --all \
     && rm -rf /var/cache/zypp/* /tmp/* /var/tmp/*
 
@@ -110,8 +111,19 @@ COPY --chmod=755 scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
 # =====================================
 # Default home provisioning (skel-like)
 # -------------------------------------
-COPY --chmod=644 agents/copilot/*.md /usr/share/ai-sandbox/agents/copilot/
-COPY --chmod=644 skel/.gitconfig      /usr/share/ai-sandbox/skel/.gitconfig
+COPY --chmod=644 agents/copilot/*.md    /usr/share/ai-sandbox/agents/copilot/
+COPY --chmod=644 skel/.gitconfig        /usr/share/ai-sandbox/skel/.gitconfig
+
+# =======================
+# Config for krun microvm (needed for crun version < 1.27)
+# -----------------------
+COPY --chmod=644 .krun_vm.json          /.krun_vm.json
+
+# ==================================================================
+# Silence harmless "tty: ttyname error" under libkrun virtio-console
+# ------------------------------------------------------------------
+RUN sed -i "s/GPG_TTY=\"\`tty\`\"/GPG_TTY=\"$(tty 2>/dev/null || true)\"/g" \
+    /etc/bash.bashrc
 
 # =============
 # Switch to non-root user for runtime
