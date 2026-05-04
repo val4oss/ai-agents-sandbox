@@ -89,7 +89,6 @@ check_microvm() {
 
 # Determine runtime mode
 USE_KRUN=0
-CONF_FILE="$SCRIPT_D/containers.conf"
 
 if [ "$(uname -s)" = "Darwin" ] && [ "$USE_MICROVM" = "1" ]; then
     printf '[!] macOS detected — KVM is not available;\n'
@@ -106,14 +105,11 @@ if [ "$USE_MICROVM" = "1" ]; then
         printf '    To skip this check, run with: %s\n' "$_fallback"
     else
         USE_KRUN=1
-        CONF_FILE="$SCRIPT_D/containers-krun.conf"
         printf '[*] MicroVM isolation enabled (krun)\n'
     fi
 else
     printf '[*] MicroVM isolation disabled\n'
 fi
-
-export CONTAINERS_CONF="$CONF_FILE"
 
 # Resume a stopped container (auth state preserved)
 if podman container exists "$CONTAINER_NAME"; then
@@ -129,9 +125,25 @@ if podman container exists "$CONTAINER_NAME"; then
     fi
 fi
 
-echo "[*] Creating isolated container..."
-podman run -it \
+set --
+[ "$USE_KRUN" = "1" ] && set -- --runtime krun
+
+set -- "$@" \
     --name "$CONTAINER_NAME" \
-    --volume "$SANDBOX_DIR":/home/aiuser:z \
-    --tmpfs /tmp:rw,noexec,nosuid,size=1g\
-    "${IMAGE_NAME}:latest"
+    --volume "$SANDBOX_DIR:/home/aiuser:z" \
+    --tmpfs "/tmp:rw,nosuid,size=1g" \
+    --cap-drop ALL \
+    --security-opt no-new-privileges \
+    --userns=keep-id \
+    --hostname ai-sandbox \
+    --pids-limit 1024
+
+if [ "$USE_KRUN" = "1" ]; then
+    set -- "$@" --annotation krun.ram_mib=4096 --annotation krun.cpus=2
+else
+    set -- "$@" --network slirp4netns
+fi
+
+echo "[*] Creating isolated container..."
+echo "args: $*"
+podman run -it "$@" "${IMAGE_NAME}:latest"
