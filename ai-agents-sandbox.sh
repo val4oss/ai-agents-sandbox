@@ -39,6 +39,7 @@ AGENT=""
 USE_MICROVM=1
 ACTION=""
 ALL=false
+TOOLS_NEEDED="podman sed grep"
 
 # ========
 # Includes
@@ -49,6 +50,25 @@ ALL=false
 # ==================
 # Internal functions
 # ------------------
+
+# check if needed tools are available on the system
+_check_tools_needed() {
+    _ret="$SUCCESS"
+    for dep in $TOOLS_NEEDED; do
+        if ! command -v "$dep" > /dev/null 2>&1; then
+            if [ ${missing_deps+x} ]; then
+                missing_deps="$missing_deps $dep"
+            else
+                missing_deps="$dep"
+            fi
+        fi
+    done
+    if [ ${missing_deps+x} ]; then
+        print_error "Some tools are missing on your system: $missing_deps"
+        _ret="$FAILURE"
+    fi
+    return "$_ret"
+}
 
 # check if agent is valide
 _valide_agent() {
@@ -211,6 +231,17 @@ run() {
 '${AGENT}' (not recommended)..."
     fi
 
+    if [ "$USE_MICROVM" = "1" ]; then
+        TOOLS_NEEDED="$TOOLS_NEEDED krun"
+    else
+        TOOLS_NEEDED="$TOOLS_NEEDED slirp4netns"
+    fi
+    if ! _check_tools_needed; then
+        print_error "Required tools for the selected isolation are missing."
+        print_error "Please install them and try again."
+        return "$FAILURE"
+    fi
+
     set --
     [ "$USE_MICROVM" = "1" ] && set -- --runtime krun
     set -- "$@" \
@@ -292,6 +323,11 @@ status() {
 # ===========
 # Entry point
 # -----------
+
+_check_tools_needed || {
+    print_error "Please install the missing tools and try again. Aborting."
+    exit $FAILURE
+}
 
 # Get arguments
 if [ $# -lt 1 ]; then
