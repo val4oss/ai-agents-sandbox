@@ -196,15 +196,24 @@ run() {
     # Resume a stopped container
     if podman container exists "$CTN_NAME"; then
         STATE=$(podman inspect "$CTN_NAME" --format '{{.State.Status}}')
-        if [ "$STATE" = "running" ]; then
-            print_info "Attaching to running container..."
-            podman exec -it "$CTN_NAME" bash
-            return "$SUCCESS"
-        elif [ "$STATE" = "exited" ]; then
-            print_info "Resuming existing container..."
-            podman start -ai "$CTN_NAME"
-            return "$SUCCESS"
-        fi
+        case "$STATE" in
+            running) {
+                print_info "Attaching to running container..."
+                podman exec -it "$CTN_NAME" bash
+                return "$SUCCESS"
+            };;
+            exited)  {
+                print_info "Resuming existing container..."
+                podman start -ai "$CTN_NAME"
+                return "$SUCCESS"
+            };;
+            *)       {
+                print_error "Container '$CTN_NAME' is in state '$STATE'"
+                print_error "  -> Cannot attach or resume."
+                print_error "  -> Please use 'clean' before 'run'."
+                return "$FAILURE"
+            };;
+        esac
     fi
 
     if [ "$(uname -s)" = "Darwin" ] && [ "$USE_MICROVM" = "1" ]; then
