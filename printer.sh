@@ -38,8 +38,8 @@ print_warning() {
     color="\033[0;33m"
     color_light="\033[1;33m"
     color_none="\033[0m"
-    printf "%b[WARNING]%b %s%b\n" "${color}" "${color_light}" "$1" \
-"${color_none}"
+    printf "%b[WARN]%b %s%b\n" "${color}" "${color_light}" "$1" \
+        "${color_none}"
 }
 
 ###
@@ -53,7 +53,8 @@ print_error() {
     color="\033[0;31m"
     color_light="\033[1;31m"
     color_none="\033[0m"
-    printf "%b[ERROR]%b %s%b\n" "${color}" "${color_light}" "$1" "${color_none}" >&2
+    printf "%b [ERR]%b %s%b\n" "${color}" "${color_light}" "$1" \
+        "${color_none}" >&2
 }
 
 ###
@@ -83,5 +84,5 @@ print_debug() {
     color="\033[0;34m"
     color_light="\033[1;34m"
     color_none="\033[0m"
-    printf "%b[DEBUG]%b %s%b\n" "${color}" "${color_light}" "$1" "${color_none}"
+    printf "%b[DEBG]%b %s%b\n" "${color}" "${color_light}" "$1" "${color_none}"
 }
