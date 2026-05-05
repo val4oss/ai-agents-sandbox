@@ -103,10 +103,10 @@ automatically on first login. All runtime content is excluded from git via
 ## Build the Image
 
 ```bash
-sh ai-agents-sandboxndbox.sh build           # Build the all-in-one image  (ai-agents-sandbox:latest)
-sh ai-agents-sandboxndbox.sh build copilot   # Build a Copilot-only image   (ai-agents-sandbox-copilot:latest)
-sh ai-agents-sandboxndbox.sh build claude    # Build a Claude-only image    (ai-agents-sandbox-claude:latest)
-sh ai-agents-sandboxndbox.sh build gemini    # Build a Claude-only image    (ai-agents-sandbox-claude:latest)
+sh ai-agents-sandbox.sh build           # Build the all-in-one image  (ai-agents-sandbox:latest)
+sh ai-agents-sandbox.sh build copilot   # Build a Copilot-only image   (ai-agents-sandbox-copilot:latest)
+sh ai-agents-sandbox.sh build claude    # Build a Claude-only image    (ai-agents-sandbox-claude:latest)
+sh ai-agents-sandbox.sh build gemini    # Build a Claude-only image    (ai-agents-sandbox-claude:latest)
 ```
 
 The script copies `image/` into a temporary `build/` directory, injects
