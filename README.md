@@ -10,6 +10,12 @@ Gemini CLI, Claude Code) on **openSUSE Tumbleweed** using rootless container
 
 ---
 
+## Project activity
+
+![Alt](https://repobeats.axiom.co/api/embed/4fa979a5fa985819cac3447152b2dfa6c697fafd.svg "Repobeats analytics image")
+
+---
+
 ## Table of Contents
 
 - [Requirements](#requirements)
