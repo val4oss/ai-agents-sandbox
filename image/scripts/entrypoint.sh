@@ -92,7 +92,6 @@ if agent_enabled "copilot"; then
     check_auth "GitHub (gh)" \
         "gh auth status" \
         "gh auth login --scopes 'copilot'"
-    echo "  ✅ GitHub Copilot : built-in (gh copilot suggest / explain)"
 fi
 
 if agent_enabled "gemini"; then

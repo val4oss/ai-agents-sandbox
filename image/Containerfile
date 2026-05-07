@@ -101,7 +101,9 @@ RUN groupadd --gid $AI_GID $AI_USER && \
 RUN case " $AGENT " in *\ gemini\ *) \
         npm install -g @google/gemini-cli ;; esac; \
     case " $AGENT " in *\ claude\ *) \
-        npm install -g @anthropic-ai/claude-code ;; esac
+        npm install -g @anthropic-ai/claude-code ;; esac; \
+    case " $AGENT " in *\ copilot\ *) \
+        wget -qO- https://gh.io/copilot-install | bash ;; esac
 
 # ============
 # Copy scripts
