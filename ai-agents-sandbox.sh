@@ -41,6 +41,9 @@ ACTION=""
 ALL=false
 TOOLS_NEEDED="podman sed grep"
 
+# usefull var
+MIN_LIBKRUN_VER="1.19.0"
+
 # ========
 # Includes
 # --------
@@ -101,6 +104,22 @@ _check_microvm() {
     if [ ! -x "/usr/bin/krun" ]; then
         print_warning "krun not found at /usr/bin/krun."
         print_warning "     -> Install it via your package manager."
+        _ret="$FAILURE"
+    fi
+
+    # for microvm libkrun needs to be > 1.18.0, that includes this fix:
+    # https://github.com/containers/libkrun/commit/757b080b4c5f5934f8e5320a38b401aaec116764
+    _ver="$(readlink "$(ldconfig -p | grep libkrun.so | awk '{print $NF}')"\
+        | sed -E 's/.*\.so\.//')"
+    print_debug "Found libkrun version: $_ver"
+    if [ "$_ver" != "" ] &&\
+        printf '%s\n' "$_ver" |\
+        awk -F . '{ printf("%d%03d%03d\n", $1,$2,$3); }' |\
+        awk -v req="$(printf '%s\n' "${MIN_LIBKRUN_VER}" |\
+        awk -F . '{ printf("%d%03d%03d\n", $1,$2,$3); }')" \
+            '{ if ($1 < req) exit 0; else exit 1; }'; then
+        print_warning "libkrun version is too old (found: $_ver, required: > ${MIN_LIBKRUN_VER})."
+        print_warning "     -> Please update libkrun to a version > ${MIN_LIBKRUN_VER}."
         _ret="$FAILURE"
     fi
 
