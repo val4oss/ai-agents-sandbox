@@ -119,12 +119,6 @@ COPY --chmod=644 skel/.gitconfig        /usr/share/ai-sandbox/skel/.gitconfig
 # -----------------------
 COPY --chmod=644 .krun_vm.json          /.krun_vm.json
 
-# ==================================================================
-# Silence harmless "tty: ttyname error" under libkrun virtio-console
-# ------------------------------------------------------------------
-RUN sed -i "s/GPG_TTY=\"\`tty\`\"/GPG_TTY=\"$(tty 2>/dev/null || true)\"/g" \
-    /etc/bash.bashrc
-
 # =============
 # Switch to non-root user for runtime
 # -------------
