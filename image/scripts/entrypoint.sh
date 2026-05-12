@@ -18,6 +18,7 @@ if [ "$(id -u)" = "0" ] && id aiuser >/dev/null 2>&1; then
     export HOME="$_home"
     export USER="aiuser"
     export LOGNAME="aiuser"
+    export TERM="xterm-256color"
     cd "$HOME" 2>/dev/null || true
     exec setpriv --reuid="$_uid" --regid="$_guid" --init-groups "$0" "$@"
 fi

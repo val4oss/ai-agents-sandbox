@@ -245,7 +245,12 @@ run() {
     fi
 
     if [ "$USE_MICROVM" -eq 1 ]; then
-        if ! _check_microvm; then
+        if [ "$AGENT" = "copilot" ]; then
+            print_warning "Copilot CLI sends large HTTP/2 frames that trigger a krun vsock"
+            print_warning "BufDescTooSmall bug. Falling back to no-microvm for copilot."
+            print_warning "Tracking: https://github.com/containers/libkrun/issues/674"
+            USE_MICROVM=0
+        elif ! _check_microvm; then
             print_warning "MicroVM isolation is not available."
             print_warning "     -> Running without it for agent '${AGENT}' \
 (not recommended)..."
