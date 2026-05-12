@@ -26,7 +26,7 @@ FAILURE=1
 # Path variables
 ROOT_D="$(cd "$(dirname "$0")" && pwd)"
 IMG_D="${ROOT_D}/image"
-SANDBOX_D="$ROOT_D/sandbox"
+SANDBOX_D="$ROOT_D/workspace"
 
 # Container variables
 IMG_NAME="ai-agents-sandbox"
@@ -235,6 +235,17 @@ run() {
         esac
     fi
 
+    _home_volume="$CTN_NAME-home"
+    if podman volume exists "$_home_volume"; then
+        print_debug "Using existing home volume '$_home_volume'."
+    else
+        print_info "Creating home volume '$_home_volume'..."
+        if ! podman volume create "$_home_volume" ; then
+            print_error "Failed to create volume '$_home_volume'."
+            return "$FAILURE"
+        fi
+    fi
+
     if [ "$(uname -s)" = "Darwin" ] && [ "$USE_MICROVM" = "1" ]; then
         print_warning "[!] macOS detected — KVM is not available;"
         print_warning "    -> running without microVM isolation"
@@ -279,7 +290,8 @@ run() {
     [ "$USE_MICROVM" = "1" ] && set -- --runtime krun
     set -- "$@" \
         --name "$CTN_NAME" \
-        --volume "$SANDBOX_D:/home/aiuser:z" \
+        --volume "$_home_volume:/home/aiuser:z" \
+        --volume "$SANDBOX_D:/home/aiuser/workspace:z" \
         --tmpfs "/tmp:rw,nosuid,size=1g" \
         --cap-drop ALL \
         --security-opt no-new-privileges \
@@ -317,18 +329,20 @@ clean() {
     else
         print_info "No container '$CTN_NAME' found."
     fi
+
     if [ "$ALL" = true ]; then
-        print_info "Cleaning auth tokens and workspace for agent '${AGENT}'..."
-        rm -rf \
-            "$SANDBOX_D/.config/gh" \
-            "$SANDBOX_D/.local" \
-            "$SANDBOX_D/.gemini" \
-            "$SANDBOX_D/.claude" \
-            "$SANDBOX_D/.copilot" \
-            "$SANDBOX_D/.bash_history" \
-            "$SANDBOX_D/venv" \
-            "$SANDBOX_D/.gitconfig" \
-            "$SANDBOX_D/workspace"
+        _home_volume="$CTN_NAME-home"
+        if podman volume exists "$_home_volume"; then
+            print_info "Removing home volume '$_home_volume'..."
+            if podman volume rm -f "$_home_volume"; then
+                print_info "Volume removed."
+            else
+                print_error "Failed to remove volume '$_home_volume'."
+                _ret="$FAILURE"
+            fi
+        else
+            print_debug "No volume '$_home_volume' found."
+        fi
         print_info "Auth tokens and workspace cleaned."
     fi
     return "$_ret"

@@ -121,4 +121,6 @@ fi
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Session started — UID=$(id -u) | $(uname -n) | agent(s)=${AGENT}"
 echo ""
 
+cd "$HOME/workspace" 2>/dev/null || true
+
 exec "$@"
