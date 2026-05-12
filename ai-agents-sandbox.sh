@@ -42,7 +42,7 @@ ALL=false
 TOOLS_NEEDED="podman sed grep"
 
 # usefull var
-MIN_LIBKRUN_VER="1.19.0"
+MIN_LIBKRUN_VER="1.18.0"
 
 # ========
 # Includes
