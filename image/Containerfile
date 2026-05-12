@@ -69,7 +69,7 @@ RUN case " $AGENT " in \
 # Google Cloud SDK - installed when AGENT contains gemini or claude
 # ----------------
 RUN case " $AGENT " in \
-    *\ gemini\ *|*\ claude\ *) \
+    *\ claude\ *) \
         REPO_ARCH=$(uname -m) && \
         rpm --import https://packages.cloud.google.com/yum/doc/rpm-package-key-v10.gpg && \
         zypper refresh && \
