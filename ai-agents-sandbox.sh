@@ -155,6 +155,15 @@ another VM."
     return "$_ret"
 }
 
+# Detect the default public-facing interface, excluding VPN/tunnel interfaces.
+# Returns the first default-route interface not matching tun|wg|vpn|tap|ppp.
+_detect_public_iface() {
+    ip route show default \
+        | awk '{print $5}' \
+        | grep -Ev 'tun|wg|vpn|tap|ppp' \
+        | head -1
+}
+
 # ================
 # Action functions
 # ----------------
@@ -278,7 +287,7 @@ run() {
     if [ "$USE_MICROVM" = "1" ]; then
         TOOLS_NEEDED="$TOOLS_NEEDED krun"
     else
-        TOOLS_NEEDED="$TOOLS_NEEDED slirp4netns"
+        TOOLS_NEEDED="$TOOLS_NEEDED slirp4netns ip"
     fi
     if ! _check_tools_needed; then
         print_error "Required tools for the selected isolation are missing."
@@ -298,10 +307,20 @@ run() {
         --userns=keep-id \
         --hostname ai-sandbox \
         --pids-limit 1024
-    if [ "$USE_MICROVM" = "1" ]; then
-        set -- "$@" --annotation krun.ram_mib=4096 --annotation krun.cpus=2
+    _iface=$(_detect_public_iface)
+    if [ -n "$_iface" ]; then
+        print_info "Binding outbound network to interface: $_iface"
+        set -- "$@" --network "slirp4netns:outbound_addr=${_iface}"
+        set -- "$@" --dns 1.1.1.1 --dns 8.8.8.8
     else
+        print_warning "Could not detect a public interface;"
+        print_warning "falling back to default slirp4netns."
         set -- "$@" --network slirp4netns
+    fi
+    if [ "$USE_MICROVM" = "1" ]; then
+        # Avaialble on crun > 1.27, below /.krun_config.json in the image is
+        # required
+        set -- "$@" --annotation krun.ram_mib=4096 --annotation krun.cpus=2
     fi
     _args=$*
     print_info "Starting isolated container..."
