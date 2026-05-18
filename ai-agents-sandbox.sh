@@ -31,7 +31,7 @@ SANDBOX_D="$ROOT_D/workspace"
 # Container variables
 IMG_NAME="ai-agents-sandbox"
 CTN_NAME="ai-agents-sandbox"
-IMG_TAG="0.1.0"
+IMG_TAG="0.9.0"
 VALID_AGENTS="copilot claude gemini"
 
 # argument variables

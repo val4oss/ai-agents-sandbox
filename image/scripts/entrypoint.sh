@@ -76,7 +76,7 @@ agent_enabled "gemini"   && agent_lines="${agent_lines}║    • gemini       �
 agent_enabled "claude"   && agent_lines="${agent_lines}║    • claude       → Claude Code                              ║\n"
 
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║         AI Agents Sandbox v0.1.0 — Secure Mode               ║" 
+echo "║         AI Agents Sandbox v0.9.0 — Secure Mode               ║" 
 echo "╠══════════════════════════════════════════════════════════════╣"
 echo "║  Available agents :                                          ║"
 printf "$agent_lines"
