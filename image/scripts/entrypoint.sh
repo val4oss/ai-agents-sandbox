@@ -71,9 +71,10 @@ neofetch
 
 # Build banner  lines for active agents
 agent_lines=""
-agent_enabled "copilot" && agent_lines="${agent_lines}║    • gh copilot   → GitHub Copilot CLI                       ║\n"
+agent_enabled "copilot"  && agent_lines="${agent_lines}║    • gh copilot   → GitHub Copilot CLI                       ║\n"
 agent_enabled "gemini"   && agent_lines="${agent_lines}║    • gemini       → Gemini CLI                               ║\n"
 agent_enabled "claude"   && agent_lines="${agent_lines}║    • claude       → Claude Code                              ║\n"
+agent_enabled "opencode" && agent_lines="${agent_lines}║    • opencode     → Open Code                                ║\n"
 
 echo "╔══════════════════════════════════════════════════════════════╗"
 echo "║         AI Agents Sandbox v0.9.0 — Secure Mode               ║" 

@@ -6,7 +6,7 @@
 
 FROM registry.opensuse.org/opensuse/tumbleweed:latest
 
-ARG AGENT="copilot gemini claude"
+ARG AGENT="copilot gemini claude opencode"
 
 LABEL maintainer="val4oss" \
       description="AI Agents sandbox —${AGENT}, rootless" \
@@ -102,6 +102,8 @@ RUN case " $AGENT " in *\ gemini\ *) \
         npm install -g @google/gemini-cli ;; esac; \
     case " $AGENT " in *\ claude\ *) \
         npm install -g @anthropic-ai/claude-code ;; esac; \
+    case " $AGENT " in *\ opencode\ *) \
+        npm install -g opencode-ai ;; esac && \
     case " $AGENT " in *\ copilot\ *) \
         wget -qO- https://gh.io/copilot-install | bash ;; esac
 
