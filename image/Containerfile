@@ -121,7 +121,11 @@ COPY --chmod=644 skel/.gitconfig        /usr/share/ai-sandbox/skel/.gitconfig
 # =======================
 # Config for krun microvm (needed for crun version < 1.27)
 # -----------------------
-COPY --chmod=644 .krun_vm.json          /.krun_vm.json
+# TODO: use krun_vm.json only for crun < 1.27 in running time.
+# The configuration file will fail the running stage with "Bad file descriptor"
+# For now better to remove it, as during the build stage, crun could be at a
+# different version from the running stage. 
+#COPY --chmod=644 .krun_vm.json          /.krun_vm.json
 
 # =============
 # Switch to non-root user for runtime
