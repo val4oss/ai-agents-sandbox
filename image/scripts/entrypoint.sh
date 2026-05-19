@@ -111,10 +111,19 @@ fi
 echo "────────────────────────────────────────────────────────"
 echo ""
 
-if agent_enabled "claude" || agent_enabled "gemini"; then
+if agent_enabled "claude"; then
     echo "── Notes ───────────────────────────────────────────────"
     echo " To install though Vertex Ai, connect to Google Cloud with: "
     echo "  gcloud auth application-default login"
+    echo "────────────────────────────────────────────────────────"
+    echo ""
+fi
+
+if agent_enabled "gemini"; then
+    echo "── Notes ───────────────────────────────────────────────"
+    echo " If you used a company plan linked to a google project, you would"
+    echo " need to edit the file: ~/.gemini/.env and set:"
+    echo "  GOOGLE_CLOUD_PROJECT=company-gemini-code-assist"
     echo "────────────────────────────────────────────────────────"
     echo ""
 fi
