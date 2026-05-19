@@ -225,40 +225,7 @@ build() {
 # callback for run action
 run() {
     _ret="$SUCCESS"
-    # Resume a stopped container
-    if podman container exists "$CTN_NAME"; then
-        STATE=$(podman inspect "$CTN_NAME" --format '{{.State.Status}}')
-        case "$STATE" in
-            running) {
-                print_info "Attaching to running container..."
-                podman exec -it "$CTN_NAME" bash
-                return "$SUCCESS"
-            };;
-            exited)  {
-                print_info "Resuming existing container..."
-                podman start -ai "$CTN_NAME"
-                return "$SUCCESS"
-            };;
-            *)       {
-                print_error "Container '$CTN_NAME' is in state '$STATE'"
-                print_error "  -> Cannot attach or resume."
-                print_error "  -> Please use 'clean' before 'run'."
-                return "$FAILURE"
-            };;
-        esac
-    fi
-
-    _home_volume="$CTN_NAME-home"
-    if podman volume exists "$_home_volume"; then
-        print_debug "Using existing home volume '$_home_volume'."
-    else
-        print_info "Creating home volume '$_home_volume'..."
-        if ! podman volume create "$_home_volume" ; then
-            print_error "Failed to create volume '$_home_volume'."
-            return "$FAILURE"
-        fi
-    fi
-
+    
     if [ "$(uname -s)" = "Darwin" ] && [ "$USE_MICROVM" = "1" ]; then
         print_warning "[!] macOS detected — KVM is not available;"
         print_warning "    -> running without microVM isolation"
@@ -287,9 +254,21 @@ run() {
         print_warning "Running sandbox without microVM isolation for agent \
 '${AGENT}' (not recommended)..."
     fi
+    
+    _home_volume="$CTN_NAME-home"
+    if podman volume exists "$_home_volume"; then
+        print_debug "Using existing home volume '$_home_volume'."
+    else
+        print_info "Creating home volume '$_home_volume'..."
+        if ! podman volume create "$_home_volume" ; then
+            print_error "Failed to create volume '$_home_volume'."
+            return "$FAILURE"
+        fi
+    fi
 
     if [ "$USE_MICROVM" = "1" ]; then
         TOOLS_NEEDED="$TOOLS_NEEDED krun"
+        CTN_NAME="${CTN_NAME}-microvm"
     else
         TOOLS_NEEDED="$TOOLS_NEEDED slirp4netns ip"
     fi
@@ -297,6 +276,40 @@ run() {
         print_error "Required tools for the selected isolation are missing."
         print_error "Please install them and try again."
         return "$FAILURE"
+    fi
+
+    # Resume a stopped container
+    if podman container exists "$CTN_NAME"; then
+        STATE=$(podman inspect "$CTN_NAME" --format '{{.State.Status}}')
+        case "$STATE" in
+            running) {
+                _runtime=$(
+                    podman inspect "$CTN_NAME" --format '{{.OCIRuntime}}'
+                )
+                if [ -n "$_runtime" ] && [ "$_runtime" = "krun" ]; then
+                    _nbr="$(podman ps -a --format '{{.Names}}' |\
+                            grep -c "$CTN_NAME")"
+                    CTN_NAME="$CTN_NAME-$_nbr"
+                    print_info "A container already run with '$_runtime'."
+                    print_info "Creating a new one with suffixe $CTN_NAME."
+                else
+                    print_info "Attaching to running container..."
+                    podman exec -it "$CTN_NAME" bash
+                    return "$SUCCESS"
+                fi
+            };;
+            exited)  {
+                print_info "Resuming existing container..."
+                podman start -ai "$CTN_NAME"
+                return "$SUCCESS"
+            };;
+            *)       {
+                print_error "Container '$CTN_NAME' is in state '$STATE'"
+                print_error "  -> Cannot attach or resume."
+                print_error "  -> Please use 'clean' before 'run'."
+                return "$FAILURE"
+            };;
+        esac
     fi
 
     set --
@@ -340,8 +353,25 @@ run() {
 # callback for clean action
 clean() {
     _ret="$SUCCESS"
+    if [ "$USE_MICROVM" = "1" ]; then
+        CTN_NAME="${CTN_NAME}-microvm"
+    fi
+
     print_info "Cleaning containers for agent '${AGENT}'..."
     if podman container exists "$CTN_NAME"; then
+        _ctns="$(podman ps -a --format '{{.Names}}' |\
+            grep -E "$CTN_NAME-[0-9]+")"
+        if [ -n "$_ctns" ]; then
+            for _ctn in $_ctns; do
+                print_info "Stopping and removing container '$_ctn'..."
+                if podman rm -f "$_ctn"; then
+                    print_info "Container removed."
+                else
+                    print_error "Failed to remove container '$_ctn'."
+                    _ret="$FAILURE"
+                fi
+            done
+        fi
         print_info "Stopping and removing container '$CTN_NAME'..."
         if podman rm -f "$CTN_NAME"; then
             print_info "Container removed."
