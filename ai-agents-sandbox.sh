@@ -32,7 +32,7 @@ SANDBOX_D="$ROOT_D/workspace"
 IMG_NAME="ai-agents-sandbox"
 CTN_NAME="ai-agents-sandbox"
 IMG_TAG="0.9.0"
-VALID_AGENTS="copilot claude gemini"
+VALID_AGENTS="copilot claude gemini opencode"
 
 # argument variables
 AGENT=""
@@ -269,9 +269,9 @@ run() {
     fi
 
     if [ "$USE_MICROVM" -eq 1 ]; then
-        if [ "$AGENT" = "copilot" ]; then
-            print_warning "Copilot CLI sends large HTTP/2 frames that trigger a krun vsock"
-            print_warning "BufDescTooSmall bug. Falling back to no-microvm for copilot."
+        if [ "$AGENT" = "copilot" ] || [ "$AGENT" = "opencode" ]; then
+            print_warning "${AGENT} CLI sends large HTTP/2 frames that trigger a krun vsock"
+            print_warning "BufDescTooSmall bug. Falling back to no-microvm for ${AGENT}."
             print_warning "Tracking: https://github.com/containers/libkrun/issues/674"
             USE_MICROVM=0
         elif ! _check_microvm; then
