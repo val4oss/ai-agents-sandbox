@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  # ------------------------------------------------------------------
+  # Lint all shell scripts. Architecture-independent; runs once.
+  # ------------------------------------------------------------------
+  shellcheck:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    container:
+      image: registry.opensuse.org/opensuse/tumbleweed:latest
+    steps:
+      - name: Install prerequisites
+        run: |
+          zypper --non-interactive refresh
+          zypper --non-interactive install --no-recommends \
+            git ShellCheck tar gzip
+      - uses: actions/checkout@v4
+      - name: Run shellcheck
+        run: |
+          shellcheck -x ai-agents-sandbox.sh
+          shellcheck -x printer.sh
+          shellcheck -x image/scripts/entrypoint.sh
+
+  # ------------------------------------------------------------------
+  # Build every image variant on every supported architecture.
+  # All 5 (agent) x 2 (arch) jobs run in parallel; one failure does
+  # not abort the others (fail-fast: false).
+  # ------------------------------------------------------------------
+  build:
+    name: build (${{ matrix.agent }}, ${{ matrix.arch }})
+    needs: shellcheck
+    strategy:
+      fail-fast: false
+      matrix:
+        agent: [all-in-one, copilot, claude, gemini, opencode]
+        arch: [x86_64, arm64]
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    container:
+      image: registry.opensuse.org/opensuse/tumbleweed:latest
+      # --privileged is required so the nested podman build can set up
+      # overlayfs and user namespaces inside the worker container.
+      options: --privileged
+    steps:
+      - name: Install prerequisites
+        run: |
+          zypper --non-interactive refresh
+          zypper --non-interactive install --no-recommends \
+            git podman fuse-overlayfs tar gzip sed grep
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: |
+          if [ "${{ matrix.agent }}" = "all-in-one" ]; then
+            sh ai-agents-sandbox.sh build
+          else
+            sh ai-agents-sandbox.sh build ${{ matrix.agent }}
+          fi
+      - name: Show built image
+        run: podman images --filter "reference=ai-agents-sandbox*"
