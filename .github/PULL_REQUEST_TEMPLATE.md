@@ -6,7 +6,7 @@ request, be sure to link to that issue.
 
 ## Types of changes
 
-What types of changes does your code introduce to Appium?
+What types of changes does your code introduce to ai-agents-sandbox?
 _Put an `x` in the boxes that apply_
 
 - [ ] Bugfix (non-breaking change which fixes an issue)
