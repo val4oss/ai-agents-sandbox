@@ -1,8 +1,8 @@
 # AI Agents Sandbox
 
 A secure, isolated environment for running AI coding agents (GitHub Copilot,
-Gemini CLI, Claude Code) on **openSUSE Tumbleweed** using rootless container
-(Podman) and microvm (libkrun).
+Gemini CLI, Claude Code, OpenCode) on **openSUSE Tumbleweed** using rootless
+container (Podman) and microvm (libkrun).
 
 > Credentials are **never baked into the image**.
 > Authentication is performed at runtime and persisted via a mounted
@@ -89,6 +89,7 @@ sh ai-agents-sandbox.sh build           # Build the all-in-one image  (ai-agents
 sh ai-agents-sandbox.sh build copilot   # Build a Copilot-only image  (ai-agents-sandbox-copilot:latest)
 sh ai-agents-sandbox.sh build claude    # Build a Claude-only image   (ai-agents-sandbox-claude:latest)
 sh ai-agents-sandbox.sh build gemini    # Build a Gemini-only image   (ai-agents-sandbox-gemini:latest)
+sh ai-agents-sandbox.sh build opencode  # Build an OpenCode-only image (ai-agents-sandbox-opencode:latest)
 ```
 
 The script copies injects the version number, passes the `AGENT` build-arg to
@@ -244,6 +245,21 @@ sh ai-agents-sandbox.sh run copilot
 
 * [Overview](docs/overview.md) — architecture, volumes, image sizes, security measures
 * [Contributing Guidelines](CONTRIBUTING.md) — coding style, commit message format
+
+To use Google Vertex AI with OpenCode:
+
+Ensure these environment variables are set before starting the sandbox:
+
+```bash
+export GOOGLE_CLOUD_PROJECT=<project ID>
+# Adjust to where `gcloud auth` created your credential file:
+export GOOGLE_APPLICATION_CREDENTIALS=~/.config/gcloud/application_default_credentials.json
+export VERTEX_LOCATION=global
+```
+
+The launcher forwards these variables into the container. If
+`GOOGLE_CLOUD_PROJECT` is unset, the entrypoint tries to read it from
+`gcloud config get-value project`.
 
 ---
 
