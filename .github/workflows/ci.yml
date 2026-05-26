@@ -21,7 +21,7 @@ jobs:
           zypper --non-interactive refresh
           zypper --non-interactive install --no-recommends \
             git ShellCheck tar gzip
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Run shellcheck
         run: |
           shellcheck -x ai-agents-sandbox.sh
@@ -58,7 +58,7 @@ jobs:
           zypper --non-interactive refresh
           zypper --non-interactive install --no-recommends \
             git podman fuse-overlayfs tar gzip sed grep
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Build image
         run: |
           if [ "${{ matrix.agent }}" = "all-in-one" ]; then
