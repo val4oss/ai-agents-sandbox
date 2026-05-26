@@ -80,7 +80,7 @@ echo "╔═══════════════════════�
 echo "║         AI Agents Sandbox v0.9.0 — Secure Mode               ║" 
 echo "╠══════════════════════════════════════════════════════════════╣"
 echo "║  Available agents :                                          ║"
-printf "$agent_lines"
+printf "%s" "$agent_lines"
 echo "║                                                              ║"
 echo "║  Directory :                                                 ║"
 echo "║    ~           → Home, config                                ║"
