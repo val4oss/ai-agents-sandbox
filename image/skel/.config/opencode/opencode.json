@@ -12,16 +12,6 @@
           "options": {
             "projectId": "{env:GOOGLE_CLOUD_PROJECT}"
           }
-        },
-        "ollama": {
-            "npm": "@ai-sdk/openai-compatible",
-            "name": "Sandbox Ollama Relay",
-            "options": {
-                "baseURL": "{env:OLLAMA_BASE_URL}"
-            },
-            "models": {
-              "default:latest": { "name": "default:latest" }
-            }
         }
     },
     "model": "ollama/default:latest"
