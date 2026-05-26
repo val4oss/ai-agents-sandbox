@@ -1,0 +1,22 @@
+name: Issue Labeler
+on: 
+  issues:
+    types: [opened, edited, milestoned]
+  pull_request_target:
+    types: [opened]
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+
+  labeler:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Check Labels
+      id: labeler
+      uses: jimschubert/labeler-action@v2
+      env:
+        GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}

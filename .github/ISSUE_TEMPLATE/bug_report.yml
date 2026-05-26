@@ -1,0 +1,61 @@
+name: Bug Report
+description: File a bug report
+title: "[Bug]: "
+labels: ["bug"]
+assignees: ["val4oss"]
+projects: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: checkboxes
+    id: existing
+    attributes:
+      label: Is there an existing issue for this?
+      description: Please search to see if an issue already exists.
+      options:
+        - label: I have searched the existing issues
+          required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Also tell us, what did you expect to happen?
+      placeholder: Tell us what you see!
+      value: "A bug happened!"
+    validations:
+      required: true
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps To Reproduce
+      description: Steps to reproduce the behavior.
+      placeholder: |
+        1. Build with '...'
+        2. Run with '...'
+        3. Use the tool '...'
+        3. See error...
+    validations:
+      required: false
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include Host OS and software version details.
+      placeholder: |
+        - OS: [e.g., openSUSE Tumbleweed]
+        - Project Version: [e.g., 1.0.0]
+        - Agent used: [e.g., claude]
+        - podman version: [e.g., 5.4.2]
+        - RPM libkrun version: [e.g., libkrun1-1.18.0-Virt.1600.52.1]
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Please copy and paste any relevant log output.
+      render: shell
+    validations:
+      required: false

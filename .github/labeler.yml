@@ -1,0 +1,23 @@
+comment: |
+  👍 Thanks for this!
+  🏷 I have applied any labels matching special text in your issue.
+
+  Please review the labels and make any necessary changes.
+
+labels:
+  'bug':
+    - '\bbug[s]?\b'
+  'help wanted':
+    - '\bhelp( wanted)?\b'
+  'duplicate':
+    - '\bduplicate\b'
+    - '\bdupe\b'
+  'enhancement':
+    - '\benhancement\b'
+    - '\bfeat\b'
+    - '\bfeature\b'
+  'question':
+    - '\bquestion\b'
+  'documentation':
+    - '\bdoc(s)?\b'
+    - '\bdocumentation\b'
