@@ -1,6 +1,6 @@
 name: Feature Request
 description: Suggest an idea for this project
-title: "[Feature]: "
+title: "feat: "
 labels: ["enhancement"]
 assignees: ["val4oss"]
 projects: []
