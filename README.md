@@ -19,64 +19,41 @@ Gemini CLI, Claude Code) on **openSUSE Tumbleweed** using rootless container
 ## Table of Contents
 
 - [Requirements](#requirements)
-- [Setup](#setup)
-- [Build the Image](#build-the-image)
 - [Usage](#usage)
 - [Runtime Example](#runtime-example)
-- [Project Structure](#project-structure)
-- [Security Measures](#security-measures)
-- [Persistence](#persistence)
-- [Available Agents](#available-agents)
-- [Per-Agent Builds](#per-agent-builds)
+- [Additional docs](#additional-docs)
 
 ---
 
 ## Requirements
 
-```bash
-# Podman with rootless support
-sudo zypper install podman slirp4netns
 
-# Verify rootless mode is active
-podman info | grep rootless   # expected: rootless: true
+### Dependency installation
+
+```bash
+sudo zypper install podman slirp4netns crun libkrun1 libkrunfw5
 ```
 
-### Optional: krun for microVM isolation (recommended)
-
-MicroVM mode requires `krun` (crun with libkrun support) and matching runtime
-libraries. The versions bundled with the base OS are often too old — use the
-**Virtualization:containers** repository which ships tested, compatible builds.
+* Minimum required versions: `crun ≥ 1.22`, `libkrun ≥ 1.18`, `libkrunfw ≥ 5`.
 
 > ⚠️ `libkrun ≥ 1.18` is required as it fixes some issues related to agent TUI.
-
-#### openSUSE Tumbleweed
-
-```bash
-sudo zypper install crun libkrun1 libkrunfw5
-sudo usermod -aG kvm "$USER"   # log out and back in afterwards
-```
-
-#### openSUSE Leap 16.0
-
-The base Leap repo ships outdated libkrun builds (1.x from 2023) that are
-incompatible with the current crun. Add the Virtualization:containers repo
-first:
-
-```bash
-sudo zypper addrepo \
-  https://download.opensuse.org/repositories/Virtualization:/containers/16.0/ \
-  Virtualization_containers
-sudo zypper addrepo \
-  https://download.opensuse.org/repositories/Virtualization/16.0/ \
-  Virtualization
-sudo zypper --gpg-auto-import-keys refresh Virtualization_containers \
-  Virtualization
-sudo zypper install --from Virtualization_containers crun
-sudo zypper install --from Virtualization libkrun1 libkrunfw5
-sudo usermod -aG kvm "$USER"   # log out and back in afterwards
-```
-
-Minimum required versions: `crun ≥ 1.22`, `libkrun ≥ 1.18`, `libkrunfw ≥ 5`.
+> If you have an older version, `run` detects it and falls back to standard
+> container mode with a warning.
+> If you want microVM isolation, you can install the latest libkrun from the
+> the devel **Virtualization:containers** repository which ships tested,
+> compatible builds.
+> ```bash
+> sudo zypper addrepo \
+>   https://download.opensuse.org/repositories/Virtualization:/containers/16.0/ \
+>   Virtualization_containers
+> sudo zypper addrepo \
+>   https://download.opensuse.org/repositories/Virtualization/16.0/ \
+>   Virtualization
+> sudo zypper --gpg-auto-import-keys refresh Virtualization_containers \
+>   Virtualization
+> sudo zypper install --from Virtualization_containers crun
+> sudo zypper install --from Virtualization libkrun1 libkrunfw5
+> ```
 
 > `run` will detect krun automatically and enable microVM mode. If krun is
 > not installed or KVM is unavailable, the script prints what is missing and how
@@ -85,9 +62,19 @@ Minimum required versions: `crun ≥ 1.22`, `libkrun ≥ 1.18`, `libkrunfw ≥ 5
 > If your host is itself a VM, nested virtualisation must be enabled on the
 > hypervisor (AMD: `kvm_amd.nested=1`, Intel: `kvm_intel.nested=1`).
 
+### KVM permissions
+
+```bash
+sudo usermod -aG kvm $USER
+```
+
+> After running the above command, log out and log back in to apply the group
+
 ---
 
-## Setup
+## Usage
+
+### Get the tool
 
 ```bash
 # Clone this repository
@@ -95,23 +82,7 @@ git clone https://github.com/val4oss/ai-agents-sandbox.git
 cd ai-agents-sandbox
 ```
 
-A `podman volume` is used for the aiuser HOME directory `/home/aiuser`. It keeps
-authentication status between runs. The `workspace/` will be mounted into
-`/home/aiuser/workspace/`. A perfect place to store working project, it can be
-shared between different ai-agents-sandboxes. At every start, the entrypoint
-automatically provisions:
-
-- `~/.gitconfig` — default git configuration
-- `~/.copilot/agents/` — Copilot agent definitions
-- `~/workspace/` — your projects directory
-
-Auth token directories (`.config/gh/`, `.gemini/`, `.claude/`) are created
-automatically on first login. All runtime content is excluded from git via
-`.gitignore`.
-
----
-
-## Build the Image
+### Build the image
 
 ```bash
 sh ai-agents-sandbox.sh build           # Build the all-in-one image  (ai-agents-sandbox:latest)
@@ -129,21 +100,6 @@ resulting in smaller images.
 # Verify the build
 podman image inspect ai-agents-sandbox:latest | grep -E "User|Size"
 ```
-
-### Image sizes
-
-> Fetched 26-04-27
-
-|           Image           |   Size  |               Note               |
-|---------------------------|---------|----------------------------------|
-| ai-agents-sandbox-gemini  | 674 MB  |                                  | 
-| ai-agents-sandbox-claude  | 1.78 GB | storage used by `gcloud` utility |
-| ai-agents-sandbox-copilot | 772 MB  |                                  |
-| ai-agents-sandbox         | 2.12 GB |                                  |
-
----
-
-## Usage
 
 ### Run the isolated environment
 
@@ -247,46 +203,27 @@ $
 > When running an agent-specific container, only that agent's line appears in
 > the banner and only its auth check is shown.
 
-### Step 3 — Authenticate GitHub Copilot
+### Step 3 — Use agent in the sandbox
 
-```bash
-# Inside the container
-gh auth login
-```
+* Run the agent TUI
+  * `claude`
+  * `gh auth login` & `copilot`
+  * `gemini`
 
-Follow the prompts:
-
-```
-? Where do you use GitHub?            → GitHub.com
-? What is your preferred protocol?    → HTTPS
-? Authenticate Git with your GitHub credentials? (Y/n) -> Y
-? How would you like to authenticate? → Login with a web browser
-
-! First copy your one-time code: ABCD-1234
-  Open https://github.com/login/device in your HOST browser
-  and enter the code above.
-
-✓ Authentication complete.
-✓ Logged in as val4oss
-```
-
-### Step 4 — Clone a repository and use Copilot
+### Step 4 — Clone a repository
 
 ```bash
 # Inside the container — workspace is ready at ~/workspace
 cd ~/workspace
-git clone val4oss/ai-agents-sandbox
+git clone <repo>
 
-cd ai-agents-sandbox
+cd <repo>
 
 # Ask Copilot to suggest a command
 copilot -i "write a bash function to check if a podman container is running"
-
-# Ask Copilot to explain a security flag
-copilot explain "podman run --cap-drop=ALL --userns=keep-id"
 ```
 
-### Step 6 — Exit and verify persistence
+### Step 5 — Exit and verify persistence
 
 ```bash
 # Exit the container
@@ -303,188 +240,10 @@ sh ai-agents-sandbox.sh run copilot
 
 ---
 
-## Project Structure
+## Additional docs
 
-```
-ai-agents-sandbox/
-│
-├── image/
-│   ├── Containerfile          # Image definition — no secrets; AGENT build-arg for slim builds
-│   ├── agents/
-│   │   ├── claude/            # Claude sub-agent definitions (provisioned to ~/.claude/agents/)
-│   │   ├── copilot/           # Copilot agent definitions (provisioned to ~/.copilot/agents/)
-│   │   └── gemini/            # Gemini sub-agent definitions (provisioned to ~/.gemini/agents/)
-│   ├── skel/
-│   │   └── .gitconfig         # Default git config (provisioned to ~/.gitconfig on first run)
-│   └── scripts/
-│       ├── entrypoint.sh      # Startup script — home provisioning + auth status check
-│       └── healthcheck.sh     # Container health verification
-│
-├── workspace/                 # ← Mounted as /home/aiuser (persistent, gitignored)
-│   └── .gitkeep               #   Keeps the directory tracked in git
-│
-└── ai-agents-sandbox.sh       # build / run / clean / help — supports per-agent targets
-```
-
----
-
-## Security Measures
-
-### 🔒 Process isolation
-
-| Measure | Flag | Effect |
-|---|---|---|
-| No privilege escalation | `--security-opt=no-new-privileges` | Prevents any `setuid` / capability gain |
-| All capabilities dropped | `--cap-drop=ALL` | No raw socket, no mount, no `chown`, etc. |
-| Default seccomp profile | built-in Podman default | Blocks ~300 dangerous syscalls |
-| Rootless user | rootless Podman | Container processes owned by your UID, never real root |
-
-### 📁 Filesystem isolation
-
-| Measure | Effect |
-|---|---|
-| Dedicated home volume | The real `$HOME` is never mounted |
-| Explicit volume whitelist | Only `sandbox/` is mounted as `/home/aiuser` |
-| `--tmpfs /tmp:noexec,nosuid` | `/tmp` is in RAM, non-executable, non-setuid |
-| No Docker / Podman socket | Container cannot spawn other containers |
-
-### 🔑 Credentials
-
-| Principle | Implementation |
-|---|---|
-| Zero secrets in the image | `Containerfile` contains no tokens, passwords or API keys |
-| Runtime-only authentication | `gh auth login`, `gemini auth login`, `claude auth login` |
-| Persistence via host volume | Tokens stored in `sandbox/` under your control |
-| Isolated from real `~/.config` | Container never sees your SSH keys, GPG keys or `.netrc` |
-
-### 🌐 Network isolation
-
-| Measure | Effect |
-|---|---|
-| `--network=slirp4netns` | User-space network stack, fully isolated from the host |
-| `outbound_addr=${_iface}` | Outbound to a public interface prevents requests from passing through internal company VPN |
-| Internet access preserved | OAuth flows, API calls, package downloads work normally |
-
-### 🧊 MicroVM isolation (krun)
-
-When `krun` is installed and KVM is available, `run` automatically starts
-each container inside a dedicated **microVM** backed by KVM rather than sharing
-the host kernel. The attack path becomes:
-
-```
-container process
-  → escape namespaces    (caps / seccomp / rootless — existing defence)
-  → exploit microVM kernel  (separate minimal kernel, tiny attack surface)
-  → escape KVM hypervisor   (hardware boundary: Intel VT-x / AMD-V)
-  → reach host kernel
-```
-
-| Gain | Detail |
-|---|---|
-| Separate kernel | A container kernel exploit stays inside the microVM |
-| Hardware boundary | Two extra escape layers vs. namespace-only isolation |
-| Network | TSI (Transparent Socket Impersonation) replaces slirp4netns — internet access is preserved |
-
-Use `run no-microvm` (or `run <agent> no-microvm`) to opt out when
-KVM is not available or not desired.
-
-#### macOS
-
-KVM is not available on macOS, so krun does not apply. `run` detects
-macOS automatically, prints a notice, and falls back to standard mode without
-requiring `no-microvm`.
-
-Podman on macOS runs every container inside a Linux VM managed by
-`podman machine` and backed by **Apple Hypervisor.framework**. That VM is
-itself a hardware-level boundary between the container and the macOS host,
-providing isolation comparable to what krun adds on Linux — with no extra
-configuration needed.
-
-```
-container process
-  → escape namespaces    (caps / seccomp / rootless — existing defence)
-  → reach podman machine VM kernel   (hardware boundary via Hypervisor.framework)
-  → reach macOS host
-```
-
----
-
-### 📊 Resource limits
-
-| Measure | Flag | Effect |
-|---|---|---|
-| Memory limit | `krun.ram_mib=4096` | **microvm** only. Set in krun_vm.json OR annotations |
-| CPU limit | `krun.cpus=2` | **microvm** only. Set in krun_vm.json OR annotations |
-| Process limit | `pids_limit = 100` | Container cannot spawn more than 100 processes |
-
-> cpu and memory limits for microVMs can be set via `krun_vm.json` (for
-> `crun --version` < `1.27`) or directly as container annotations
-> (`--annotation "krun.cpus=2" --annotation "krun.ram_mib=4096"`). The defaults
-> are 2 CPUs and 4 GB RAM, which are sufficient for typical agent workloads
-> while keeping the attack surface minimal.
-
-```bash
-cat /sys/fs/cgroup/user.slice/user-$(id -u).slice/cgroup.controllers
-# expected: cpuset cpu io memory hugetlb pids rdma misc
-```
-
----
-
-## Persistence
-
-Auth tokens **survive container restarts and removals** because they live
-on the host filesystem under `sandbox/`:
-
-```
-clean          # container deleted
-        │
-        │  Lost  : container internal filesystem
-        │
-        │  Preserved in sandbox/ :
-        ▼
-┌──────────────────────────────────────────────────┐
-│  .gitconfig          ← git config   [gitignored] │
-│  workspace/          ← your work    [gitignored] │
-│  .config/gh/         ← gh token     [gitignored] │
-│  .gemini/            ← Gemini token [gitignored] │
-│  .claude/            ← Claude token [gitignored] │
-└──────────────────────────────────────────────────┘
-        │
-run            # new container, everything intact ✅
-```
-
-> `clean all` removes auth token directories but preserves `workspace/`.
-> Defaults (`.gitconfig`, `.copilot/agents/`) are re-provisioned from the
-> image on the next `run`.
-
----
-
-## Available Agents
-
-| Agent | Command | First-time auth |
-|---|---|---|
-| GitHub Copilot | `copilot` | `gh auth login --scopes 'copilot'` |
-| Gemini CLI | `gemini` | `gemini auth login` |
-| Claude Code | `claude` | `claude auth login` or `export ANTHROPIC_API_KEY=sk-...` or `gcloud ...` |
-
----
-
-## Per-Agent Builds
-
-By default `build` (and `run`) targets an all-in-one image that
-includes every agent. Use an agent name as an extra argument to produce a
-**slim, single-agent image** that only installs what is needed:
-
-| Command | Image name | Installed tools |
-|---|---|---|
-| `build` | `ai-agents-sandbox:latest` | gh CLI + gemini-cli + claude-code |
-| `build copilot` | `ai-agents-sandbox-copilot:latest` | gh CLI only |
-| `build gemini` | `ai-agents-sandbox-gemini:latest` | gemini-cli |
-| `build claude` | `ai-agents-sandbox-claude:latest` | Google Cloud SDK + claude-code |
-
-The corresponding `run <?agent>` and `clean <?agent> [all]` commands
-automatically target the matching image and container name
-(`ai-agents-sandbox<?-agent>`).
+* [Overview](docs/overview.md) — architecture, volumes, image sizes, security measures
+* [Contributing Guidelines](CONTRIBUTING.md) — coding style, commit message format
 
 ---
 
