@@ -66,10 +66,10 @@ RUN case " $AGENT " in \
     esac
 
 # ================
-# Google Cloud SDK - installed when AGENT contains gemini or claude
+# Google Cloud SDK - installed when AGENT contains claude or opencode
 # ----------------
 RUN case " $AGENT " in \
-    *\ claude\ *) \
+    *\ claude\ *|*\ opencode\ *) \
         REPO_ARCH=$(uname -m) && \
         rpm --import https://packages.cloud.google.com/yum/doc/rpm-package-key-v10.gpg && \
         zypper refresh && \
@@ -116,7 +116,6 @@ COPY --chmod=755 scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
 # Default home provisioning (skel-like)
 # -------------------------------------
 COPY --chmod=644 agents/copilot/*.md    /usr/share/ai-sandbox/agents/copilot/
-COPY --chmod=644 skel/.config/opencode/opencode.json /usr/share/ai-sandbox/skel/opencode.json
 COPY --chmod=644 skel/.gitconfig        /usr/share/ai-sandbox/skel/.gitconfig
 
 # =======================

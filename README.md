@@ -252,13 +252,19 @@ Ensure these environment variables are set before starting the sandbox:
 
 ```bash
 export GOOGLE_CLOUD_PROJECT=<project ID>
-# Adjust to where `gcloud auth` created your credential file:
-export GOOGLE_APPLICATION_CREDENTIALS=~/.config/gcloud/application_default_credentials.json
 export VERTEX_LOCATION=global
 ```
 
-The launcher forwards these variables into the container. If
-`GOOGLE_CLOUD_PROJECT` is unset, the entrypoint tries to read it from
+For normal in-container auth (`gcloud auth application-default login`), do not
+set `GOOGLE_APPLICATION_CREDENTIALS`.
+
+The launcher forwards `GOOGLE_CLOUD_PROJECT` and `VERTEX_LOCATION` into the
+container.
+
+`GOOGLE_APPLICATION_CREDENTIALS` should remain unset so ADC uses the default
+credentials path created by `gcloud auth application-default login`.
+
+If `GOOGLE_CLOUD_PROJECT` is unset, the entrypoint tries to read it from
 `gcloud config get-value project`.
 
 ---

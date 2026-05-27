@@ -33,8 +33,6 @@ mkdir -p \
     "$HOME/.copilot/agents"
 
 cp -n "$SKEL_D/skel/.gitconfig" "$HOME/.gitconfig" 2>/dev/null || true
-cp -n "$SKEL_D/skel/opencode.json" \
-    "$HOME/.config/opencode/opencode.json" 2>/dev/null || true
 
 # Provision sub-agents for each relevant agent
 provision_agents() {
@@ -58,8 +56,6 @@ agent_enabled "gemini"  && provision_agents "gemini"  "$HOME/.gemini/agents"
 # ─────────────────────────────────────────────────────────────────────────────
 
 _vertex_adc_default="$HOME/.config/gcloud/application_default_credentials.json"
-export GOOGLE_APPLICATION_CREDENTIALS="${GOOGLE_APPLICATION_CREDENTIALS:-\
-$_vertex_adc_default}"
 export VERTEX_LOCATION="${VERTEX_LOCATION:-global}"
 
 if [ -z "$GOOGLE_CLOUD_PROJECT" ] && command -v gcloud > /dev/null 2>&1; then
@@ -145,19 +141,12 @@ fi
 
 if agent_enabled "opencode"; then
     echo "── Notes ───────────────────────────────────────────────"
-    if [ -n "$OLLAMA_BASE_URL" ]; then
-        echo " OpenCode can reach the private Ollama relay at:"
-        echo "  $OLLAMA_BASE_URL"
-    else
-        echo " OpenCode relay not configured for this container."
-        echo " Recreate it with private-llm and private-llm-url=<url>."
-    fi
-    echo " OpenCode global config is seeded in:"
-    echo "  ~/.config/opencode/opencode.json"
-    echo " Required Vertex environment variables:"
-    echo "  GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT:-<project ID>}"
-    echo "  GOOGLE_APPLICATION_CREDENTIALS=$GOOGLE_APPLICATION_CREDENTIALS"
-    echo "  VERTEX_LOCATION=$VERTEX_LOCATION"
+    echo " Authenticate Google Vertex with:"
+    echo "  gcloud auth application-default login"
+    echo " Required environment variables:"
+    echo "  GOOGLE_CLOUD_PROJECT=<project ID>"
+    echo "  VERTEX_LOCATION=<vertex location>"
+    echo " Keep GOOGLE_APPLICATION_CREDENTIALS unset for ADC default path."
     if [ -z "$GOOGLE_CLOUD_PROJECT" ]; then
         echo " Set GOOGLE_CLOUD_PROJECT to enable Vertex AI provider."
     fi
