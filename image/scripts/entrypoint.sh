@@ -55,7 +55,6 @@ agent_enabled "gemini"  && provision_agents "gemini"  "$HOME/.gemini/agents"
 
 # ─────────────────────────────────────────────────────────────────────────────
 
-_vertex_adc_default="$HOME/.config/gcloud/application_default_credentials.json"
 export VERTEX_LOCATION="${VERTEX_LOCATION:-global}"
 
 if [ -z "$GOOGLE_CLOUD_PROJECT" ] && command -v gcloud > /dev/null 2>&1; then

@@ -270,7 +270,7 @@ run() {
         TOOLS_NEEDED="$TOOLS_NEEDED krun"
         CTN_NAME="${CTN_NAME}-microvm"
     else
-        TOOLS_NEEDED="$TOOLS_NEEDED slirp4netns"
+        TOOLS_NEEDED="$TOOLS_NEEDED slirp4netns ip"
     fi
 
     if [ -n "$GOOGLE_CLOUD_PROJECT$VERTEX_LOCATION" ] && \
@@ -343,7 +343,7 @@ run() {
     _iface=$(_detect_public_iface)
     if [ -n "$_iface" ]; then
         print_info "Binding outbound network to interface: $_iface"
-        set -- "$@" --network "slirp4netns"
+        set -- "$@" --network "slirp4netns:outbound_addr=${_iface}"
         set -- "$@" --dns 1.1.1.1 --dns 8.8.8.8
     else
         print_warning "Could not detect a public interface;"
