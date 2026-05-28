@@ -3,6 +3,8 @@ name: PR Conventional Commit Validation
 on:
   pull_request:
     types: [opened, synchronize, reopened, edited]
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited]
 
 permissions:
   pull-requests: write
