@@ -26,7 +26,8 @@ FAILURE=1
 # Path variables
 ROOT_D="$(cd "$(dirname "$0")" && pwd)"
 IMG_D="${ROOT_D}/image"
-SANDBOX_D="$ROOT_D/workspace"
+SANDBOX_D_DEFAULT="$ROOT_D/workspace"
+SANDBOX_D="${SANDBOX_D_DEFAULT}"
 
 # Container variables
 IMG_NAME="ai-agents-sandbox"
@@ -168,6 +169,22 @@ _detect_public_iface() {
         | head -1
 }
 
+# Verify that the workspace directory exists and is a directory, otherwise fall
+# back to the default workspace directory. Also warn if the workspace is set to
+# the home directory.
+_verify_workspace() {
+    SANDBOX_D="$(echo "${SANDBOX_D}" | sed "s|~|${HOME}|g")"
+    if [ ! -e "$SANDBOX_D" ] || [ ! -d "$SANDBOX_D" ]; then
+        print_warning "Workspace directory '$SANDBOX_D' does not exist or is not a directory."
+        print_warning "Falling back to default workspace directory: '$SANDBOX_D_DEFAULT'."
+        SANDBOX_D="$SANDBOX_D_DEFAULT"
+    elif [ "$SANDBOX_D" = "${HOME}" ]; then
+        print_warning "Workspace directory is set to the home directory, which is not recommended."
+        print_warning "Falling back to default workspace directory: '$SANDBOX_D_DEFAULT'."
+        SANDBOX_D="$SANDBOX_D_DEFAULT"
+    fi
+}
+
 # ================
 # Action functions
 # ----------------
@@ -193,6 +210,12 @@ Agents:
 
 Options:
   no-microvm    Run the sandbox without microVM isolation (not recommended)
+  --wokspace, -w <dir>
+                For 'run' action, Specify a custom workspace directory
+                (default: $SANDBOX_D_DEFAULT) to mount in the sandbox at
+                /home/aiuser/workspace.
+
+  --all, -a     For 'clean' action, also remove home volume and auth tokens
 "
     printf "%s\n" "$_str"
 }
@@ -460,12 +483,15 @@ esac
 # get actions/agents/options
 for _arg in "$@"; do
     case "$_arg" in
-        run|build|clean|status) ACTION="$_arg" ;;
-        no-microvm)             USE_MICROVM=0  ;;
-        all|--all|-a)           ALL=true       ;;
-        *)                      AGENT="$_arg"  ;;
+        run|build|clean|status) ACTION="$_arg";  shift 1 ;;
+        no-microvm)             USE_MICROVM=0;   shift 1 ;;
+        all|--all|-a)           ALL=true;        shift 1 ;;
+        --workspace|-w)         SANDBOX_D="$2";  shift 2 ;;
+        *)                      AGENT="$_arg" ;  shift 1 ;;
     esac
 done
+
+_verify_workspace
 
 if [ "$AGENT" != "" ]; then
     if ! _valide_agent ; then
