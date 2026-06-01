@@ -1,7 +1,7 @@
 #!/bin/sh
 
 SKEL_D="/usr/share/ai-sandbox"
-AGENT="${AGENT:-claude copilot gemini}"
+AGENT="${AGENT:-claude copilot gemini opencode}"
 
 # Return 0 if agent is enabled, 1 otherwise
 agent_enabled() {
@@ -29,6 +29,7 @@ fi
 
 mkdir -p \
     "$HOME/workspace" \
+    "$HOME/.config/opencode" \
     "$HOME/.copilot/agents"
 
 cp -n "$SKEL_D/skel/.gitconfig" "$HOME/.gitconfig" 2>/dev/null || true
@@ -53,6 +54,15 @@ agent_enabled "copilot" && provision_agents "copilot" "$HOME/.copilot/agents"
 agent_enabled "gemini"  && provision_agents "gemini"  "$HOME/.gemini/agents"
 
 # ─────────────────────────────────────────────────────────────────────────────
+
+export VERTEX_LOCATION="${VERTEX_LOCATION:-global}"
+
+if [ -z "$GOOGLE_CLOUD_PROJECT" ] && command -v gcloud > /dev/null 2>&1; then
+    _project="$(gcloud config get-value project 2>/dev/null)"
+    if [ -n "$_project" ] && [ "$_project" != "(unset)" ]; then
+        export GOOGLE_CLOUD_PROJECT="$_project"
+    fi
+fi
 
 # Check authentication status
 check_auth() {
@@ -128,9 +138,26 @@ if agent_enabled "gemini"; then
     echo ""
 fi
 
+if agent_enabled "opencode"; then
+    echo "── Notes ───────────────────────────────────────────────"
+    echo " Authenticate Google Vertex with:"
+    echo "  gcloud auth application-default login"
+    echo " Required environment variables:"
+    echo "  GOOGLE_CLOUD_PROJECT=<project ID>"
+    echo "  VERTEX_LOCATION=<vertex location>"
+    echo " Keep GOOGLE_APPLICATION_CREDENTIALS unset for ADC default path."
+    if [ -z "$GOOGLE_CLOUD_PROJECT" ]; then
+        echo " Set GOOGLE_CLOUD_PROJECT to enable Vertex AI provider."
+    fi
+    echo "────────────────────────────────────────────────────────"
+    echo ""
+fi
+
+
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Session started — UID=$(id -u) | $(uname -n) | agent(s)=${AGENT}"
 echo ""
 
 cd "$HOME/workspace" 2>/dev/null || true
 
 exec "$@"
+

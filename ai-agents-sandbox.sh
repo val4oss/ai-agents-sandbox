@@ -272,6 +272,13 @@ run() {
     else
         TOOLS_NEEDED="$TOOLS_NEEDED slirp4netns ip"
     fi
+
+    if [ -n "$GOOGLE_CLOUD_PROJECT$VERTEX_LOCATION" ] && \
+        podman container exists "$CTN_NAME"; then
+        print_warning "Vertex env vars are applied only when creating a new container."
+        print_warning "     -> Use 'clean ${AGENT}' then 'run ${AGENT}' to apply updates."
+    fi
+
     if ! _check_tools_needed; then
         print_error "Required tools for the selected isolation are missing."
         print_error "Please install them and try again."
@@ -324,6 +331,15 @@ run() {
         --userns=keep-id \
         --hostname ai-sandbox \
         --pids-limit 1024
+
+    # Forward cloud/relay settings needed by Vertex-backed OpenCode sessions.
+    if [ -n "$GOOGLE_CLOUD_PROJECT" ]; then
+        set -- "$@" --env "GOOGLE_CLOUD_PROJECT=$GOOGLE_CLOUD_PROJECT"
+    fi
+    if [ -n "$VERTEX_LOCATION" ]; then
+        set -- "$@" --env "VERTEX_LOCATION=$VERTEX_LOCATION"
+    fi
+
     _iface=$(_detect_public_iface)
     if [ -n "$_iface" ]; then
         print_info "Binding outbound network to interface: $_iface"

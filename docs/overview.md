@@ -7,13 +7,22 @@ measures.
 
 ## Table of Contents
 
-- [Project Structure](#project-structure)
-- [Volumes used](#volumes-used)
-- [Available Agents](#available-agents)
-- [Image sizes](#image-sizes)
-- [Security Measures](#security-measures)
-- [Persistence](#persistence)
-- [Per-Agent Builds](#per-agent-builds)
+- [Overview](#overview)
+  - [Table of Contents](#table-of-contents)
+  - [Project structure](#project-structure)
+  - [Volumes used](#volumes-used)
+  - [Available Agents](#available-agents)
+  - [Images sizes](#images-sizes)
+  - [Security Measures](#security-measures)
+    - [🔒 Process isolation](#-process-isolation)
+    - [📁 Filesystem isolation](#-filesystem-isolation)
+    - [🔑 Credentials](#-credentials)
+    - [🌐 Network isolation](#-network-isolation)
+    - [🧊 MicroVM isolation (krun)](#-microvm-isolation-krun)
+      - [macOS](#macos)
+    - [📊 Resource limits](#-resource-limits)
+  - [Persistence](#persistence)
+  - [Per-Agent Builds](#per-agent-builds)
 
 ---
 
@@ -67,6 +76,7 @@ automatically on first login. All runtime content is excluded from git via
 | GitHub Copilot | `copilot` | `gh auth login --scopes 'copilot'` |
 | Gemini CLI | `gemini` | `gemini auth login` |
 | Claude Code | `claude` | `claude auth login` or `export ANTHROPIC_API_KEY=sk-...` or `gcloud ...` |
+| OpenCode | `opencode` | configure `~/.config/opencode/opencode.json` and select a model |
 
 ---
 
@@ -225,6 +235,7 @@ includes every agent. Use an agent name as an extra argument to produce a
 | `build copilot` | `ai-agents-sandbox-copilot:latest` | gh CLI only |
 | `build gemini` | `ai-agents-sandbox-gemini:latest` | gemini-cli |
 | `build claude` | `ai-agents-sandbox-claude:latest` | Google Cloud SDK + claude-code |
+| `build opencode` | `ai-agents-sandbox-opencode:latest` | OpenCode CLI |
 
 The corresponding `run <?agent>` and `clean <?agent> [all]` commands
 automatically target the matching image and container name

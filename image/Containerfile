@@ -66,10 +66,10 @@ RUN case " $AGENT " in \
     esac
 
 # ================
-# Google Cloud SDK - installed when AGENT contains gemini or claude
+# Google Cloud SDK - installed when AGENT contains claude or opencode
 # ----------------
 RUN case " $AGENT " in \
-    *\ claude\ *) \
+    *\ claude\ *|*\ opencode\ *) \
         REPO_ARCH=$(uname -m) && \
         rpm --import https://packages.cloud.google.com/yum/doc/rpm-package-key-v10.gpg && \
         zypper refresh && \
