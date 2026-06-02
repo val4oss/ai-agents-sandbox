@@ -457,23 +457,34 @@ _check_tools_needed || {
 # Get arguments
 if [ $# -lt 1 ]; then
     print_error "Missing command"
-    usage & exit 2
+    usage & exit 1
 fi
-case "$1" in
-    help|--help|-h)        usage ;          exit 0  ;;
-    verbose|--verbose|-v)  VERBOSE=1;       shift 1 ;;
-    quiet|--quiet|-q)      QUIET=1;         shift 1 ;;
-    version|--version)     print_version;   exit 0  ;;
-esac
-
-# get actions/agents/options
-for _arg in "$@"; do
-    case "$_arg" in
-        run|build|clean|status) ACTION="$_arg";  shift 1 ;;
-        no-microvm)             USE_MICROVM=0;   shift 1 ;;
-        all|--all|-a)           ALL=true;        shift 1 ;;
-        --workspace|-w)         SANDBOX_D="$2";  shift 2 ;;
-        *)                      AGENT="$_arg" ;  shift 1 ;;
+while [ $# -gt 0 ]; do
+    case "$1" in
+        help|--help|-h)         usage;         exit 0  ;;
+        verbose|--verbose|-v)   VERBOSE=1;     shift 1 ;;
+        quiet|--quiet|-q)       QUIET=1;       shift 1 ;;
+        version|--version)      print_version; exit 0  ;;
+        run|build|clean|status) ACTION="$1";   shift 1 ;;
+        no-microvm)             USE_MICROVM=0; shift 1 ;;
+        all|--all|-a)           ALL=true;      shift 1 ;;
+        --workspace|-w)
+            if [ -z "$2" ]; then
+                print_error "Error: $1 requires an argument."
+                exit 1
+            fi
+            SANDBOX_D="$2"
+            shift 2  # Shift past both the flag and its value
+            ;;
+        -*)
+            print_error "Unknown option: $1"
+            usage
+            exit 1
+            ;;
+        *)
+            AGENT="$1"
+            shift 1
+            ;;
     esac
 done
 
