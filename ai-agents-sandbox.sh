@@ -42,7 +42,7 @@ ACTION=""
 ALL=false
 TOOLS_NEEDED="podman sed grep"
 
-# usefull var
+# useful var
 MIN_LIBKRUN_VER="1.18.0"
 
 # ========
@@ -74,8 +74,8 @@ _check_tools_needed() {
     return "$_ret"
 }
 
-# check if agent is valide
-_valide_agent() {
+# check if agent is valid
+_valid_agent() {
     _ret="$FAILURE"
     for _agt_v in $VALID_AGENTS; do
         if [ "$AGENT" = "$_agt_v" ]; then
@@ -84,6 +84,44 @@ _valide_agent() {
         fi
     done
     return "$_ret"
+}
+
+# apply sed replacement and atomically update a file
+_sed_inplace() {
+    _expr="$1"
+    _target="$2"
+    _tmp="${_target}.tmp.$$"
+    _ret="$SUCCESS"
+
+    if ! sed "$_expr" "$_target" > "$_tmp" || ! mv "$_tmp" "$_target"; then
+        _ret="$FAILURE"
+    fi
+
+    rm -f "$_tmp"
+    return "$_ret"
+}
+
+# update version in entrypoint.sh
+_update_entrypoint_version() {
+    _ret="$SUCCESS"
+    _target="${IMG_D}/scripts/entrypoint.sh"
+    _expr="s/AI Agents Sandbox v[0-9]\+\.[0-9]\+\.[0-9]\+/AI Agents Sandbox v${IMG_TAG}/g"
+    if ! _sed_inplace "$_expr" "$_target"; then
+        print_error "Failed to update version in ${_target}."
+        _ret="$FAILURE"
+    fi
+    return "$_ret"
+}
+
+# update version in Containerfile
+_update_containerfile_version() {
+    _target="${IMG_D}/Containerfile"
+    _expr="s/version=\"[0-9]\+\.[0-9]\+\.[0-9]\+\"/version=\"${IMG_TAG}\"/g"
+    if ! _sed_inplace "$_expr" "$_target"; then
+        print_error "Failed to update version in ${_target}."
+        return "$FAILURE"
+    fi
+    return "$SUCCESS"
 }
 
 _check_microvm() {
@@ -149,10 +187,205 @@ another VM."
 # Detect the default public-facing interface, excluding VPN/tunnel interfaces.
 # Returns the first default-route interface not matching tun|wg|vpn|tap|ppp.
 _detect_public_iface() {
-    ip route show default \
-        | awk '{print $5}' \
-        | grep -Ev 'tun|wg|vpn|tap|ppp' \
-        | head -1
+    _ret="$SUCCESS"
+    _iface=""
+
+    if command -v ip > /dev/null 2>&1; then
+        _iface="$(ip route show default \
+            | awk '{print $5}' \
+            | grep -Ev 'tun|wg|vpn|tap|ppp' \
+            | head -1)"
+    elif command -v route > /dev/null 2>&1; then
+        _iface="$(route -n get default 2>/dev/null \
+            | awk '/interface:/{print $2; exit}' \
+            | grep -Ev 'tun|wg|vpn|tap|ppp' \
+            | head -1)"
+    fi
+
+    if [ -n "$_iface" ]; then
+        printf "%s\n" "$_iface"
+    else
+        _ret="$FAILURE"
+    fi
+
+    return "$_ret"
+}
+
+# Detect active VPN connections on macOS; returns FAILURE if any are found.
+# Checks both macOS Network Configuration and raw interface state.
+_check_macos_no_vpn() {
+    _ret="$SUCCESS"
+
+    # scutil --nc list covers VPN clients using the macOS NC framework
+    # (Cisco AnyConnect, built-in VPN, etc.)
+    if command -v scutil > /dev/null 2>&1; then
+        if scutil --nc list 2>/dev/null | grep -qi 'connected'; then
+            print_error "Active VPN detected via macOS Network Configuration."
+            print_error "  -> Disable all VPN connections before running the sandbox"
+            _ret="$FAILURE"
+        fi
+    fi
+
+    # utun/ppp ifaces with an IPv4 inet address signal an active VPN tunnel.
+    # System-owned utun ifaces (AirDrop, iCloud, etc.) only carry IPv6.
+    _vpn_ifaces=""
+    for _vi in $(ifconfig -l 2>/dev/null \
+                 | tr ' ' '\n' | grep -E '^(utun|ppp)[0-9]'); do
+        if ifconfig "$_vi" 2>/dev/null | grep -q 'inet [0-9]'; then
+            if [ -z "$_vpn_ifaces" ]; then
+                _vpn_ifaces="$_vi"
+            else
+                _vpn_ifaces="$_vpn_ifaces $_vi"
+            fi
+        fi
+    done
+    if [ -n "$_vpn_ifaces" ]; then
+        print_error "Active VPN tunnel interface(s): $_vpn_ifaces"
+        print_error "  -> Disable all VPN connections before running"
+        print_error "     the sandbox."
+        _ret="$FAILURE"
+    fi
+
+    return "$_ret"
+}
+
+# ensure the macOS VPN enforcer is provisioned; installs if absent
+_ensure_enforcer() {
+    _plist_dst="$HOME/Library/LaunchAgents/"
+    _plist_dst="${_plist_dst}com.ai-agents-sandbox.vpn-enforcer.plist"
+    _log_dir="$HOME/Library/Logs/ai-agents-sandbox"
+    _bin_dir="$HOME/.local/bin"
+    _script_src="$ROOT_D/scripts/vpn-enforcer.sh"
+    _script_dst="$_bin_dir/ai-sandbox-vpn-enforcer"
+    _plist_tmpl="$ROOT_D/launchd/"
+    _plist_tmpl="${_plist_tmpl}com.ai-agents-sandbox."
+    _plist_tmpl="${_plist_tmpl}vpn-enforcer.plist.template"
+
+    if [ ! -f "$_script_src" ]; then
+        print_error "vpn-enforcer.sh not found: $_script_src"
+        return "$FAILURE"
+    fi
+    if [ ! -f "$_plist_tmpl" ]; then
+        print_error "Plist template not found: $_plist_tmpl"
+        return "$FAILURE"
+    fi
+
+    mkdir -p "$_log_dir" "$_bin_dir" "$HOME/Library/LaunchAgents"
+    cp "$_script_src" "$_script_dst"
+    chmod 755 "$_script_dst"
+
+    if [ -f "$_plist_dst" ]; then
+        return "$SUCCESS"
+    fi
+
+    print_info "Installing VPN enforcer for macOS..."
+
+    cp "$_plist_tmpl" "$_plist_dst"
+    _sed_inplace "s|{{SCRIPT_PATH}}|${_script_dst}|g" "$_plist_dst"
+    _sed_inplace "s|{{LOG_DIR}}|${_log_dir}|g" "$_plist_dst"
+
+    # Inject runtime PATH so launchd can find podman.
+    # launchd does not inherit the user's shell PATH.
+    _podman_bin="$(command -v podman 2>/dev/null)"
+    _podman_dir="$(dirname "$_podman_bin" 2>/dev/null)"
+    _plist_path="${_podman_dir}:/opt/homebrew/bin"
+    _plist_path="${_plist_path}:/usr/local/bin"
+    _plist_path="${_plist_path}:/usr/bin:/bin:/usr/sbin:/sbin"
+    _sed_inplace "s|{{HOME}}|${HOME}|g" "$_plist_dst"
+    _sed_inplace "s|{{PATH}}|${_plist_path}|g" "$_plist_dst"
+
+    launchctl load "$_plist_dst"
+    print_info "VPN enforcer installed."
+}
+
+# remove the macOS VPN enforcer LaunchAgent and nftables rules
+_remove_enforcer() {
+    _plist_dst="$HOME/Library/LaunchAgents/com.ai-agents-sandbox.vpn-enforcer.plist"
+    _script_dst="$HOME/.local/bin/ai-sandbox-vpn-enforcer"
+    [ -f "$_plist_dst" ] || return "$SUCCESS"
+
+    launchctl stop "com.ai-agents-sandbox.vpn-enforcer" 2>/dev/null || true
+    launchctl unload "$_plist_dst" 2>/dev/null || true
+
+    if podman machine ssh -- true 2>/dev/null; then
+        podman machine ssh -- sudo nft delete table inet vpn-block 2>/dev/null || true
+    fi
+
+    rm -f "$_plist_dst" "$_script_dst"
+    print_info "VPN enforcer removed."
+}
+
+# start the VPN enforcer daemon via launchctl
+_start_enforcer() {
+    _label="com.ai-agents-sandbox.vpn-enforcer"
+    _service="gui/$(id -u)/${_label}"
+    _attempt=0
+    _max_attempts=15
+
+    launchctl stop "$_label" 2>/dev/null || true
+    while [ "$_attempt" -lt "$_max_attempts" ]; do
+        if ! launchctl print "$_service" 2>/dev/null \
+            | grep -q 'state = running'; then
+            break
+        fi
+        _attempt=$(( _attempt + 1 ))
+        sleep 1
+    done
+    if [ "$_attempt" -ge "$_max_attempts" ]; then
+        print_error "Previous VPN enforcer instance did not stop."
+        return "$FAILURE"
+    fi
+
+    rm -f "/tmp/ai-sandbox-enforcer.ready" \
+        "/tmp/ai-sandbox-enforcer.state"
+
+    # launchd imposes a minimum-runtime throttle. Retry the start
+    # command until the service is running or 15 attempts expire.
+    _attempt=0
+    while [ "$_attempt" -lt "$_max_attempts" ]; do
+        launchctl start "$_label" 2>/dev/null || true
+        _st="$(launchctl print "$_service" 2>/dev/null \
+            | awk '/state =/{print $3}')"
+        if [ "$_st" = "running" ]; then
+            return "$SUCCESS"
+        fi
+        _attempt=$(( _attempt + 1 ))
+        sleep 1
+    done
+    print_error "VPN enforcer failed to start (launchd throttle)."
+    return "$FAILURE"
+}
+
+# stop the VPN enforcer daemon via launchctl
+_stop_enforcer() {
+    launchctl stop "com.ai-agents-sandbox.vpn-enforcer" 2>/dev/null || true
+}
+
+# block until ready-file appears or 30s timeout
+_wait_enforcer_ready() {
+    _ready="/tmp/ai-sandbox-enforcer.ready"
+    _elapsed=0
+    print_info "Waiting for VPN enforcer to apply network state..."
+    timeout=300
+    while [ "$_elapsed" -lt "$timeout" ]; do
+        if [ -f "$_ready" ]; then
+            print_info "VPN enforcer ready (${_elapsed}s)."
+            return "$SUCCESS"
+        fi
+        sleep 1
+        _elapsed=$(( _elapsed + 1 ))
+        printf '  [%2ds / %ds]\r' "$_elapsed" "$timeout" >&2
+    done
+    printf '\n' >&2
+    print_error "VPN enforcer did not become ready within ${timeout}s."
+    print_error "Check logs: ~/Library/Logs/ai-agents-sandbox/vpn-enforcer.log"
+    return "$FAILURE"
+}
+
+# check if a local image exists
+_image_exists() {
+    _img="$1"
+    podman image exists "$_img"
 }
 
 # Verify that the workspace directory exists and is a directory, otherwise fall
@@ -215,6 +448,10 @@ print_version() {
 build() {
     _ret="$SUCCESS"
     print_info "Building container image ${IMG_NAME}:${IMG_TAG} ..."
+    if ! _update_entrypoint_version || ! _update_containerfile_version; then
+        print_error "Failed to prepare version metadata before build."
+        _ret="$FAILURE"
+    fi
     if ! podman build \
         --build-arg "AGENT=${AGENT}" \
         --build-arg "IMG_TAG=${IMG_TAG}" \
@@ -233,7 +470,30 @@ build() {
 # callback for run action
 run() {
     _ret="$SUCCESS"
-    
+    _run_img="${IMG_NAME}:latest"
+    _agent_label="$AGENT"
+
+    if [ "$AGENT" = "$VALID_AGENTS" ]; then
+        _agent_label="all"
+    fi
+
+    if ! _image_exists "$_run_img"; then
+        if [ "$AGENT" != "$VALID_AGENTS" ] &&
+            _image_exists "ai-agents-sandbox:latest"; then
+            print_warning "Image '$_run_img' not found locally."
+            print_warning "Falling back to 'ai-agents-sandbox:latest'."
+            _run_img="ai-agents-sandbox:latest"
+        else
+            print_error "Image '$_run_img' not found locally."
+            print_error "Build it first with: sh ai-agents-sandbox.sh build"
+            if [ "$AGENT" != "$VALID_AGENTS" ]; then
+                print_error "Or build this agent with:"
+                print_error "  sh ai-agents-sandbox.sh build ${AGENT}"
+            fi
+            return "$FAILURE"
+        fi
+    fi
+
     if [ "$(uname -s)" = "Darwin" ] && [ "$USE_MICROVM" = "1" ]; then
         print_warning "[!] macOS detected — KVM is not available;"
         print_warning "    -> running without microVM isolation"
@@ -256,13 +516,13 @@ run() {
             USE_MICROVM=0
         else
             print_info "Running sandbox with microVM isolation for agent \
-'${AGENT}'..."
+'${_agent_label}'..."
         fi
     else
         print_warning "Running sandbox without microVM isolation for agent \
-'${AGENT}' (not recommended)..."
+'${_agent_label}' (not recommended)..."
     fi
-    
+
     _home_volume="$CTN_NAME-home"
     if podman volume exists "$_home_volume"; then
         print_debug "Using existing home volume '$_home_volume'."
@@ -278,7 +538,10 @@ run() {
         TOOLS_NEEDED="$TOOLS_NEEDED krun"
         CTN_NAME="${CTN_NAME}-microvm"
     else
-        TOOLS_NEEDED="$TOOLS_NEEDED slirp4netns ip"
+        TOOLS_NEEDED="$TOOLS_NEEDED slirp4netns"
+        if [ "$(uname -s)" != "Darwin" ]; then
+            TOOLS_NEEDED="$TOOLS_NEEDED ip"
+        fi
     fi
 
     if [ -n "$GOOGLE_CLOUD_PROJECT$VERTEX_LOCATION" ] && \
@@ -293,6 +556,30 @@ run() {
         return "$FAILURE"
     fi
 
+    if [ "$(uname -s)" = "Darwin" ]; then
+        if ! _ensure_enforcer; then
+            return "$FAILURE"
+        fi
+        if ! _check_macos_no_vpn; then
+            return "$FAILURE"
+        fi
+        if ! _start_enforcer; then
+            print_error "Failed to start VPN enforcer daemon."
+            return "$FAILURE"
+        fi
+        if ! _wait_enforcer_ready; then
+            _stop_enforcer
+            return "$FAILURE"
+        fi
+    else
+        _iface="$(_detect_public_iface)" || true
+        if [ -z "$_iface" ]; then
+            print_error "Could not detect a non-VPN interface."
+            print_error "Aborting to avoid unrestricted egress."
+            return "$FAILURE"
+        fi
+    fi
+
     # Resume a stopped container
     if podman container exists "$CTN_NAME"; then
         STATE=$(podman inspect "$CTN_NAME" --format '{{.State.Status}}')
@@ -302,21 +589,30 @@ run() {
                     podman inspect "$CTN_NAME" --format '{{.OCIRuntime}}'
                 )
                 if [ -n "$_runtime" ] && [ "$_runtime" = "krun" ]; then
-                    _nbr="$(podman ps -a --format '{{.Names}}' |\
-                            grep -c "$CTN_NAME")"
+                    _nbr="$(podman ps -a --format '{{.Names}}' | grep -c "$CTN_NAME")"
                     CTN_NAME="$CTN_NAME-$_nbr"
                     print_info "A container already run with '$_runtime'."
                     print_info "Creating a new one with suffixe $CTN_NAME."
                 else
                     print_info "Attaching to running container..."
-                    podman exec -it "$CTN_NAME" bash
-                    return "$SUCCESS"
+                    if ! podman exec -it "$CTN_NAME" bash; then
+                        _ret="$FAILURE"
+                    fi
+                    if [ "$(uname -s)" = "Darwin" ]; then
+                        _stop_enforcer
+                    fi
+                    return "$_ret"
                 fi
             };;
-            exited)  {
-                print_info "Resuming existing container..."
-                podman start -ai "$CTN_NAME"
-                return "$SUCCESS"
+            initialized|created|configured|exited) {
+                print_info "Starting container from '$STATE'..."
+                if ! podman start -ai "$CTN_NAME"; then
+                    _ret="$FAILURE"
+                fi
+                if [ "$(uname -s)" = "Darwin" ]; then
+                    _stop_enforcer
+                fi
+                return "$_ret"
             };;
             *)       {
                 print_error "Container '$CTN_NAME' is in state '$STATE'"
@@ -348,29 +644,38 @@ run() {
     if [ -n "$VERTEX_LOCATION" ]; then
         set -- "$@" --env "VERTEX_LOCATION=$VERTEX_LOCATION"
     fi
-
-    _iface=$(_detect_public_iface)
-    if [ -n "$_iface" ]; then
-        print_info "Binding outbound network to interface: $_iface"
-        set -- "$@" --network "slirp4netns:outbound_addr=${_iface}"
-        set -- "$@" --dns 1.1.1.1 --dns 8.8.8.8
-    else
-        print_warning "Could not detect a public interface;"
-        print_warning "falling back to default slirp4netns."
+    
+    # On macOS, slirp4netns:outbound_addr cannot bind at the host
+    # level because containers run inside Podman Machine (Linux
+    # VM) and all traffic is proxied through gvproxy on the macOS
+    # host. VM-layer nftables enforcement is handled by
+    # vpn-enforcer.sh (started above via launchctl).
+    # On Linux, outbound_addr pins egress to the detected
+    # non-VPN interface at the kernel level.
+    if [ "$(uname -s)" = "Darwin" ]; then
+        print_info "VM-layer nftables enforcement active."
         set -- "$@" --network slirp4netns
+    else
+        print_info "Binding outbound to interface: $_iface"
+        set -- "$@" --network "slirp4netns:outbound_addr=${_iface}"
     fi
+    set -- "$@" --dns 1.1.1.1 --dns 8.8.8.8
+
     if [ "$USE_MICROVM" = "1" ]; then
-        # Avaialble on crun > 1.27, below /.krun_config.json in the image is
+        # Available on crun > 1.27, below /.krun_config.json in the image is
         # required
         set -- "$@" --annotation krun.ram_mib=4096 --annotation krun.cpus=2
     fi
     _args=$*
     print_info "Starting isolated container..."
-    _cmd="podman run -it $_args ${IMG_NAME}:latest"
+    _cmd="podman run -it $_args ${_run_img}"
     print_debug "$_cmd"
-    if ! eval "$_cmd"; then
+    if ! podman run -it "$@" "${_run_img}"; then
         print_error "Failed to start container ${CTN_NAME}."
         _ret="$FAILURE"
+    fi
+    if [ "$(uname -s)" = "Darwin" ]; then
+        _stop_enforcer
     fi
     return "$_ret"
 }
@@ -378,7 +683,7 @@ run() {
 # callback for clean action
 clean() {
     _ret="$SUCCESS"
-    if [ "$USE_MICROVM" = "1" ]; then
+    if [ "$(uname -s)" != "Darwin" ] && [ "$USE_MICROVM" = 1 ]; then
         CTN_NAME="${CTN_NAME}-microvm"
     fi
 
@@ -420,6 +725,9 @@ clean() {
             fi
         else
             print_debug "No volume '$_home_volume' found."
+        fi
+        if [ "$(uname -s)" = "Darwin" ]; then
+            _remove_enforcer
         fi
         print_info "Auth tokens and workspace cleaned."
     fi
@@ -480,7 +788,7 @@ done
 _verify_workspace
 
 if [ "$AGENT" != "" ]; then
-    if ! _valide_agent ; then
+    if ! _valid_agent ; then
         print_error "Unknown agent: '$AGENT'. Valid agents: $VALID_AGENTS"
         exit $FAILURE
     else
