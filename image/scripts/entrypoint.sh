@@ -21,6 +21,8 @@
 
 SKEL_D="/usr/share/ai-sandbox"
 AGENT="${AGENT:-claude copilot gemini opencode}"
+VERSION="${AI_SANDBOX_VERSION:-0.0.0}"
+BANNER_HEADLINE="AI AGENTS SANDBOX - $VERSION"
 
 # ==================
 # Internal functions
@@ -49,16 +51,57 @@ agent_enabled() {
     esac
 }
 
+# Detect isolation mode based on mount points
+get_mode() {
+    if mount | grep 'on / type' | grep "virtiofs" > /dev/null 2>&1; then
+        echo "MICROVM ISOLATION"
+    else
+        echo "CONTAINER ISOLATION"
+    fi
+}
+
 # Check authentication status
 check_auth() {
-    _tool=$1
-    _check_cmd=$2
-    _hint=$3
+    _check_cmd=$1
+    _hint=$2
     if eval "$_check_cmd" > /dev/null 2>&1; then
-        echo "  ✅ $_tool : authenticated"
+        echo "✅ authenticated"
     else
-        echo "  ⚠️  $_tool : not authenticated — run : $_hint"
+        echo "⚠️ not authenticated — run : $_hint"
     fi
+}
+
+# Print the banner header
+banner_header() {
+    _mode="$(get_mode)"
+    toilet -t -f pagga  -F metal:border "$BANNER_HEADLINE"
+    toilet -t -f smbraille "$_mode"
+}
+
+# Print the banner for an agent with authentication status
+# Parameters:
+# 1: agent name
+# 2: authentication check command
+# 3: authentication hint command
+banner_agent() {
+    if [ -z "$1" ] || [ -z "$2" ] || [ -z "$3" ]; then
+        return
+    fi
+    _green=$(tput setaf 2)
+    _reset=$(tput sgr0)
+    _agent_name="$1"
+    _auth_cmd="$2"
+    _auth_hint="$3"
+    _auth_status="$(check_auth   "$_auth_cmd" "$_auth_hint")"
+    printf "\t%b• Agent:%b %s\n" "$_green" "$_reset" "$_agent_name"
+    printf "\t         %s\n"     "$_auth_status"
+}
+
+banner_notes() {
+    _blue=$(tput setaf 6)
+    _reset=$(tput sgr0)
+    printf "\t%b  Notes:%b\n" "$_blue" "$_reset"
+    printf "\t         %s\n"  "$@"
 }
 
 # ===========
@@ -66,7 +109,7 @@ check_auth() {
 # -----------
 
 # Create the user if not exists, with home and permissions to write in it.
-if [ "$(id-u)" = "0" ] && id aiuser >/dev/null 2>&1; then
+if [ "$(id -u)" = "0" ] && id aiuser >/dev/null 2>&1; then
     _uid="$(id -u aiuser)"
     _guid="$(id -g aiuser)"
     _home="$(getent passwd aiuser | cut -d: -f6)"
@@ -95,89 +138,41 @@ agent_enabled "opencode" &&\
     mkdir -p "$HOME/.config/opencode" &&\
     provision_agents "opencode" "$HOME/.config/opencode"
 
+# Print the banner with agent status and authentication hints
+banner_header
 
-echo ""
-neofetch
-
-# Build banner  lines for active agents
-agent_lines=""
+# For each agent, check authentication status and print
 agent_enabled "copilot" &&\
-    agent_lines="${agent_lines}║    • gh copilot   → GitHub Copilot CLI                       ║\n"
-agent_enabled "gemini" &&\
-    agent_lines="${agent_lines}║    • gemini       → Gemini CLI                               ║\n"
-agent_enabled "claude" &&\
-    agent_lines="${agent_lines}║    • claude       → Claude Code                              ║\n"
-agent_enabled "opencode" &&\
-    agent_lines="${agent_lines}║    • opencode     → Open Code                                ║\n"
-
-echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║         AI Agents Sandbox v0.9.0 — Secure Mode               ║" 
-echo "╠══════════════════════════════════════════════════════════════╣"
-echo "║  Available agents :                                          ║"
-printf "%s" "$agent_lines"
-echo "║                                                              ║"
-echo "║  Directory :                                                 ║"
-echo "║    ~           → Home, config                                ║"
-echo "║    ~/workspace → all projects, git clones                    ║"
-echo "╚══════════════════════════════════════════════════════════════╝"
-
-echo ""
-echo "── Authentication status ───────────────────────────────"
-
-if agent_enabled "copilot"; then
-    check_auth "GitHub (gh)" \
-        "gh auth status" \
+    banner_agent "GitHub Copilot CLI" "gh auth status" \
         "gh auth login --scopes 'copilot'"
-fi
 
-if agent_enabled "gemini"; then
-    check_auth "Gemini CLI" \
-        "test -f $HOME/.gemini/credentials.json" \
-        "gemini auth login"
-fi
+agent_enabled "gemini" &&\
+    banner_agent "Gemini CLI" "test -f $HOME/.gemini/credentials.json" \
+        "gemini auth login" &&\
+    banner_notes \
+      "If you used a company plan linked to a google project, you would" \
+      "need to edit the file: ~/.gemini/.env and set:" \
+      "GOOGLE_CLOUD_PROJECT=company-gemini-code-assist"
 
-if agent_enabled "claude"; then
-    check_auth "Claude Code" \
-        "claude auth status" \
-        "claude auth login  (or: export ANTHROPIC_API_KEY=sk-...)"
-fi
+agent_enabled "claude" &&\
+    banner_agent "Claude Code" \
+      "claude auth status" \
+      "claude auth login  (or: export ANTHROPIC_API_KEY=sk-...)" &&\
+    banner_notes \
+      "To install though Vertex Ai, connect to Google Cloud with:" \
+      "gcloud auth application-default login"
 
-echo "────────────────────────────────────────────────────────"
-echo ""
+agent_enabled "opencode" &&\
+    banner_agent "Open Code" \
+      "test -f $HOME/.config/opencode/credentials.json" \
+      "gcloud auth application-default login" &&\
+    banner_notes \
+      "Required environment variables:" \
+      "GOOGLE_CLOUD_PROJECT=<project ID>" \
+      "VERTEX_LOCATION=<vertex location>" \
+      "Keep GOOGLE_APPLICATION_CREDENTIALS unset for ADC default path." \
+      "Set GOOGLE_CLOUD_PROJECT to enable Vertex AI provider."
 
-if agent_enabled "claude"; then
-    echo "── Notes ───────────────────────────────────────────────"
-    echo " To install though Vertex Ai, connect to Google Cloud with: "
-    echo "  gcloud auth application-default login"
-    echo "────────────────────────────────────────────────────────"
-    echo ""
-fi
-
-if agent_enabled "gemini"; then
-    echo "── Notes ───────────────────────────────────────────────"
-    echo " If you used a company plan linked to a google project, you would"
-    echo " need to edit the file: ~/.gemini/.env and set:"
-    echo "  GOOGLE_CLOUD_PROJECT=company-gemini-code-assist"
-    echo "────────────────────────────────────────────────────────"
-    echo ""
-fi
-
-if agent_enabled "opencode"; then
-    echo "── Notes ───────────────────────────────────────────────"
-    echo " Authenticate Google Vertex with:"
-    echo "  gcloud auth application-default login"
-    echo " Required environment variables:"
-    echo "  GOOGLE_CLOUD_PROJECT=<project ID>"
-    echo "  VERTEX_LOCATION=<vertex location>"
-    echo " Keep GOOGLE_APPLICATION_CREDENTIALS unset for ADC default path."
-    if [ -z "$GOOGLE_CLOUD_PROJECT" ]; then
-        echo " Set GOOGLE_CLOUD_PROJECT to enable Vertex AI provider."
-    fi
-    echo "────────────────────────────────────────────────────────"
-    echo ""
-fi
-
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Session started — UID=$(id -u) | $(uname -n) | agent(s)=${AGENT}"
 echo ""
 
 cd "$HOME/workspace" 2>/dev/null || true

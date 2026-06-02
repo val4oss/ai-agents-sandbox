@@ -86,20 +86,6 @@ _valide_agent() {
     return "$_ret"
 }
 
-# update version in entrypoint.sh
-_update_entrypoint_version() {
-    sed -i\
-        "s/AI Agents Sandbox v[0-9]\+\.[0-9]\+\.[0-9]\+/AI Agents Sandbox v${IMG_TAG}/g"\
-        "${IMG_D}/scripts/entrypoint.sh"
-}
-
-# update version in Containerfile
-_update_containerfile_version() {
-    sed -i\
-        "s/version=\"[0-9]\+\.[0-9]\+\.[0-9]\+\"/version=\"${IMG_TAG}\"/g" \
-        "${IMG_D}/Containerfile"
-}
-
 _check_microvm() {
     _ret="$SUCCESS"
     if [ ! -x "/usr/bin/krun" ]; then
@@ -229,10 +215,9 @@ print_version() {
 build() {
     _ret="$SUCCESS"
     print_info "Building container image ${IMG_NAME}:${IMG_TAG} ..."
-    _update_entrypoint_version
-    _update_containerfile_version
     if ! podman build \
         --build-arg "AGENT=${AGENT}" \
+        --build-arg "IMG_TAG=${IMG_TAG}" \
         --tag "${IMG_NAME}:${IMG_TAG}" \
         --tag "${IMG_NAME}:latest" \
         --file "${IMG_D}/Containerfile" \
@@ -353,7 +338,8 @@ run() {
         --security-opt no-new-privileges \
         --userns=keep-id \
         --hostname ai-sandbox \
-        --pids-limit 1024
+        --pids-limit 1024 \
+        --env "AI_SANDBOX_VERSION=${IMG_TAG}"
 
     # Forward cloud/relay settings needed by Vertex-backed OpenCode sessions.
     if [ -n "$GOOGLE_CLOUD_PROJECT" ]; then
