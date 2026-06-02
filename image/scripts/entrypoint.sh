@@ -1,38 +1,30 @@
 #!/bin/sh
+# entrypoint.sh - Script call as entrypoint of the container.
+# Copyright (C) 2026  val4oss <val4oss@pm.me>
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANYWARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+# ================
+# Global variables
+# ----------------
 
 SKEL_D="/usr/share/ai-sandbox"
 AGENT="${AGENT:-claude copilot gemini opencode}"
 
-# Return 0 if agent is enabled, 1 otherwise
-agent_enabled() {
-    case " $AGENT " in
-        *" $1 "*)   return 0 ;;
-        *)          return 1 ;;
-    esac
-}
-
-if [ "$(id -u)" = "0" ] && id aiuser >/dev/null 2>&1; then
-    _uid="$(id -u aiuser)"
-    _guid="$(id -g aiuser)"
-    _home="$(getent passwd aiuser | cut -d: -f6)"
-    export HOME="$_home"
-    export USER="aiuser"
-    export LOGNAME="aiuser"
-    export TERM="xterm-256color"
-    cd "$HOME" 2>/dev/null || true
-    exec setpriv --reuid="$_uid" --regid="$_guid" --init-groups "$0" "$@"
-fi
-
-# ── Home provisioning (first-run or after clean) ─────────────────────────────
-# Files are copied only if they do not already exist (cp -n).
-# This allows users to customise their home without losing changes on restart.
-
-mkdir -p \
-    "$HOME/workspace" \
-    "$HOME/.config/opencode" \
-    "$HOME/.copilot/agents"
-
-cp -n "$SKEL_D/skel/.gitconfig" "$HOME/.gitconfig" 2>/dev/null || true
+# ==================
+# Internal functions
+# ------------------
 
 # Provision sub-agents for each relevant agent
 provision_agents() {
@@ -49,20 +41,13 @@ provision_agents() {
     fi
 }
 
-agent_enabled "claude"  && provision_agents "claude"  "$HOME/.claude/agents"
-agent_enabled "copilot" && provision_agents "copilot" "$HOME/.copilot/agents"
-agent_enabled "gemini"  && provision_agents "gemini"  "$HOME/.gemini/agents"
-
-# ─────────────────────────────────────────────────────────────────────────────
-
-export VERTEX_LOCATION="${VERTEX_LOCATION:-global}"
-
-if [ -z "$GOOGLE_CLOUD_PROJECT" ] && command -v gcloud > /dev/null 2>&1; then
-    _project="$(gcloud config get-value project 2>/dev/null)"
-    if [ -n "$_project" ] && [ "$_project" != "(unset)" ]; then
-        export GOOGLE_CLOUD_PROJECT="$_project"
-    fi
-fi
+# Return 0 if agent is enabled, 1 otherwise
+agent_enabled() {
+    case " $AGENT " in
+        *" $1 "*)   return 0 ;;
+        *)          return 1 ;;
+    esac
+}
 
 # Check authentication status
 check_auth() {
@@ -76,15 +61,54 @@ check_auth() {
     fi
 }
 
+# ===========
+# Entry point
+# -----------
+
+# Create the user if not exists, with home and permissions to write in it.
+if [ "$(id-u)" = "0" ] && id aiuser >/dev/null 2>&1; then
+    _uid="$(id -u aiuser)"
+    _guid="$(id -g aiuser)"
+    _home="$(getent passwd aiuser | cut -d: -f6)"
+    export HOME="$_home"
+    export USER="aiuser"
+    export LOGNAME="aiuser"
+    export TERM="xterm-256color"
+    cd "$HOME" 2>/dev/null || true
+    exec setpriv --reuid="$_uid" --regid="$_guid" --init-groups "$0" "$@"
+fi
+
+# Home provisioning (first-run or after clean)
+# Files are copied only if they do not already exist (cp -n).
+# This allows users to customise their home without losing changes on restart.
+mkdir -p \
+    "$HOME/workspace" \
+    "$HOME/.copilot/agents"
+
+cp -n "$SKEL_D/skel/.gitconfig" "$HOME/.gitconfig" 2>/dev/null || true
+
+# Per-agent provisioning
+agent_enabled "claude"  && provision_agents "claude"  "$HOME/.claude/agents"
+agent_enabled "copilot" && provision_agents "copilot" "$HOME/.copilot/agents"
+agent_enabled "gemini"  && provision_agents "gemini"  "$HOME/.gemini/agents"
+agent_enabled "opencode" &&\
+    mkdir -p "$HOME/.config/opencode" &&\
+    provision_agents "opencode" "$HOME/.config/opencode"
+
+
 echo ""
 neofetch
 
 # Build banner  lines for active agents
 agent_lines=""
-agent_enabled "copilot"  && agent_lines="${agent_lines}║    • gh copilot   → GitHub Copilot CLI                       ║\n"
-agent_enabled "gemini"   && agent_lines="${agent_lines}║    • gemini       → Gemini CLI                               ║\n"
-agent_enabled "claude"   && agent_lines="${agent_lines}║    • claude       → Claude Code                              ║\n"
-agent_enabled "opencode" && agent_lines="${agent_lines}║    • opencode     → Open Code                                ║\n"
+agent_enabled "copilot" &&\
+    agent_lines="${agent_lines}║    • gh copilot   → GitHub Copilot CLI                       ║\n"
+agent_enabled "gemini" &&\
+    agent_lines="${agent_lines}║    • gemini       → Gemini CLI                               ║\n"
+agent_enabled "claude" &&\
+    agent_lines="${agent_lines}║    • claude       → Claude Code                              ║\n"
+agent_enabled "opencode" &&\
+    agent_lines="${agent_lines}║    • opencode     → Open Code                                ║\n"
 
 echo "╔══════════════════════════════════════════════════════════════╗"
 echo "║         AI Agents Sandbox v0.9.0 — Secure Mode               ║" 
@@ -153,11 +177,9 @@ if agent_enabled "opencode"; then
     echo ""
 fi
 
-
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Session started — UID=$(id -u) | $(uname -n) | agent(s)=${AGENT}"
 echo ""
 
 cd "$HOME/workspace" 2>/dev/null || true
 
 exec "$@"
-
