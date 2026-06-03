@@ -8,6 +8,9 @@ FROM registry.opensuse.org/opensuse/tumbleweed:latest
 
 ARG AGENT="copilot gemini claude opencode"
 ARG IMG_TAG="0.0.0"
+ARG AI_USER=aiuser
+ARG AI_UID=1000
+ARG AI_GID=1000
 
 LABEL maintainer="val4oss" \
       description="AI Agents sandbox —${AGENT}, rootless" \
@@ -15,10 +18,6 @@ LABEL maintainer="val4oss" \
       security.caps="none" \
       security.network="slirp4netns" \
       security.credentials="runtime-only"
-
-ARG AI_USER=aiuser
-ARG AI_UID=1000
-ARG AI_GID=1000
 
 # ==============
 # System Package

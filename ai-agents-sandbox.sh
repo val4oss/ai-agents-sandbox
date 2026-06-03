@@ -34,6 +34,9 @@ IMG_NAME="ai-agents-sandbox"
 CTN_NAME="ai-agents-sandbox"
 IMG_TAG="0.9.0"
 VALID_AGENTS="copilot claude gemini opencode"
+AI_USER_NAME="aiuser"
+AI_USER_UID=1000
+AI_USER_GID=1000
 
 # argument variables
 AGENT=""
@@ -336,9 +339,12 @@ run() {
         --tmpfs "/tmp:rw,nosuid,size=1g" \
         --cap-drop ALL \
         --security-opt no-new-privileges \
-        --userns=keep-id \
+        --userns="keep-id:uid=${AI_USER_UID},gid=${AI_USER_GID}" \
         --hostname ai-sandbox \
         --pids-limit 1024 \
+        --env "AI_USER=${AI_USER_NAME}" \
+        --env "AI_UID=${AI_USER_UID}" \
+        --env "AI_GID=${AI_USER_GID}" \
         --env "AI_SANDBOX_VERSION=${IMG_TAG}"
 
     # Forward cloud/relay settings needed by Vertex-backed OpenCode sessions.
