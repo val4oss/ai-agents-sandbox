@@ -193,6 +193,48 @@ agent_enabled "opencode" &&\
     mkdir -p "$HOME/.config/opencode" &&\
     provision_agents "opencode" "$HOME/.config/opencode"
 
+# If GOOGLE_CLOUD_PROJECT is not forwarded by the launcher, try to
+# read it from the persisted gcloud configuration (best-effort).
+if agent_enabled "opencode" && [ -z "$GOOGLE_CLOUD_PROJECT" ] \
+    && command -v gcloud > /dev/null 2>&1; then
+    _gc_proj=$(gcloud config get-value project 2>/dev/null) || true
+    case "${_gc_proj:-}" in
+        ''|'(unset)') ;;
+        *)  export GOOGLE_CLOUD_PROJECT="$_gc_proj" ;;
+    esac
+fi
+
+# Build a concrete opencode config on each startup and mirror it
+# to opencode.json to override stale legacy files in persisted
+# home volumes.
+if agent_enabled "opencode"; then
+        _oc_dir="$HOME/.config/opencode"
+        _oc_cfg="$_oc_dir/config.json"
+        _oc_legacy="$_oc_dir/opencode.json"
+        _oc_loc="${VERTEX_LOCATION:-global}"
+        _oc_project="${GOOGLE_CLOUD_PROJECT:-}"
+        cat > "$_oc_cfg" << EOF
+{
+    "\$schema": "https://opencode.ai/config.json",
+    "enabled_providers": [
+        "google-vertex"
+    ],
+    "provider": {
+        "google-vertex": {
+            "npm": "@google-cloud/vertexai",
+            "name": "Vertex",
+            "options": {
+                "projectId": "$_oc_project",
+                "location": "$_oc_loc"
+            }
+        }
+    },
+    "model": "google-vertex/gemini-2.0-flash"
+}
+EOF
+        cp "$_oc_cfg" "$_oc_legacy" 2>/dev/null || true
+fi
+
 # Print the banner with agent status and authentication hints
 banner_header
 
