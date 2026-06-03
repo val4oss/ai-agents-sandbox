@@ -47,14 +47,23 @@ ACTION=""
 ALL=false
 TOOLS_NEEDED="podman sed grep"
 
-# usefull var
+# useful var
 MIN_LIBKRUN_VER="1.18.0"
+
+# macOS VPN enforcement config file path
+_ENFORCER_CONF="/tmp/ai-sandbox-enforcer.conf"
 
 # ========
 # Includes
 # --------
 
 . "${ROOT_D}/printer.sh"
+
+# Source macOS-specific VPN route-discovery helpers.
+# Provides: _vpn_active, _macos_route_to_cidr, _discover_vpn_routes.
+if [ "$(uname -s)" = "Darwin" ]; then
+    . "${ROOT_D}/scripts/macos-network-policy.sh"
+fi
 
 # ==================
 # Internal functions
@@ -210,19 +219,19 @@ _detect_public_iface() {
 #  - VPN active but no routes: warns user, offers block-all or allow.
 # When no VPN is active, writes an empty config (unrestricted egress).
 _handle_macos_vpn_state() {
-    _macos_routes=""
-    _macos_fallback="allow"
+    _hmvs_routes=""
+    _hmvs_fallback="allow"
 
-    if ! _macos_vpn_active; then
-        _macos_write_enforcer_config "" "allow"
+    if ! _vpn_active; then
+        _write_enforcer_config "" "allow"
         return "$SUCCESS"
     fi
 
     # VPN is active — discover split-tunnel routes.
-    _macos_disc="$(_macos_discover_vpn_routes 2>/dev/null)"
-    _macos_ret=$?
+    _hmvs_disc="$(_discover_vpn_routes 2>/dev/null)"
+    _hmvs_ret=$?
 
-    case "$_macos_ret" in
+    case "$_hmvs_ret" in
         1)
             # Full-tunnel: default route goes through VPN.
             print_error \
@@ -253,12 +262,12 @@ _handle_macos_vpn_state() {
             printf \
 '  (b) Block all egress and abort  [safer, disable VPN first]\n'
             printf 'Choice [a/b, default b]: '
-            read -r _macos_choice 2>/dev/null
-            case "$_macos_choice" in
+            read -r _hmvs_choice 2>/dev/null
+            case "$_hmvs_choice" in
                 a|A)
                     print_warning \
 "Proceeding with unrestricted egress (no VPN routes blocked)."
-                    _macos_fallback="allow"
+                    _hmvs_fallback="allow"
                     ;;
                 *)
                     print_error \
@@ -269,20 +278,20 @@ _handle_macos_vpn_state() {
             ;;
         0)
             # Split-tunnel routes discovered.
-            _macos_routes="$_macos_disc"
+            _hmvs_routes="$_hmvs_disc"
             print_info \
-"VPN split-tunnel detected — will block: ${_macos_routes}"
+"VPN split-tunnel detected — will block: ${_hmvs_routes}"
             ;;
     esac
 
-    _macos_write_enforcer_config "$_macos_routes" "$_macos_fallback"
+    _write_enforcer_config "$_hmvs_routes" "$_hmvs_fallback"
     return "$SUCCESS"
 }
 
-# write enforcer config file consumed by macos-vpn-enforcer.sh daemon.
+# write enforcer config file consumed by vpn-enforcer.sh daemon.
 # $1 = space-separated VPN CIDRs to block (may be empty).
 # $2 = fallback policy: "allow" (default) or "block".
-_macos_write_enforcer_config() {
+_write_enforcer_config() {
     _wec_routes="$1"
     _wec_fallback="${2:-allow}"
     printf 'VPN_ROUTES=%s\n' \
@@ -294,19 +303,19 @@ _macos_write_enforcer_config() {
 }
 
 # ensure the macOS VPN enforcer is provisioned; installs if absent
-_macos_ensure_enforcer() {
+_ensure_enforcer() {
     _plist_dst="$HOME/Library/LaunchAgents/"
-    _plist_dst="${_plist_dst}com.ai-agents-sandbox.macos-vpn-enforcer.plist"
+    _plist_dst="${_plist_dst}com.ai-agents-sandbox.vpn-enforcer.plist"
     _log_dir="$HOME/Library/Logs/ai-agents-sandbox"
     _bin_dir="$HOME/.local/bin"
-    _script_src="$ROOT_D/scripts/macos-vpn-enforcer.sh"
-    _script_dst="$_bin_dir/ai-sandbox-macos-vpn-enforcer"
+    _script_src="$ROOT_D/scripts/vpn-enforcer.sh"
+    _script_dst="$_bin_dir/ai-sandbox-vpn-enforcer"
     _plist_tmpl="$ROOT_D/launchd/"
     _plist_tmpl="${_plist_tmpl}com.ai-agents-sandbox."
-    _plist_tmpl="${_plist_tmpl}macos-vpn-enforcer.plist.template"
+    _plist_tmpl="${_plist_tmpl}vpn-enforcer.plist.template"
 
     if [ ! -f "$_script_src" ]; then
-        print_error "macos-vpn-enforcer.sh not found: $_script_src"
+        print_error "vpn-enforcer.sh not found: $_script_src"
         return "$FAILURE"
     fi
     if [ ! -f "$_plist_tmpl" ]; then
@@ -379,15 +388,12 @@ _macos_ensure_enforcer() {
 }
 
 # remove the macOS VPN enforcer LaunchAgent and nftables rules
-_macos_remove_enforcer() {
-    _plist_dst="$HOME/Library/LaunchAgents/com.ai-agents-sandbox.macos-vpn-enforcer.plist"
-    _log_dir="$HOME/Library/Logs/ai-agents-sandbox"
-    _script_dst="$HOME/.local/bin/ai-sandbox-macos-vpn-enforcer"
-    _label="com.ai-agents-sandbox.macos-vpn-enforcer"
-    _service="gui/$(id -u)/${_label}"
+_remove_enforcer() {
+    _plist_dst="$HOME/Library/LaunchAgents/com.ai-agents-sandbox.vpn-enforcer.plist"
+    _script_dst="$HOME/.local/bin/ai-sandbox-vpn-enforcer"
+    [ -f "$_plist_dst" ] || return "$SUCCESS"
 
-    launchctl stop "$_label" 2>/dev/null || true
-    launchctl bootout "$_service" 2>/dev/null || true
+    launchctl stop "com.ai-agents-sandbox.vpn-enforcer" 2>/dev/null || true
     launchctl unload "$_plist_dst" 2>/dev/null || true
 
     if podman machine ssh -- true 2>/dev/null; then
@@ -395,25 +401,13 @@ _macos_remove_enforcer() {
     fi
 
     rm -f "$_plist_dst" "$_script_dst" \
-        "$HOME/.local/bin/macos-network-policy.sh" \
-        "$_log_dir/macos-vpn-enforcer.log" \
-        "$_log_dir/macos-vpn-enforcer.err" \
-        "$_log_dir/vpn-enforcer.log" \
-        "$_log_dir/vpn-enforcer.err" \
-        "$_ENFORCER_CONF" \
-        "/tmp/ai-sandbox-enforcer.ready" \
-        "/tmp/ai-sandbox-enforcer.state"
-
-    # Remove the directory only if it is empty after log cleanup.
-    rmdir "$_log_dir" 2>/dev/null || true
-
+        "$HOME/.local/bin/macos-network-policy.sh"
     print_info "VPN enforcer removed."
-    return "$SUCCESS"
 }
 
 # start the VPN enforcer daemon via launchctl
-_macos_start_enforcer() {
-    _label="com.ai-agents-sandbox.macos-vpn-enforcer"
+_start_enforcer() {
+    _label="com.ai-agents-sandbox.vpn-enforcer"
     _service="gui/$(id -u)/${_label}"
     _attempt=0
     _max_attempts=15
@@ -459,12 +453,12 @@ _macos_start_enforcer() {
 }
 
 # stop the VPN enforcer daemon via launchctl
-_macos_stop_enforcer() {
-    launchctl stop "com.ai-agents-sandbox.macos-vpn-enforcer" 2>/dev/null || true
+_stop_enforcer() {
+    launchctl stop "com.ai-agents-sandbox.vpn-enforcer" 2>/dev/null || true
 }
 
 # block until ready-file appears or 30s timeout
-_macos_wait_enforcer_ready() {
+_wait_enforcer_ready() {
     _ready="/tmp/ai-sandbox-enforcer.ready"
     _elapsed=0
     print_info "Waiting for VPN enforcer to apply network state..."
@@ -480,7 +474,7 @@ _macos_wait_enforcer_ready() {
     done
     printf '\n' >&2
     print_error "VPN enforcer did not become ready within ${timeout}s."
-    print_error "Check logs: ~/Library/Logs/ai-agents-sandbox/macos-vpn-enforcer.log"
+    print_error "Check logs: ~/Library/Logs/ai-agents-sandbox/vpn-enforcer.log"
     return "$FAILURE"
 }
 
@@ -614,7 +608,10 @@ run() {
         TOOLS_NEEDED="$TOOLS_NEEDED krun"
         CTN_NAME="${CTN_NAME}-microvm"
     else
-        TOOLS_NEEDED="$TOOLS_NEEDED slirp4netns ip"
+        TOOLS_NEEDED="$TOOLS_NEEDED slirp4netns"
+        if [ "$(uname -s)" != "Darwin" ]; then
+            TOOLS_NEEDED="$TOOLS_NEEDED ip"
+        fi
     fi
 
     if [ -n "$GOOGLE_CLOUD_PROJECT$VERTEX_LOCATION" ] && \
@@ -627,6 +624,34 @@ run() {
         print_error "Required tools for the selected isolation are missing."
         print_error "Please install them and try again."
         return "$FAILURE"
+    fi
+
+    if [ "$(uname -s)" = "Darwin" ]; then
+        if ! _ensure_enforcer; then
+            return "$FAILURE"
+        fi
+        if ! _handle_macos_vpn_state; then
+            return "$FAILURE"
+        fi
+        if ! _start_enforcer; then
+            print_error "Failed to start VPN enforcer."
+            rm -f "$_ENFORCER_CONF"
+            return "$FAILURE"
+        fi
+        if ! _wait_enforcer_ready; then
+            _stop_enforcer
+            rm -f "$_ENFORCER_CONF"
+            return "$FAILURE"
+        fi
+    else
+        _iface="$(_detect_public_iface)" || true
+        if [ -z "$_iface" ]; then
+            print_error \
+                "Could not detect a non-VPN interface."
+            print_error \
+                "Aborting to avoid unrestricted egress."
+            return "$FAILURE"
+        fi
     fi
 
     # Resume a stopped container
@@ -645,14 +670,26 @@ run() {
                     print_info "Creating a new one with suffixe $CTN_NAME."
                 else
                     print_info "Attaching to running container..."
-                    podman exec -it "$CTN_NAME" bash
-                    return "$SUCCESS"
+                    if ! podman exec -it "$CTN_NAME" bash; then
+                        _ret="$FAILURE"
+                    fi
+                    if [ "$(uname -s)" = "Darwin" ]; then
+                        _stop_enforcer
+                        rm -f "$_ENFORCER_CONF"
+                    fi
+                    return "$_ret"
                 fi
             };;
-            exited)  {
-                print_info "Resuming existing container..."
-                podman start -ai "$CTN_NAME"
-                return "$SUCCESS"
+            initialized|created|configured|exited) {
+                print_info "Starting container from '$STATE'..."
+                if ! podman start -ai "$CTN_NAME"; then
+                    _ret="$FAILURE"
+                fi
+                if [ "$(uname -s)" = "Darwin" ]; then
+                    _stop_enforcer
+                    rm -f "$_ENFORCER_CONF"
+                fi
+                return "$_ret"
             };;
             *)       {
                 print_error "Container '$CTN_NAME' is in state '$STATE'"
@@ -687,22 +724,35 @@ run() {
     if [ -n "$VERTEX_LOCATION" ]; then
         set -- "$@" --env "VERTEX_LOCATION=$VERTEX_LOCATION"
     fi
-
-    _iface=$(_detect_public_iface)
-    if [ -n "$_iface" ]; then
-        print_info "Binding outbound network to interface: $_iface"
-        set -- "$@" --network "slirp4netns:outbound_addr=${_iface}"
-        set -- "$@" --dns 1.1.1.1 --dns 8.8.8.8
-    else
-        print_warning "Could not detect a public interface;"
-        print_warning "falling back to default slirp4netns."
+    
+    # On macOS, slirp4netns:outbound_addr cannot bind at the host
+    # level because containers run inside Podman Machine (Linux
+    # VM) and all traffic is proxied through gvproxy on the macOS
+    # host. VM-layer nftables enforcement is handled by
+    # vpn-enforcer.sh (started above via launchctl).
+    # On Linux, outbound_addr pins egress to the detected
+    # non-VPN interface at the kernel level.
+    if [ "$(uname -s)" = "Darwin" ]; then
+        # On macOS, containers run inside the Podman Machine VM.
+        # gvproxy provides DNS via its internal resolver (VM gateway),
+        # which forwards to mDNSResponder — VPN-aware and not subject
+        # to the nftables oif rules. Overriding with 1.1.1.1/8.8.8.8
+        # breaks sites like googleapis.com when the corporate VPN
+        # intercepts or blocks direct UDP/53 to external resolvers.
+        print_info "VM-layer nftables enforcement active."
         set -- "$@" --network slirp4netns
+    else
+        print_info "Binding outbound to interface: $_iface"
+        set -- "$@" --network "slirp4netns:outbound_addr=${_iface}" \
+            --dns 1.1.1.1 --dns 8.8.8.8
     fi
+
     if [ "$USE_MICROVM" = "1" ]; then
         # Avaialble on crun > 1.27, below /.krun_config.json in the image is
         # required
         set -- "$@" --annotation krun.ram_mib=8192 --annotation krun.cpus=4
     fi
+
     _args=$*
     print_info "Starting isolated container..."
     _cmd="podman run -it $_args ${IMG_NAME}:latest"
@@ -710,6 +760,10 @@ run() {
     if ! eval "$_cmd"; then
         print_error "Failed to start container ${CTN_NAME}."
         _ret="$FAILURE"
+    fi
+    if [ "$(uname -s)" = "Darwin" ]; then
+        _stop_enforcer
+        rm -f "$_ENFORCER_CONF"
     fi
     return "$_ret"
 }
@@ -807,6 +861,14 @@ if [ $# -lt 1 ]; then
     print_error "Missing command"
     usage & exit 1
 fi
+case "$1" in
+    help|--help|-h)        usage ;          exit 0  ;;
+    verbose|--verbose|-v)  VERBOSE=1;       shift 1 ;;
+    quiet|--quiet|-q)      QUIET=1;         shift 1 ;;
+    version|--version)     print_version;   exit 0  ;;
+esac
+
+# get actions/agents/options
 while [ $# -gt 0 ]; do
     case "$1" in
         help|--help|-h)          usage;         exit 0  ;;
@@ -817,10 +879,6 @@ while [ $# -gt 0 ]; do
         --no-microvm|no-microvm) USE_MICROVM=0; shift 1 ;;
         all|--all|-a)            ALL=true;      shift 1 ;;
         --workspace|-w)
-            if [ -z "$2" ]; then
-                print_error "Error: $1 requires an argument."
-                exit 1
-            fi
             SANDBOX_D="$2"
             shift 2
             ;;
