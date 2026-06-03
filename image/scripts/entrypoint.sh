@@ -20,7 +20,7 @@
 # ----------------
 
 SKEL_D="/usr/share/ai-sandbox"
-AGENT="${AGENT:-claude copilot gemini opencode}"
+AGENT="${AGENT:-claude copilot gemini opencode antigravity}"
 VERSION="${AI_SANDBOX_VERSION:-0.0.0}"
 BANNER_HEADLINE="AI AGENTS SANDBOX - $VERSION"
 
@@ -134,6 +134,8 @@ cp -n "$SKEL_D/skel/.gitconfig" "$HOME/.gitconfig" 2>/dev/null || true
 agent_enabled "claude"  && provision_agents "claude"  "$HOME/.claude/agents"
 agent_enabled "copilot" && provision_agents "copilot" "$HOME/.copilot/agents"
 agent_enabled "gemini"  && provision_agents "gemini"  "$HOME/.gemini/agents"
+agent_enabled "antigravity" &&\
+    provision_agents "antigravity" "$HOME/.gemini/antigravity-cli"
 agent_enabled "opencode" &&\
     mkdir -p "$HOME/.config/opencode" &&\
     provision_agents "opencode" "$HOME/.config/opencode"
@@ -150,28 +152,36 @@ agent_enabled "gemini" &&\
     banner_agent "Gemini CLI" "test -f $HOME/.gemini/credentials.json" \
         "gemini auth login" &&\
     banner_notes \
-      "If you used a company plan linked to a google project, you would" \
-      "need to edit the file: ~/.gemini/.env and set:" \
-      "GOOGLE_CLOUD_PROJECT=company-gemini-code-assist"
+        "If you used a company plan linked to a google project, you would" \
+        "need to edit the file: ~/.gemini/.env and set:" \
+        "GOOGLE_CLOUD_PROJECT=company-gemini-code-assist"
 
 agent_enabled "claude" &&\
     banner_agent "Claude Code" \
-      "claude auth status" \
-      "claude auth login  (or: export ANTHROPIC_API_KEY=sk-...)" &&\
+        "claude auth status" \
+        "claude auth login  (or: export ANTHROPIC_API_KEY=sk-...)" &&\
     banner_notes \
-      "To install though Vertex Ai, connect to Google Cloud with:" \
-      "gcloud auth application-default login"
+        "To install though Vertex Ai, connect to Google Cloud with:" \
+        "gcloud auth application-default login"
 
 agent_enabled "opencode" &&\
     banner_agent "Open Code" \
-      "test -f $HOME/.config/opencode/credentials.json" \
-      "gcloud auth application-default login" &&\
+        "test -f $HOME/.config/opencode/credentials.json" \
+        "gcloud auth application-default login" &&\
     banner_notes \
-      "Required environment variables:" \
-      "GOOGLE_CLOUD_PROJECT=<project ID>" \
-      "VERTEX_LOCATION=<vertex location>" \
-      "Keep GOOGLE_APPLICATION_CREDENTIALS unset for ADC default path." \
-      "Set GOOGLE_CLOUD_PROJECT to enable Vertex AI provider."
+        "Required environment variables:" \
+        "GOOGLE_CLOUD_PROJECT=<project ID>" \
+        "VERTEX_LOCATION=<vertex location>" \
+        "Keep GOOGLE_APPLICATION_CREDENTIALS unset for ADC default path." \
+        "Set GOOGLE_CLOUD_PROJECT to enable Vertex AI provider."
+agent_enabled "antigravity" &&\
+    banner_agent "Antigravity" \
+        "test -f $HOME/.gemini/antigravity-cli/antigravity-oauth-token" \
+        "agy" &&\
+    banner_notes \
+        "Only cli is installed: agy" \
+        "When you authenticate through Google OAuth, the link provided can" \
+        "integrate some spaces, be careful when you copy-paste the URL."
 
 echo ""
 

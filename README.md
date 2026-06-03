@@ -1,8 +1,15 @@
 # AI Agents Sandbox
 
-A secure, isolated environment for running AI coding agents (GitHub Copilot,
-Gemini CLI, Claude Code, OpenCode) on **openSUSE Tumbleweed** using rootless
-container (Podman) and microvm (libkrun).
+A secure, isolated environment for running AI coding agents on
+**openSUSE Tumbleweed** using rootless container with **Podman** and microvm 
+with **libkrun**.
+
+* supported agents:
+  * `copilot` - GitHub Copilot CLI
+  * `gemini` - Google Gemini CLI
+  * `claude` - Anthropic Claude Code
+  * `opencode` - Google OpenCode
+  * `antigravity` - Google Antigravity-cli: `agy`
 
 > Credentials are **never baked into the image**.
 > Authentication is performed at runtime and persisted via a mounted
@@ -86,11 +93,9 @@ cd ai-agents-sandbox
 
 ```bash
 sh ai-agents-sandbox.sh build           # Build the all-in-one image  (ai-agents-sandbox:latest)
-sh ai-agents-sandbox.sh build copilot   # Build a Copilot-only image  (ai-agents-sandbox-copilot:latest)
-sh ai-agents-sandbox.sh build claude    # Build a Claude-only image   (ai-agents-sandbox-claude:latest)
-sh ai-agents-sandbox.sh build gemini    # Build a Gemini-only image   (ai-agents-sandbox-gemini:latest)
-sh ai-agents-sandbox.sh build opencode  # Build an OpenCode-only image (ai-agents-sandbox-opencode:latest)
+sh ai-agents-sandbox.sh build <agent>   # Build an agent image        (ai-agents-sandbox-<agent>:latest)
 ```
+
 
 The script copies injects the version number, passes the `AGENT` build-arg to
 `podman build`, builds the image as `ai-agents-sandbox[-<agent>]:latest`.

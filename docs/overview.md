@@ -77,19 +77,21 @@ automatically on first login. All runtime content is excluded from git via
 | Gemini CLI | `gemini` | `gemini auth login` |
 | Claude Code | `claude` | `claude auth login` or `export ANTHROPIC_API_KEY=sk-...` or `gcloud ...` |
 | OpenCode | `opencode` | configure `~/.config/opencode/opencode.json` and select a model |
+| antigravity | `agye` | run `agy` and use `Google Oauth` , be carefull of spaces in the URL to copy-paste |
 
 ---
 
 ## Images sizes
 
-> Fetched 26-04-27
+> Fetched 26-06-03
 
-|           Image           |   Size  |               Note               |
-|---------------------------|---------|----------------------------------|
-| ai-agents-sandbox-gemini  | 674 MB  |                                  | 
-| ai-agents-sandbox-claude  | 1.78 GB | storage used by `gcloud` utility |
-| ai-agents-sandbox-copilot | 772 MB  |                                  |
-| ai-agents-sandbox         | 2.12 GB |                                  |
+|           Image               |   Size  |               Note               |
+|-------------------------------|---------|----------------------------------|
+| ai-agents-sandbox-gemini      | 674 MB  |                                  | 
+| ai-agents-sandbox-claude      | 1.74 GB | storage used by `gcloud` utility |
+| ai-agents-sandbox-copilot     | 864 MB  |                                  |
+| ai-agents-sandbox-antigravity | 805 MB  |                                  |
+| ai-agents-sandbox             | 3.06 GB |                                  |
 
 ---
 

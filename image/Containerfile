@@ -6,7 +6,7 @@
 
 FROM registry.opensuse.org/opensuse/tumbleweed:latest
 
-ARG AGENT="copilot gemini claude opencode"
+ARG AGENT="copilot gemini claude opencode antigravity"
 ARG IMG_TAG="0.0.0"
 ARG AI_USER=aiuser
 ARG AI_UID=1000
@@ -102,14 +102,20 @@ RUN groupadd --gid $AI_GID $AI_USER && \
 # =========
 # AI agents - installed selectively based on AGENT list
 # ---------
-RUN case " $AGENT " in *\ gemini\ *) \
-        npm install -g @google/gemini-cli ;; esac; \
-    case " $AGENT " in *\ claude\ *) \
-        npm install -g @anthropic-ai/claude-code ;; esac; \
-    case " $AGENT " in *\ opencode\ *) \
+# =========
+# AI agents - installed selectively based on AGENT list
+# ---------
+RUN case " $AGENT " in *" gemini "*) \
+        npm install -g @google/gemini-cli ;; esac && \
+    case " $AGENT " in *" claude "*) \
+        npm install -g @anthropic-ai/claude-code ;; esac && \
+    case " $AGENT " in *" opencode "*) \
         npm install -g opencode-ai ;; esac && \
-    case " $AGENT " in *\ copilot\ *) \
-        wget -qO- https://gh.io/copilot-install | bash ;; esac
+    case " $AGENT " in *" copilot "*) \
+        wget -qO- https://gh.io/copilot-install | bash ;; esac && \
+    case " $AGENT " in *" antigravity "*) \
+        curl -fsSL https://antigravity.google/cli/install.sh | \
+        bash -s -- -d "/usr/local/bin" ;; esac
 
 # ============
 # Copy scripts
