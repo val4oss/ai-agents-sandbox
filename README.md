@@ -133,16 +133,11 @@ and use Copilot on the code.
 
 ```bash
 sh ai-agents-sandbox.sh build copilot
-```
-
-Expected output:
-
-```
-[INFO] Building container image ai-agents-sandbox-copilot:0.1.0 ...
+[INFO] Building container image ai-agents-sandbox:0.9.0 ...
 ...
-Successfully tagged localhost/ai-agents-sandbox-copilot:latest
-Successfully tagged localhost/ai-agents-sandbox-copilot:0.1.0
-b61090dd633ea5b371390111892a172f5b8f1a47926919c7518674d893cdbf41
+Successfully tagged localhost/ai-agents-sandbox:latest
+Successfully tagged localhost/ai-agents-sandbox:0.9.0
+ed31835286b3b911ad1bd8ccd6f0f104aee6044e7e5d283111344fee27ac2812
 [INFO] Image built successfully.
 [INFO] [✓] Done.
 ```
@@ -150,59 +145,39 @@ b61090dd633ea5b371390111892a172f5b8f1a47926919c7518674d893cdbf41
 ### Step 2 — Start the container
 
 ```bash
-sh ai-agents-sandbox.sh run copilot
-```
+sh ai-agents-sandbox.sh run -w ~/workspace/
 
-Expected output:
-
-```
-sh ai-agents-sandbox.sh run copilot
-[INFO] Running sandbox with microVM isolation for agent 'copilot'...
+[INFO] Running sandbox with microVM isolation for agent 'copilot claude gemini opencode'...
+[INFO] Binding outbound network to interface: wlan0
 [INFO] Starting isolated container...
-
-         JJJJJJJJ                            aiuser@ai-sandbox
-      JJJJJJJJJJJJJJ                         -----------------
-    JJJJJJ   =JJJJJJJ                        OS: openSUSE Tumbleweed x86_64
-   JJJJ      =JJJ JJJJ                       Kernel: 6.12.68
-   JJJ       =JJJ   JJJ                      Uptime: 0 secs
-  JJJJ       =JJJ   JJJ                      Packages: 198 (rpm)
-  JJJJJJJJJJJJJJJ   JJJJ                     Shell: bash 5.3.9
-   JJJJJJJJJJJJJJ   JJJJ                     Terminal: init.krun
-   JJJJ             JJJJ                     CPU: 2x (1)
-    JJJJJ=          JJJJ                     Memory: 0.15 GiB / 3.85 GiB (4%)
-      JJJJJJJJJJJJJJJJJJJJJJJJJJJJJ=
-        =JJJJJJJJJJJJJJJJJJJJJJJJJJJJJ
-                    JJJJ         =JJJJJJ
-                    JJJJ            =JJJJ
-                    JJJJ   JJJJJJJJJJJJJJ
-                    JJJJ   JJJJJJJJJJJJJJJ
-                    JJJJ   JJJJ       JJJJ
-                     JJJ   JJJJ       JJJ
-                     JJJJJ JJJJ      JJJJ
-                      =JJJJJJJJ   JJJJJJ
-                        JJJJJJJJJJJJJJ
-                           JJJJJJJ=
-
-╔══════════════════════════════════════════════════════════════╗
-║         AI Agents Sandbox v0.1.0 — Secure Mode               ║
-╠══════════════════════════════════════════════════════════════╣
-║  Available agents :                                          ║
-║    • gh copilot   → GitHub Copilot CLI                       ║
-║                                                              ║
-║  Directory :                                                 ║
-║    ~           → Home, config                                ║
-║    ~/workspace → all projects, git clones                    ║
-╚══════════════════════════════════════════════════════════════╝
-
-── Authentication status ───────────────────────────────
-  ⚠️  GitHub (gh) : not authenticated — run : gh auth login --scopes 'copilot'
-  ✅ GitHub Copilot : built-in (gh copilot suggest / explain)
-────────────────────────────────────────────────────────
-
-[2026-05-05 12:54:19] Session started — UID=1000 | ai-sandbox | agent(s)=copilot
-
-[12:54:19] aiuser @ ai-sandbox : ~
-$
+┌──────────────────────────────────────────────────────────────────────────────────────────┐
+│░█▀█░▀█▀░░░█▀█░█▀▀░█▀▀░█▀█░▀█▀░█▀▀░░░█▀▀░█▀█░█▀█░█▀▄░█▀▄░█▀█░█░█░░░░░░░░░▄▀▄░░░░▄▀▄░░░░▄▀▄│
+│░█▀█░░█░░░░█▀█░█░█░█▀▀░█░█░░█░░▀▀█░░░▀▀█░█▀█░█░█░█░█░█▀▄░█░█░▄▀▄░░░▄▄▄░░░█/█░░░░░▀█░░░░█/█│
+│░▀░▀░▀▀▀░░░▀░▀░▀▀▀░▀▀▀░▀░▀░░▀░░▀▀▀░░░▀▀▀░▀░▀░▀░▀░▀▀░░▀▀░░▀▀▀░▀░▀░░░░░░░░░░▀░░▀░░▀▀░░▀░░░▀░│
+└──────────────────────────────────────────────────────────────────────────────────────────┘
+ ⡷⢾ ⡇ ⡎⠑ ⣏⡱ ⡎⢱ ⡇⢸ ⡷⢾   ⡇ ⢎⡑ ⡎⢱ ⡇  ⣎⣱ ⢹⠁ ⡇ ⡎⢱ ⡷⣸
+ ⠇⠸ ⠇ ⠣⠔ ⠇⠱ ⠣⠜ ⠸⠃ ⠇⠸   ⠇ ⠢⠜ ⠣⠜ ⠧⠤ ⠇⠸ ⠸  ⠇ ⠣⠜ ⠇⠹
+        • Agent: GitHub Copilot CLI
+                 ⚠️ not authenticated — run : gh auth login --scopes 'copilot'
+        • Agent: Gemini CLI
+                 ⚠️ not authenticated — run : gemini auth login
+          Notes:
+                 If you used a company plan linked to a google project, you would
+                 need to edit the file: ~/.gemini/.env and set:
+                 GOOGLE_CLOUD_PROJECT=company-gemini-code-assist
+        • Agent: Claude Code
+                 ✅ authenticated
+          Notes:
+                 To install though Vertex Ai, connect to Google Cloud with:
+                 gcloud auth application-default login
+        • Agent: Open Code
+                 ⚠️ not authenticated — run : gcloud auth application-default login
+          Notes:
+                 Required environment variables:
+                 GOOGLE_CLOUD_PROJECT=<project ID>
+                 VERTEX_LOCATION=<vertex location>
+                 Keep GOOGLE_APPLICATION_CREDENTIALS unset for ADC default path.
+                 Set GOOGLE_CLOUD_PROJECT to enable Vertex AI provider.
 ```
 
 > When running an agent-specific container, only that agent's line appears in
