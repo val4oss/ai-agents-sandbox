@@ -128,6 +128,7 @@ _handle_macos_vpn_state() {
 # write enforcer config file consumed by macos-vpn-enforcer.sh daemon.
 # $1 = space-separated VPN CIDRs to block (may be empty).
 # $2 = fallback policy: "allow" (default) or "block".
+# When Ollama is configured (_OLLAMA_IP set), appends OLLAMA vars.
 _macos_write_enforcer_config() {
     _wec_routes="$1"
     _wec_fallback="${2:-allow}"
@@ -135,6 +136,12 @@ _macos_write_enforcer_config() {
         "$_wec_routes" > "$_ENFORCER_CONF"
     printf 'FALLBACK_POLICY=%s\n' \
         "$_wec_fallback" >> "$_ENFORCER_CONF"
+    if [ -n "${_OLLAMA_IP:-}" ]; then
+        printf 'OLLAMA_IP=%s\n' \
+            "$_OLLAMA_IP" >> "$_ENFORCER_CONF"
+        printf 'OLLAMA_PORT=%s\n' \
+            "$_OLLAMA_PORT" >> "$_ENFORCER_CONF"
+    fi
     print_debug "Enforcer config: $_ENFORCER_CONF"
     return "$SUCCESS"
 }

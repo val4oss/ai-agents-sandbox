@@ -33,7 +33,7 @@ _SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 _READY_FILE="/tmp/ai-sandbox-enforcer.ready"
 # Runtime config written by ai-agents-sandbox.sh before each run.
-# Contains VPN_ROUTES and FALLBACK_POLICY.
+# Contains VPN_ROUTES/FALLBACK_POLICY and optional OLLAMA_IP/OLLAMA_PORT.
 _CONF_FILE="/tmp/ai-sandbox-enforcer.conf"
 _LABEL="com.ai-agents-sandbox.macos-vpn-enforcer"
 
@@ -62,6 +62,8 @@ _log_error() {
 # apply blanket egress block — used only as fallback when no
 # VPN routes can be discovered (FALLBACK_POLICY=block).
 _apply_blanket_block() {
+    _abb_ollama_ip="$1"
+    _abb_ollama_port="$2"
     _abb_tmp="/tmp/ai-sandbox-nft-blanket.$$.conf"
     {
         printf 'table inet vpn-block {\n'
@@ -71,6 +73,11 @@ _apply_blanket_block() {
         printf '        policy accept;\n'
         printf \
             '        ct state established,related accept;\n'
+        if [ -n "$_abb_ollama_ip" ] && [ -n "$_abb_ollama_port" ]; then
+            printf \
+                '        ip daddr %s tcp dport %s oif "%s" ct state new accept;\n' \
+                "$_abb_ollama_ip" "$_abb_ollama_port" "${_ext_nic}"
+        fi
         printf \
             '        oif "%s" ct state new drop;\n' \
             "${_ext_nic}"
@@ -95,6 +102,8 @@ _apply_rules() {
     # Step 2: Read routes and policy from config.
     _ar_cfg=""
     _ar_fallback="allow"
+    _ar_ollama_ip=""
+    _ar_ollama_port=""
     if [ -f "$_CONF_FILE" ]; then
         _ar_r="$(sed -n 's/^VPN_ROUTES=//p' \
             "$_CONF_FILE" | head -1)"
@@ -102,6 +111,30 @@ _apply_rules() {
         _ar_fp="$(sed -n 's/^FALLBACK_POLICY=//p' \
             "$_CONF_FILE" | head -1)"
         [ -n "$_ar_fp" ] && _ar_fallback="$_ar_fp"
+        _ar_oip="$(sed -n 's/^OLLAMA_IP=//p' \
+            "$_CONF_FILE" | head -1)"
+        [ -n "$_ar_oip" ] && _ar_ollama_ip="$_ar_oip"
+        _ar_opt="$(sed -n 's/^OLLAMA_PORT=//p' \
+            "$_CONF_FILE" | head -1)"
+        [ -n "$_ar_opt" ] && _ar_ollama_port="$_ar_opt"
+    fi
+
+    case "$_ar_ollama_port" in
+        ''|*[!0-9]*)
+            if [ -n "$_ar_ollama_port" ]; then
+                _log_warn "Ignoring invalid OLLAMA_PORT in config."
+            fi
+            _ar_ollama_port=""
+            ;;
+    esac
+    if [ -n "$_ar_ollama_port" ] && \
+        { [ "$_ar_ollama_port" -lt 1 ] || [ "$_ar_ollama_port" -gt 65535 ]; }
+    then
+        _log_warn "Ignoring out-of-range OLLAMA_PORT in config."
+        _ar_ollama_port=""
+    fi
+    if [ -n "$_ar_ollama_ip" ] && [ -z "$_ar_ollama_port" ]; then
+        _ar_ollama_port="11434"
     fi
 
     # Step 3: Warn on full-tunnel (return code 1), fall back to
@@ -132,7 +165,7 @@ _apply_rules() {
         if [ "$_ar_fallback" = "block" ]; then
             _log_warn \
 "No VPN routes found — fallback: blocking all egress."
-            _apply_blanket_block
+            _apply_blanket_block "$_ar_ollama_ip" "$_ar_ollama_port"
             _log_info "Blanket block rule applied."
         else
             _log_info \
@@ -153,6 +186,11 @@ _apply_rules() {
         printf '        policy accept;\n'
         printf \
             '        ct state established,related accept;\n'
+        if [ -n "$_ar_ollama_ip" ] && [ -n "$_ar_ollama_port" ]; then
+            printf \
+                '        ip daddr %s tcp dport %s oif "%s" ct state new accept;\n' \
+                "$_ar_ollama_ip" "$_ar_ollama_port" "${_ext_nic}"
+        fi
         for _cidr in $_ar_all; do
             printf \
                 '        ip daddr %s oif "%s" ct state new drop;\n' \

@@ -58,7 +58,14 @@ AGENT=""
 USE_MICROVM=1
 ACTION=""
 ALL=false
+OLLAMA_URL=""
 TOOLS_NEEDED="podman sed grep"
+
+# Ollama endpoint variables
+_OLLAMA_SCHEME="http"
+_OLLAMA_HOST=""
+_OLLAMA_PORT="11434"
+_OLLAMA_IP=""
 
 # useful vars
 MIN_LIBKRUN_VER="1.18.0"
@@ -326,285 +333,104 @@ _detect_public_iface() {
     return "$_ret"
 }
 
-# Evaluate macOS VPN state and write the enforcer config file.
-# Handles three cases interactively before the enforcer starts:
-#  - Split-tunnel VPN: discovers routes, writes them to config.
-#  - Full-tunnel VPN: prompts user to configure split-tunnel, fails.
-#  - VPN active but no routes: warns user, offers block-all or allow.
-# When no VPN is active, writes an empty config (unrestricted egress).
-_handle_macos_vpn_state() {
-    _macos_routes=""
-    _macos_fallback="allow"
-
-    if ! _macos_vpn_active; then
-        _macos_write_enforcer_config "" "allow"
-        return "$SUCCESS"
+# parse --ollama argument: normalize scheme, split host and port
+_parse_OLLAMA_url() {
+    _url="$1"
+    _OLLAMA_SCHEME="http"
+    case "$_url" in
+        https://*) _OLLAMA_SCHEME="https" ;;
+        http://*)  _OLLAMA_SCHEME="http" ;;
+    esac
+    _url="${_url#http://}"
+    _url="${_url#https://}"
+    _url="${_url%/}"
+    case "$_url" in
+        *:*)
+            _OLLAMA_HOST="${_url%:*}"
+            _OLLAMA_PORT="${_url##*:}"
+            ;;
+        *)
+            _OLLAMA_HOST="$_url"
+            _OLLAMA_PORT="11434"
+            ;;
+    esac
+    if [ -z "$_OLLAMA_HOST" ]; then
+        print_error "Invalid --ollama value: $1"
+        print_error "  Expected: hostname:port or hostname"
+        return "$FAILURE"
     fi
-
-    # VPN is active — discover split-tunnel routes.
-    _macos_disc="$(_macos_discover_vpn_routes 2>/dev/null)"
-    _macos_ret=$?
-
-    case "$_macos_ret" in
-        1)
-            # Full-tunnel: default route goes through VPN.
-            print_error \
-"Full-tunnel VPN detected (default route via VPN interface)."
-            print_error \
-"  The container's internet traffic would be routed through"
-            print_error \
-"  your VPN, leaking your corporate identity to the AI agent."
-            print_error ""
-            print_error "  Configure your VPN for split-tunnel mode:"
-            print_error \
-"  Route only internal subnets through the VPN and keep"
-            print_error \
-"  internet traffic on your local network interface."
+    case "$_OLLAMA_PORT" in
+        *[!0-9]*)
+            print_error "Invalid --ollama port: $_OLLAMA_PORT"
             return "$FAILURE"
             ;;
-        2)
-            # VPN active but no specific routes found.
-            print_warning \
-"VPN is active but no internal routes could be discovered."
-            print_warning \
-"  Cannot determine which destinations to block automatically."
-            printf '\n'
-            printf \
-'  Choose how to proceed:\n'
-            printf \
-'  (a) Allow full internet access  [less secure]\n'
-            printf \
-'  (b) Block all egress and abort  [safer, disable VPN first]\n'
-            printf 'Choice [a/b, default b]: '
-            read -r _macos_choice 2>/dev/null
-            case "$_macos_choice" in
-                a|A)
-                    print_warning \
-"Proceeding with unrestricted egress (no VPN routes blocked)."
-                    _macos_fallback="allow"
-                    ;;
-                *)
-                    print_error \
-"Aborting. Disable VPN or configure split-tunnel and retry."
-                    return "$FAILURE"
-                    ;;
-            esac
-            ;;
-        0)
-            # Split-tunnel routes discovered.
-            _macos_routes="$_macos_disc"
-            print_info \
-"VPN split-tunnel detected — will block: ${_macos_routes}"
+    esac
+    if [ "$_OLLAMA_PORT" -lt 1 ] || [ "$_OLLAMA_PORT" -gt 65535 ]; then
+        print_error "Port out of range: $_OLLAMA_PORT (1-65535)"
+        return "$FAILURE"
+    fi
+    return "$SUCCESS"
+}
+
+# resolve Ollama hostname to an IPv4 address; sets _OLLAMA_IP.
+_resolve_OLLAMA_host() {
+    _rhost="$1"
+    _rip=""
+    case "$_rhost" in
+        [0-9]*.[0-9]*.[0-9]*.[0-9]*)
+            _OLLAMA_IP="$_rhost"
+            return "$SUCCESS"
             ;;
     esac
 
-    _macos_write_enforcer_config "$_macos_routes" "$_macos_fallback"
-    return "$SUCCESS"
-}
-
-# write enforcer config file consumed by macos-vpn-enforcer.sh daemon.
-# $1 = space-separated VPN CIDRs to block (may be empty).
-# $2 = fallback policy: "allow" (default) or "block".
-_macos_write_enforcer_config() {
-    _wec_routes="$1"
-    _wec_fallback="${2:-allow}"
-    printf 'VPN_ROUTES=%s\n' \
-        "$_wec_routes" > "$_ENFORCER_CONF"
-    printf 'FALLBACK_POLICY=%s\n' \
-        "$_wec_fallback" >> "$_ENFORCER_CONF"
-    print_debug "Enforcer config: $_ENFORCER_CONF"
-    return "$SUCCESS"
-}
-
-# ensure the macOS VPN enforcer is provisioned; installs if absent
-_macos_ensure_enforcer() {
-    _plist_dst="$HOME/Library/LaunchAgents/"
-    _plist_dst="${_plist_dst}com.ai-agents-sandbox.macos-vpn-enforcer.plist"
-    _log_dir="$HOME/Library/Logs/ai-agents-sandbox"
-    _bin_dir="$HOME/.local/bin"
-    _script_src="$ROOT_D/scripts/macos-vpn-enforcer.sh"
-    _script_dst="$_bin_dir/ai-sandbox-macos-vpn-enforcer"
-    _plist_tmpl="$ROOT_D/launchd/"
-    _plist_tmpl="${_plist_tmpl}com.ai-agents-sandbox."
-    _plist_tmpl="${_plist_tmpl}macos-vpn-enforcer.plist.template"
-
-    if [ ! -f "$_script_src" ]; then
-        print_error "macos-vpn-enforcer.sh not found: $_script_src"
-        return "$FAILURE"
-    fi
-    if [ ! -f "$_plist_tmpl" ]; then
-        print_error "Plist template not found: $_plist_tmpl"
-        return "$FAILURE"
-    fi
-
-    _policy_src="$ROOT_D/scripts/macos-network-policy.sh"
-    _policy_dst="$_bin_dir/macos-network-policy.sh"
-    if [ ! -f "$_policy_src" ]; then
-        print_error \
-            "macos-network-policy.sh not found: $_policy_src"
-        return "$FAILURE"
-    fi
-
-    mkdir -p "$_log_dir" "$_bin_dir" "$HOME/Library/LaunchAgents"
-    cp "$_script_src" "$_script_dst"
-    chmod 755 "$_script_dst"
-    cp "$_policy_src" "$_policy_dst"
-    chmod 644 "$_policy_dst"
-
-    print_info "Refreshing VPN enforcer LaunchAgent for macOS..."
-
-    launchctl stop "com.ai-agents-sandbox.macos-vpn-enforcer" 2>/dev/null || true
-    launchctl unload "$_plist_dst" 2>/dev/null || true
-
-    cp "$_plist_tmpl" "$_plist_dst"
-    if ! _sed_inplace "s|{{SCRIPT_PATH}}|${_script_dst}|g" "$_plist_dst"; then
-        print_error "Failed to update plist SCRIPT_PATH."
-        return "$FAILURE"
-    fi
-    if ! _sed_inplace "s|{{LOG_DIR}}|${_log_dir}|g" "$_plist_dst"; then
-        print_error "Failed to update plist LOG_DIR."
-        return "$FAILURE"
-    fi
-
-    # Inject runtime PATH so launchd can find podman.
-    # launchd does not inherit the user's shell PATH.
-    _podman_bin="$(command -v podman 2>/dev/null)"
-    _podman_dir="$(dirname "$_podman_bin" 2>/dev/null)"
-    _plist_path="${_podman_dir}:/opt/homebrew/bin"
-    _plist_path="${_plist_path}:/usr/local/bin"
-    _plist_path="${_plist_path}:/usr/bin:/bin:/usr/sbin:/sbin"
-    if ! _sed_inplace "s|{{HOME}}|${HOME}|g" "$_plist_dst"; then
-        print_error "Failed to update plist HOME."
-        return "$FAILURE"
-    fi
-    if ! _sed_inplace "s|{{PATH}}|${_plist_path}|g" "$_plist_dst"; then
-        print_error "Failed to update plist PATH."
-        return "$FAILURE"
-    fi
-
-    _launch_domain="gui/$(id -u)"
-    if ! launchctl bootstrap "$_launch_domain" "$_plist_dst" 2>/dev/null; then
-        # Fallback for older launchctl variants.
-        if ! launchctl load "$_plist_dst" 2>/dev/null; then
-            print_error "Failed to load VPN enforcer LaunchAgent."
-            return "$FAILURE"
+    if [ "$(uname -s)" = "Darwin" ]; then
+        if command -v dscacheutil > /dev/null 2>&1; then
+            _rip=$(dscacheutil -q host -a name "$_rhost" \
+                2>/dev/null \
+                | awk '/^ip_address:/{print $2; exit}')
+        fi
+        if [ -z "$_rip" ] && command -v python3 > /dev/null 2>&1; then
+            _rip=$(python3 -c \
+"import socket,sys; print(socket.gethostbyname(sys.argv[1]))" \
+                "$_rhost" 2>/dev/null)
         fi
     fi
 
-    if ! launchctl print "${_launch_domain}/com.ai-agents-sandbox.macos-vpn-enforcer" \
-        >/dev/null 2>&1; then
-        print_error "VPN enforcer LaunchAgent is not loaded."
+    if [ -z "$_rip" ] && command -v dig > /dev/null 2>&1; then
+        _rip=$(dig +short +time=3 \
+            "$_rhost" 2>/dev/null \
+            | grep -E '^[0-9]+\.' | head -1)
+    fi
+    if [ -z "$_rip" ] && command -v host > /dev/null 2>&1; then
+        _rip=$(host "$_rhost" 2>/dev/null \
+            | awk '/has address/{print $NF; exit}')
+    fi
+    if [ -z "$_rip" ] && command -v getent > /dev/null 2>&1; then
+        _rip=$(getent hosts "$_rhost" 2>/dev/null \
+            | awk '{print $1; exit}')
+    fi
+    if [ -z "$_rip" ]; then
+        print_error "Cannot resolve Ollama host: '$_rhost'"
+        print_error "  -> Is your VPN connected?"
         return "$FAILURE"
     fi
-
-    print_info "VPN enforcer LaunchAgent ready."
+    _OLLAMA_IP="$_rip"
+    print_info "Resolved $_rhost -> $_rip"
     return "$SUCCESS"
 }
 
-# remove the macOS VPN enforcer LaunchAgent and nftables rules
-_macos_remove_enforcer() {
-    _plist_dst="$HOME/Library/LaunchAgents/com.ai-agents-sandbox.macos-vpn-enforcer.plist"
-    _log_dir="$HOME/Library/Logs/ai-agents-sandbox"
-    _script_dst="$HOME/.local/bin/ai-sandbox-macos-vpn-enforcer"
-    _label="com.ai-agents-sandbox.macos-vpn-enforcer"
-    _service="gui/$(id -u)/${_label}"
-
-    launchctl stop "$_label" 2>/dev/null || true
-    launchctl bootout "$_service" 2>/dev/null || true
-    launchctl unload "$_plist_dst" 2>/dev/null || true
-
-    if podman machine ssh -- true 2>/dev/null; then
-        podman machine ssh -- sudo nft delete table inet vpn-block 2>/dev/null || true
+# parse the --ollama URL and resolve the hostname to an IP
+_validate_OLLAMA_endpoint() {
+    if ! _parse_OLLAMA_url "$OLLAMA_URL"; then
+        return "$FAILURE"
     fi
-
-    rm -f "$_plist_dst" "$_script_dst" \
-        "$HOME/.local/bin/macos-network-policy.sh" \
-        "$_log_dir/macos-vpn-enforcer.log" \
-        "$_log_dir/macos-vpn-enforcer.err" \
-        "$_log_dir/vpn-enforcer.log" \
-        "$_log_dir/vpn-enforcer.err" \
-        "$_ENFORCER_CONF" \
-        "/tmp/ai-sandbox-enforcer.ready" \
-        "/tmp/ai-sandbox-enforcer.state"
-
-    # Remove the directory only if it is empty after log cleanup.
-    rmdir "$_log_dir" 2>/dev/null || true
-
-    print_info "VPN enforcer removed."
+    if ! _resolve_OLLAMA_host "$_OLLAMA_HOST"; then
+        return "$FAILURE"
+    fi
+    print_debug \
+        "Ollama: ${_OLLAMA_HOST}:${_OLLAMA_PORT}" \
+        "(${_OLLAMA_IP})"
     return "$SUCCESS"
-}
-
-# start the VPN enforcer daemon via launchctl
-_macos_start_enforcer() {
-    _label="com.ai-agents-sandbox.macos-vpn-enforcer"
-    _service="gui/$(id -u)/${_label}"
-    _attempt=0
-    _max_attempts=15
-
-    launchctl stop "$_label" 2>/dev/null || true
-    while [ "$_attempt" -lt "$_max_attempts" ]; do
-        if ! launchctl print "$_service" 2>/dev/null \
-            | grep -q 'state = running'; then
-            break
-        fi
-        _attempt=$(( _attempt + 1 ))
-        sleep 1
-    done
-    if [ "$_attempt" -ge "$_max_attempts" ]; then
-        print_error "Previous VPN enforcer instance did not stop."
-        return "$FAILURE"
-    fi
-
-    rm -f "/tmp/ai-sandbox-enforcer.ready" \
-        "/tmp/ai-sandbox-enforcer.state"
-
-    if ! launchctl print "$_service" >/dev/null 2>&1; then
-        print_error "VPN enforcer LaunchAgent is not loaded: $_service"
-        print_error "Run action will not continue without VPN enforcement."
-        return "$FAILURE"
-    fi
-
-    # launchd imposes a minimum-runtime throttle. Retry the start
-    # command until the service is running or 15 attempts expire.
-    _attempt=0
-    while [ "$_attempt" -lt "$_max_attempts" ]; do
-        launchctl start "$_label" 2>/dev/null || true
-        _st="$(launchctl print "$_service" 2>/dev/null \
-            | awk '/state =/{print $3}')"
-        if [ "$_st" = "running" ]; then
-            return "$SUCCESS"
-        fi
-        _attempt=$(( _attempt + 1 ))
-        sleep 1
-    done
-    print_error "VPN enforcer failed to start (launchd throttle)."
-    return "$FAILURE"
-}
-
-# stop the VPN enforcer daemon via launchctl
-_macos_stop_enforcer() {
-    launchctl stop "com.ai-agents-sandbox.macos-vpn-enforcer" 2>/dev/null || true
-}
-
-# block until ready-file appears or 30s timeout
-_macos_wait_enforcer_ready() {
-    _ready="/tmp/ai-sandbox-enforcer.ready"
-    _elapsed=0
-    print_info "Waiting for VPN enforcer to apply network state..."
-    timeout=300
-    while [ "$_elapsed" -lt "$timeout" ]; do
-        if [ -f "$_ready" ]; then
-            print_info "VPN enforcer ready (${_elapsed}s)."
-            return "$SUCCESS"
-        fi
-        sleep 1
-        _elapsed=$(( _elapsed + 1 ))
-        printf '  [%2ds / %ds]\r' "$_elapsed" "$timeout" >&2
-    done
-    printf '\n' >&2
-    print_error "VPN enforcer did not become ready within ${timeout}s."
-    print_error "Check logs: ~/Library/Logs/ai-agents-sandbox/macos-vpn-enforcer.log"
-    return "$FAILURE"
 }
 
 # check if a local image exists
@@ -750,7 +576,13 @@ Options:
                (default: ${SANDBOX_D_DEFAULT}) to mount in the sandbox at
                /home/aiuser/workspace.
   --all, -a    For 'clean' action, also remove home volume and auth tokens
-
+  --ollama <host[:port]>
+                For 'run': connect the sandbox to an internal
+                                Ollama instance reachable over VPN. Access is
+                                restricted to the resolved endpoint via --add-host,
+                                and on macOS selective nftables rules block other
+                                VPN subnets.
+                Port defaults to 11434.
 Notes:
   - The sandbox is designed to run in a secure, isolated environment.
   - Untrusted agents may not comply with best practices and could pose security
@@ -869,6 +701,13 @@ run() {
     _verify_workspace_d || return "$FAILURE"
     
     [ "$(uname -s)" = "Darwin" ] && _macos_adjust_microvm
+
+    if [ -n "$OLLAMA_URL" ]; then
+        if ! _validate_OLLAMA_endpoint; then
+            return "$FAILURE"
+        fi
+    fi
+
     if [ "$USE_MICROVM" -eq 1 ]; then
         if [ "$AGENT" = "copilot" ] || [ "$AGENT" = "opencode" ]; then
             print_warning "${AGENT} CLI sends large HTTP/2 frames that trigger a krun vsock"
@@ -893,9 +732,8 @@ run() {
         TOOLS_NEEDED="$TOOLS_NEEDED krun"
         CTN_NAME="${CTN_NAME}-microvm"
     else
-        TOOLS_NEEDED="$TOOLS_NEEDED passt"
         if [ "$(uname -s)" != "Darwin" ]; then
-            TOOLS_NEEDED="$TOOLS_NEEDED ip"
+            TOOLS_NEEDED="$TOOLS_NEEDED ip passt"
         fi
     fi
 
@@ -903,6 +741,12 @@ run() {
         podman container exists "$CTN_NAME"; then
         print_warning "Vertex env vars are applied only when creating a new container."
         print_warning "     -> Use 'clean ${AGENT}' then 'run ${AGENT}' to apply updates."
+    fi
+
+    if [ -n "$OLLAMA_URL" ] && \
+        podman container exists "$CTN_NAME"; then
+        print_warning "Ollama settings apply only to new containers."
+        print_warning "  -> Use 'clean ${AGENT}' then 'run ${AGENT}' to apply --ollama."
     fi
 
     if ! _check_tools_needed; then
@@ -918,25 +762,19 @@ run() {
     else
         _iface="$(_detect_public_iface)" || true
         if [ -z "$_iface" ]; then
-            print_error \
-                "Could not detect a non-VPN interface."
-            print_error \
-                "Aborting to avoid unrestricted egress."
+            print_error "Could not detect a non-VPN interface."
+            print_error "Aborting to avoid unrestricted egress."
             return "$FAILURE"
         fi
     fi
 
-    # Resume a stopped container
     if podman container exists "$CTN_NAME"; then
         STATE=$(podman inspect "$CTN_NAME" --format '{{.State.Status}}')
         case "$STATE" in
             running) {
-                _runtime=$(
-                    podman inspect "$CTN_NAME" --format '{{.OCIRuntime}}'
-                )
+                _runtime=$(podman inspect "$CTN_NAME" --format '{{.OCIRuntime}}')
                 if [ -n "$_runtime" ] && [ "$_runtime" = "krun" ]; then
-                    _nbr="$(podman ps -a --format '{{.Names}}' |\
-                            grep -c "$CTN_NAME")"
+                    _nbr="$(podman ps -a --format '{{.Names}}' | grep -c "$CTN_NAME")"
                     CTN_NAME="$CTN_NAME-$_nbr"
                     print_info "A container already run with '$_runtime'."
                     print_info "Creating a new one with suffixe $CTN_NAME."
@@ -957,7 +795,7 @@ run() {
                 [ "$(uname -s)" = "Darwin" ] && _macos_run_teardown
                 return "$_ret"
             };;
-            *)       {
+            *) {
                 print_error "Container '$CTN_NAME' is in state '$STATE'"
                 print_error "  -> Cannot attach or resume."
                 print_error "  -> Please use 'clean' before 'run'."
@@ -984,7 +822,6 @@ run() {
         --env "AI_GID=${AI_USER_GID}" \
         --env "AI_SANDBOX_VERSION=${IMG_TAG}"
 
-    # Forward cloud/relay settings needed by Vertex-backed OpenCode sessions.
     if [ -n "$GOOGLE_CLOUD_PROJECT" ]; then
         set -- "$@" --env "GOOGLE_CLOUD_PROJECT=$GOOGLE_CLOUD_PROJECT"
     fi
@@ -1000,12 +837,6 @@ run() {
     # On Linux, outbound_addr pins egress to the detected
     # non-VPN interface at the kernel level.
     if [ "$(uname -s)" = "Darwin" ]; then
-        # On macOS, containers run inside the Podman Machine VM.
-        # gvproxy provides DNS via its internal resolver (VM gateway),
-        # which forwards to mDNSResponder — VPN-aware and not subject
-        # to the nftables oif rules. Overriding with 1.1.1.1/8.8.8.8
-        # breaks sites like googleapis.com when the corporate VPN
-        # intercepts or blocks direct UDP/53 to external resolvers.
         print_info "VM-layer nftables enforcement active."
         set -- "$@" --network pasta
     else
@@ -1015,9 +846,14 @@ run() {
     fi
 
     if [ "$USE_MICROVM" = "1" ]; then
-        # Available on crun > 1.27, below /.krun_config.json in the image is
-        # required
         set -- "$@" --annotation krun.ram_mib=8192 --annotation krun.cpus=4
+    fi
+
+    if [ -n "$OLLAMA_URL" ]; then
+        _ob="${_OLLAMA_SCHEME}://${_OLLAMA_HOST}:${_OLLAMA_PORT}/v1"
+        set -- "$@" \
+            --add-host "${_OLLAMA_HOST}:${_OLLAMA_IP}" \
+            --env "OPENCODE_OLLAMA_BASE_URL=${_ob}"
     fi
 
     _args=$*
@@ -1148,6 +984,14 @@ while [ $# -gt 0 ]; do
                 exit 1
             fi
             SANDBOX_D="$2"
+            shift 2
+            ;;
+        --ollama)
+            if [ -z "$2" ]; then
+                print_error "Error: $1 requires an argument."
+                exit 1
+            fi
+            OLLAMA_URL="$2"
             shift 2
             ;;
         -*)
