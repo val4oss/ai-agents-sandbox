@@ -4,7 +4,7 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.ai-agents-sandbox.vpn-enforcer</string>
+    <string>com.ai-agents-sandbox.macos-vpn-enforcer</string>
 
     <key>ProgramArguments</key>
     <array>
@@ -27,9 +27,9 @@
     </dict>
 
     <key>StandardOutPath</key>
-    <string>{{LOG_DIR}}/vpn-enforcer.log</string>
+    <string>{{LOG_DIR}}/macos-vpn-enforcer.log</string>
 
     <key>StandardErrorPath</key>
-    <string>{{LOG_DIR}}/vpn-enforcer.err</string>
+    <string>{{LOG_DIR}}/macos-vpn-enforcer.err</string>
 </dict>
 </plist>

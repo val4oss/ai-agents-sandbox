@@ -13,7 +13,7 @@ Shell project to:
 
 * scripts adhere to the POSIX standard, using `shellcheck` to verify.
 * Maximum of 80 chars per lines.
-* schell function described by one comment line on top.
+* shell function described by one comment line on top.
 * function name in **snake_case**.
 * internal functions/variables begins by "_".
   * `_local_var=value`, `_internal_function() {}`.
@@ -24,7 +24,7 @@ Shell project to:
 * `shellcheck -x <file.sh>`: verify shell scripts
 * `sh ai-agents-sandbox build <agent_name>`: Build the image
 * `sh ai-agents-sandbox run <agent_name>`: Run the agent environment
-* `sh ai-agents-sandbox clean`: Clean contaienr state
+* `sh ai-agents-sandbox clean`: Clean container state
 
 ## Architecture
 
@@ -42,7 +42,7 @@ Shell project to:
 ## Important Notes
 
 * Read the @README.md for details, especially the "Security" section.
-* Always focuse on these goals at this order:
+* Always focus on these goals at this order:
 
   1. Generate a full securized, isolated environment, foolproof against all
       host data exploits.
