@@ -61,7 +61,7 @@ ALL=false
 OLLAMA_URL=""
 TOOLS_NEEDED="podman sed grep"
 
-# Ollama endpoint variables
+# Ollama endpoint variables (shared by macOS and Linux paths)
 _OLLAMA_SCHEME="http"
 _OLLAMA_HOST=""
 _OLLAMA_PORT="11434"
@@ -361,18 +361,24 @@ _parse_OLLAMA_url() {
     fi
     case "$_OLLAMA_PORT" in
         *[!0-9]*)
-            print_error "Invalid --ollama port: $_OLLAMA_PORT"
+            print_error \
+                "Invalid --ollama port: $_OLLAMA_PORT"
             return "$FAILURE"
             ;;
     esac
-    if [ "$_OLLAMA_PORT" -lt 1 ] || [ "$_OLLAMA_PORT" -gt 65535 ]; then
-        print_error "Port out of range: $_OLLAMA_PORT (1-65535)"
+    if [ "$_OLLAMA_PORT" -lt 1 ] || \
+        [ "$_OLLAMA_PORT" -gt 65535 ]; then
+        print_error \
+            "Port out of range: $_OLLAMA_PORT (1-65535)"
         return "$FAILURE"
     fi
     return "$SUCCESS"
 }
 
 # resolve Ollama hostname to an IPv4 address; sets _OLLAMA_IP.
+# On macOS, dig/host bypass mDNSResponder and cannot see VPN
+# split-DNS entries. Prefer dscacheutil and python3 socket
+# (both route through mDNSResponder / getaddrinfo) on macOS.
 _resolve_OLLAMA_host() {
     _rhost="$1"
     _rip=""
@@ -432,7 +438,6 @@ _validate_OLLAMA_endpoint() {
         "(${_OLLAMA_IP})"
     return "$SUCCESS"
 }
-
 # check if a local image exists
 _image_exists() {
     _img="$1"

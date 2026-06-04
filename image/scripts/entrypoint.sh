@@ -191,6 +191,81 @@ do
 done < tmp
 rm -f tmp
 
+# If GOOGLE_CLOUD_PROJECT is not forwarded by the launcher, try to
+# read it from the persisted gcloud configuration (best-effort).
+if agent_enabled "opencode" && [ -z "$GOOGLE_CLOUD_PROJECT" ] \
+    && command -v gcloud > /dev/null 2>&1; then
+    _gc_proj=$(gcloud config get-value project 2>/dev/null) || true
+    case "${_gc_proj:-}" in
+        ''|'(unset)') ;;
+        *)  export GOOGLE_CLOUD_PROJECT="$_gc_proj" ;;
+    esac
+fi
+
+# Build a concrete opencode config on each startup and mirror it
+# to opencode.json to override stale legacy files in persisted
+# home volumes.
+if agent_enabled "opencode"; then
+        _oc_dir="$HOME/.config/opencode"
+        _oc_cfg="$_oc_dir/config.json"
+        _oc_legacy="$_oc_dir/opencode.json"
+        _oc_loc="${VERTEX_LOCATION:-global}"
+        _oc_ollama_src=""
+        _oc_ollama=""
+        if [ -n "${OPENCODE_OLLAMA_BASE_URL:-}" ]; then
+            _oc_ollama="$OPENCODE_OLLAMA_BASE_URL"
+            _oc_ollama_src="base_url"
+        elif [ -n "${OLLAMA_HOST:-}" ]; then
+            _oc_ollama="$OLLAMA_HOST"
+            _oc_ollama_src="ollama_host"
+        else
+            _oc_ollama="http://127.0.0.1:11434/v1"
+            _oc_ollama_src="default"
+        fi
+        _oc_project="${GOOGLE_CLOUD_PROJECT:-}"
+        case "$_oc_ollama" in
+                http://*|https://*) ;;
+                *) _oc_ollama="http://${_oc_ollama}" ;;
+        esac
+        case "$_oc_ollama_src" in
+            ollama_host|default)
+                _oc_ollama="${_oc_ollama%/}/v1"
+                ;;
+        esac
+        cat > "$_oc_cfg" << EOF
+{
+    "\$schema": "https://opencode.ai/config.json",
+    "enabled_providers": [
+        "ollama",
+        "google-vertex"
+    ],
+    "provider": {
+        "google-vertex": {
+            "npm": "@google-cloud/vertexai",
+            "name": "Vertex",
+            "options": {
+                "projectId": "$_oc_project",
+                "location": "$_oc_loc"
+            }
+        },
+        "ollama": {
+            "npm": "@ai-sdk/openai-compatible",
+            "name": "Ollama",
+            "options": {
+                "baseURL": "$_oc_ollama"
+            },
+            "models": {
+                "default:latest": {
+                    "name": "default:latest"
+                }
+            }
+        }
+    },
+    "model": "ollama/default:latest"
+}
+EOF
+        cp "$_oc_cfg" "$_oc_legacy" 2>/dev/null || true
+fi
 # Print the banner with agent status and authentication hints
 banner_header
 
