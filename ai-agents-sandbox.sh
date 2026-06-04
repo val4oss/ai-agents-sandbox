@@ -223,6 +223,21 @@ _valid_agent() {
     return "$_ret"
 }
 
+# apply sed replacement and atomically update a file
+_sed_inplace() {
+    _expr="$1"
+    _target="$2"
+    _tmp="${_target}.tmp.$$"
+    _ret="$SUCCESS"
+
+    if ! sed "$_expr" "$_target" > "$_tmp" || ! mv "$_tmp" "$_target"; then
+        _ret="$FAILURE"
+    fi
+
+    rm -f "$_tmp"
+    return "$_ret"
+}
+
 _check_microvm() {
     _ret="$SUCCESS"
     if [ ! -x "/usr/bin/krun" ]; then
