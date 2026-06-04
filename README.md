@@ -117,7 +117,7 @@ podman image inspect ai-agents-sandbox:latest | grep -E "User|Size"
 sh ai-agents-sandbox.sh run <?agent>
 # Start without microVM isolation
 sh ai-agents-sandbox.sh run <?agent> no-microvm
-# Define a custome workdir to mount as /home/aiuser/workspace.
+# Define a custom workdir to mount as /home/aiuser/workspace.
 sh ai-agents-sandbox.sh run <?agent> -w <dir_path>
 ```
 

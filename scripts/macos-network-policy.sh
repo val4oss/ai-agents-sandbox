@@ -16,11 +16,11 @@
 # License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 #
-# Sourced by vpn-enforcer.sh and ai-agents-sandbox.sh.
+# Sourced by macos-vpn-enforcer.sh and ai-agents-sandbox.sh.
 # Not intended to be executed directly.
 
 # return 0 if any VPN connection is active on macOS
-_vpn_active() {
+_macos_vpn_active() {
     # Method 1: macOS Network Configuration framework
     # (covers Cisco AnyConnect, built-in IKEv2/L2TP, etc.)
     if command -v scutil > /dev/null 2>&1; then
@@ -81,7 +81,7 @@ _macos_route_to_cidr() {
 #   0  success — CIDRs printed to stdout
 #   1  full-tunnel VPN detected (default route via VPN iface)
 #   2  VPN is active but no specific routes found
-_discover_vpn_routes() {
+_macos_discover_vpn_routes() {
     _dvr_routes=""
     _dvr_full=0
 
@@ -126,7 +126,7 @@ ROUTESEOF
         return 1
     fi
 
-    if [ -z "$_dvr_routes" ] && _vpn_active; then
+    if [ -z "$_dvr_routes" ] && _macos_vpn_active; then
         return 2
     fi
 

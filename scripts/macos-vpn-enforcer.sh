@@ -1,5 +1,5 @@
 #!/bin/sh
-# vpn-enforcer - macOS daemon that enforces VM-layer nftables rules.
+# macos-vpn-enforcer - macOS daemon that enforces VM-layer nftables rules.
 # Copyright (C) 2026  val4oss <val4oss@pm.me>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -35,7 +35,7 @@ _READY_FILE="/tmp/ai-sandbox-enforcer.ready"
 # Runtime config written by ai-agents-sandbox.sh before each run.
 # Contains VPN_ROUTES and FALLBACK_POLICY.
 _CONF_FILE="/tmp/ai-sandbox-enforcer.conf"
-_LABEL="com.ai-agents-sandbox.vpn-enforcer"
+_LABEL="com.ai-agents-sandbox.macos-vpn-enforcer"
 
 _machine=""
 _ext_nic=""
@@ -46,17 +46,17 @@ _ext_nic=""
 
 # print an informational log line
 _log_info() {
-    printf '[vpn-enforcer] INFO: %s\n' "$1"
+    printf '[macos-vpn-enforcer] INFO: %s\n' "$1"
 }
 
 # print a warning log line
 _log_warn() {
-    printf '[vpn-enforcer] WARN: %s\n' "$1"
+    printf '[macos-vpn-enforcer] WARN: %s\n' "$1"
 }
 
 # print an error log line
 _log_error() {
-    printf '[vpn-enforcer] ERROR: %s\n' "$1" >&2
+    printf '[macos-vpn-enforcer] ERROR: %s\n' "$1" >&2
 }
 
 # apply blanket egress block — used only as fallback when no
@@ -89,7 +89,7 @@ _apply_rules() {
     # Step 1: Re-discover live VPN routes from macOS routing table.
     _ar_dyn=""
     _ar_disc_ret=0
-    _ar_dyn="$(_discover_vpn_routes 2>/dev/null)" \
+    _ar_dyn="$(_macos_discover_vpn_routes 2>/dev/null)" \
         || _ar_disc_ret=$?
 
     # Step 2: Read routes and policy from config.
@@ -271,7 +271,7 @@ _wait_for_machine
 _discover_interfaces
 
 # sync initial state
-if _vpn_active; then
+if _macos_vpn_active; then
     _log_info "VPN active at startup — applying route-specific rules."
     _apply_rules
 else
@@ -287,7 +287,7 @@ _log_info "Ready. Watching for routing changes."
 # is piped to while-read, which runs in a subshell where
 # variable changes do not propagate to the parent.
 _state_file="/tmp/ai-sandbox-enforcer.state"
-if _vpn_active; then
+if _macos_vpn_active; then
     printf 'active' > "$_state_file"
 else
     printf 'inactive' > "$_state_file"
@@ -296,7 +296,7 @@ fi
 # react to a single routing change event
 _handle_event() {
     _prev="$(cat "$_state_file" 2>/dev/null)"
-    if _vpn_active; then _cur="active"; else _cur="inactive"; fi
+    if _macos_vpn_active; then _cur="active"; else _cur="inactive"; fi
     printf '%s' "$_cur" > "$_state_file"
     if [ "$_cur" = "active" ]; then
         # Re-discover and re-apply on every routing event while

@@ -60,7 +60,7 @@ _ENFORCER_CONF="/tmp/ai-sandbox-enforcer.conf"
 . "${ROOT_D}/printer.sh"
 
 # Source macOS-specific VPN route-discovery helpers.
-# Provides: _vpn_active, _macos_route_to_cidr, _discover_vpn_routes.
+# Provides: _macos_vpn_active, _macos_route_to_cidr, _macos_discover_vpn_routes.
 if [ "$(uname -s)" = "Darwin" ]; then
     . "${ROOT_D}/scripts/macos-network-policy.sh"
 fi
@@ -101,8 +101,8 @@ _check_untrusted_disclaimer() {
     esac
 }
 
-# check if agent is valide
-_valide_agent() {
+# check if agent is valid
+_valid_agent() {
     _ret="$FAILURE"
     for _agt_v in $TRUSTED_AGENTS; do
         if [ "$AGENT" = "$_agt_v" ]; then
@@ -122,6 +122,21 @@ _valide_agent() {
             return "$_ret"
         fi
     done
+    return "$_ret"
+}
+
+# apply sed replacement and atomically update a file
+_sed_inplace() {
+    _expr="$1"
+    _target="$2"
+    _tmp="${_target}.tmp.$$"
+    _ret="$SUCCESS"
+
+    if ! sed "$_expr" "$_target" > "$_tmp" || ! mv "$_tmp" "$_target"; then
+        _ret="$FAILURE"
+    fi
+
+    rm -f "$_tmp"
     return "$_ret"
 }
 
@@ -219,19 +234,19 @@ _detect_public_iface() {
 #  - VPN active but no routes: warns user, offers block-all or allow.
 # When no VPN is active, writes an empty config (unrestricted egress).
 _handle_macos_vpn_state() {
-    _hmvs_routes=""
-    _hmvs_fallback="allow"
+    _macos_routes=""
+    _macos_fallback="allow"
 
-    if ! _vpn_active; then
-        _write_enforcer_config "" "allow"
+    if ! _macos_vpn_active; then
+        _macos_write_enforcer_config "" "allow"
         return "$SUCCESS"
     fi
 
     # VPN is active — discover split-tunnel routes.
-    _hmvs_disc="$(_discover_vpn_routes 2>/dev/null)"
-    _hmvs_ret=$?
+    _macos_disc="$(_macos_discover_vpn_routes 2>/dev/null)"
+    _macos_ret=$?
 
-    case "$_hmvs_ret" in
+    case "$_macos_ret" in
         1)
             # Full-tunnel: default route goes through VPN.
             print_error \
@@ -262,12 +277,12 @@ _handle_macos_vpn_state() {
             printf \
 '  (b) Block all egress and abort  [safer, disable VPN first]\n'
             printf 'Choice [a/b, default b]: '
-            read -r _hmvs_choice 2>/dev/null
-            case "$_hmvs_choice" in
+            read -r _macos_choice 2>/dev/null
+            case "$_macos_choice" in
                 a|A)
                     print_warning \
 "Proceeding with unrestricted egress (no VPN routes blocked)."
-                    _hmvs_fallback="allow"
+                    _macos_fallback="allow"
                     ;;
                 *)
                     print_error \
@@ -278,20 +293,20 @@ _handle_macos_vpn_state() {
             ;;
         0)
             # Split-tunnel routes discovered.
-            _hmvs_routes="$_hmvs_disc"
+            _macos_routes="$_macos_disc"
             print_info \
-"VPN split-tunnel detected — will block: ${_hmvs_routes}"
+"VPN split-tunnel detected — will block: ${_macos_routes}"
             ;;
     esac
 
-    _write_enforcer_config "$_hmvs_routes" "$_hmvs_fallback"
+    _macos_write_enforcer_config "$_macos_routes" "$_macos_fallback"
     return "$SUCCESS"
 }
 
-# write enforcer config file consumed by vpn-enforcer.sh daemon.
+# write enforcer config file consumed by macos-vpn-enforcer.sh daemon.
 # $1 = space-separated VPN CIDRs to block (may be empty).
 # $2 = fallback policy: "allow" (default) or "block".
-_write_enforcer_config() {
+_macos_write_enforcer_config() {
     _wec_routes="$1"
     _wec_fallback="${2:-allow}"
     printf 'VPN_ROUTES=%s\n' \
@@ -303,19 +318,19 @@ _write_enforcer_config() {
 }
 
 # ensure the macOS VPN enforcer is provisioned; installs if absent
-_ensure_enforcer() {
+_macos_ensure_enforcer() {
     _plist_dst="$HOME/Library/LaunchAgents/"
-    _plist_dst="${_plist_dst}com.ai-agents-sandbox.vpn-enforcer.plist"
+    _plist_dst="${_plist_dst}com.ai-agents-sandbox.macos-vpn-enforcer.plist"
     _log_dir="$HOME/Library/Logs/ai-agents-sandbox"
     _bin_dir="$HOME/.local/bin"
-    _script_src="$ROOT_D/scripts/vpn-enforcer.sh"
-    _script_dst="$_bin_dir/ai-sandbox-vpn-enforcer"
+    _script_src="$ROOT_D/scripts/macos-vpn-enforcer.sh"
+    _script_dst="$_bin_dir/ai-sandbox-macos-vpn-enforcer"
     _plist_tmpl="$ROOT_D/launchd/"
     _plist_tmpl="${_plist_tmpl}com.ai-agents-sandbox."
-    _plist_tmpl="${_plist_tmpl}vpn-enforcer.plist.template"
+    _plist_tmpl="${_plist_tmpl}macos-vpn-enforcer.plist.template"
 
     if [ ! -f "$_script_src" ]; then
-        print_error "vpn-enforcer.sh not found: $_script_src"
+        print_error "macos-vpn-enforcer.sh not found: $_script_src"
         return "$FAILURE"
     fi
     if [ ! -f "$_plist_tmpl" ]; then
@@ -388,12 +403,12 @@ _ensure_enforcer() {
 }
 
 # remove the macOS VPN enforcer LaunchAgent and nftables rules
-_remove_enforcer() {
-    _plist_dst="$HOME/Library/LaunchAgents/com.ai-agents-sandbox.vpn-enforcer.plist"
-    _script_dst="$HOME/.local/bin/ai-sandbox-vpn-enforcer"
+_macos_remove_enforcer() {
+    _plist_dst="$HOME/Library/LaunchAgents/com.ai-agents-sandbox.macos-vpn-enforcer.plist"
+    _script_dst="$HOME/.local/bin/ai-sandbox-macos-vpn-enforcer"
     [ -f "$_plist_dst" ] || return "$SUCCESS"
 
-    launchctl stop "com.ai-agents-sandbox.vpn-enforcer" 2>/dev/null || true
+    launchctl stop "com.ai-agents-sandbox.macos-vpn-enforcer" 2>/dev/null || true
     launchctl unload "$_plist_dst" 2>/dev/null || true
 
     if podman machine ssh -- true 2>/dev/null; then
@@ -406,8 +421,8 @@ _remove_enforcer() {
 }
 
 # start the VPN enforcer daemon via launchctl
-_start_enforcer() {
-    _label="com.ai-agents-sandbox.vpn-enforcer"
+_macos_start_enforcer() {
+    _label="com.ai-agents-sandbox.macos-vpn-enforcer"
     _service="gui/$(id -u)/${_label}"
     _attempt=0
     _max_attempts=15
@@ -453,12 +468,12 @@ _start_enforcer() {
 }
 
 # stop the VPN enforcer daemon via launchctl
-_stop_enforcer() {
-    launchctl stop "com.ai-agents-sandbox.vpn-enforcer" 2>/dev/null || true
+_macos_stop_enforcer() {
+    launchctl stop "com.ai-agents-sandbox.macos-vpn-enforcer" 2>/dev/null || true
 }
 
 # block until ready-file appears or 30s timeout
-_wait_enforcer_ready() {
+_macos_wait_enforcer_ready() {
     _ready="/tmp/ai-sandbox-enforcer.ready"
     _elapsed=0
     print_info "Waiting for VPN enforcer to apply network state..."
@@ -474,7 +489,7 @@ _wait_enforcer_ready() {
     done
     printf '\n' >&2
     print_error "VPN enforcer did not become ready within ${timeout}s."
-    print_error "Check logs: ~/Library/Logs/ai-agents-sandbox/vpn-enforcer.log"
+    print_error "Check logs: ~/Library/Logs/ai-agents-sandbox/macos-vpn-enforcer.log"
     return "$FAILURE"
 }
 
@@ -526,7 +541,7 @@ Agents:
 
 Options:
   no-microvm    Run the sandbox without microVM isolation (not recommended)
-  --wokspace, -w <dir>
+  --workspace, -w <dir>
                 For 'run' action, Specify a custom workspace directory
                 (default: $SANDBOX_D_DEFAULT) to mount in the sandbox at
                 /home/aiuser/workspace.
@@ -627,19 +642,19 @@ run() {
     fi
 
     if [ "$(uname -s)" = "Darwin" ]; then
-        if ! _ensure_enforcer; then
+        if ! _macos_ensure_enforcer; then
             return "$FAILURE"
         fi
         if ! _handle_macos_vpn_state; then
             return "$FAILURE"
         fi
-        if ! _start_enforcer; then
+        if ! _macos_start_enforcer; then
             print_error "Failed to start VPN enforcer."
             rm -f "$_ENFORCER_CONF"
             return "$FAILURE"
         fi
-        if ! _wait_enforcer_ready; then
-            _stop_enforcer
+        if ! _macos_wait_enforcer_ready; then
+            _macos_stop_enforcer
             rm -f "$_ENFORCER_CONF"
             return "$FAILURE"
         fi
@@ -674,7 +689,7 @@ run() {
                         _ret="$FAILURE"
                     fi
                     if [ "$(uname -s)" = "Darwin" ]; then
-                        _stop_enforcer
+                        _macos_stop_enforcer
                         rm -f "$_ENFORCER_CONF"
                     fi
                     return "$_ret"
@@ -686,7 +701,7 @@ run() {
                     _ret="$FAILURE"
                 fi
                 if [ "$(uname -s)" = "Darwin" ]; then
-                    _stop_enforcer
+                    _macos_stop_enforcer
                     rm -f "$_ENFORCER_CONF"
                 fi
                 return "$_ret"
@@ -729,7 +744,7 @@ run() {
     # level because containers run inside Podman Machine (Linux
     # VM) and all traffic is proxied through gvproxy on the macOS
     # host. VM-layer nftables enforcement is handled by
-    # vpn-enforcer.sh (started above via launchctl).
+    # macos-vpn-enforcer.sh (started above via launchctl).
     # On Linux, outbound_addr pins egress to the detected
     # non-VPN interface at the kernel level.
     if [ "$(uname -s)" = "Darwin" ]; then
@@ -748,7 +763,7 @@ run() {
     fi
 
     if [ "$USE_MICROVM" = "1" ]; then
-        # Avaialble on crun > 1.27, below /.krun_config.json in the image is
+        # Available on crun > 1.27, below /.krun_config.json in the image is
         # required
         set -- "$@" --annotation krun.ram_mib=8192 --annotation krun.cpus=4
     fi
@@ -762,7 +777,7 @@ run() {
         _ret="$FAILURE"
     fi
     if [ "$(uname -s)" = "Darwin" ]; then
-        _stop_enforcer
+        _macos_stop_enforcer
         rm -f "$_ENFORCER_CONF"
     fi
     return "$_ret"
@@ -771,7 +786,7 @@ run() {
 # callback for clean action
 clean() {
     _ret="$SUCCESS"
-    if [ "$USE_MICROVM" = "1" ]; then
+    if [ "$(uname -s)" != "Darwin" ] && [ "$USE_MICROVM" = 1 ]; then
         CTN_NAME="${CTN_NAME}-microvm"
     fi
 
@@ -861,14 +876,6 @@ if [ $# -lt 1 ]; then
     print_error "Missing command"
     usage & exit 1
 fi
-case "$1" in
-    help|--help|-h)        usage ;          exit 0  ;;
-    verbose|--verbose|-v)  VERBOSE=1;       shift 1 ;;
-    quiet|--quiet|-q)      QUIET=1;         shift 1 ;;
-    version|--version)     print_version;   exit 0  ;;
-esac
-
-# get actions/agents/options
 while [ $# -gt 0 ]; do
     case "$1" in
         help|--help|-h)          usage;         exit 0  ;;
@@ -879,6 +886,10 @@ while [ $# -gt 0 ]; do
         --no-microvm|no-microvm) USE_MICROVM=0; shift 1 ;;
         all|--all|-a)            ALL=true;      shift 1 ;;
         --workspace|-w)
+            if [ -z "$2" ]; then
+                print_error "Error: $1 requires an argument."
+                exit 1
+            fi
             SANDBOX_D="$2"
             shift 2
             ;;
@@ -897,7 +908,7 @@ done
 _verify_workspace
 
 if [ "$AGENT" != "" ]; then
-    if ! _valide_agent ; then
+    if ! _valid_agent ; then
         print_error "Unknown agent: '$AGENT'. \
 Valid agents: $TRUSTED_AGENTS (trusted) or $UNTRUSTED_AGENTS (untrusted)"
         exit $FAILURE
