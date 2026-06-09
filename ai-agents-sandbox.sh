@@ -467,20 +467,20 @@ if [ $# -lt 1 ]; then
 fi
 while [ $# -gt 0 ]; do
     case "$1" in
-        help|--help|-h)         usage;         exit 0  ;;
-        verbose|--verbose|-v)   VERBOSE=1;     shift 1 ;;
-        quiet|--quiet|-q)       QUIET=1;       shift 1 ;;
-        version|--version)      print_version; exit 0  ;;
-        run|build|clean|status) ACTION="$1";   shift 1 ;;
-        no-microvm)             USE_MICROVM=0; shift 1 ;;
-        all|--all|-a)           ALL=true;      shift 1 ;;
+        help|--help|-h)          usage;         exit 0  ;;
+        verbose|--verbose|-v)    VERBOSE=1;     shift 1 ;;
+        quiet|--quiet|-q)        QUIET=1;       shift 1 ;;
+        version|--version)       print_version; exit 0  ;;
+        run|build|clean|status)  ACTION="$1";   shift 1 ;;
+        --no-microvm|no-microvm) USE_MICROVM=0; shift 1 ;;
+        all|--all|-a)            ALL=true;      shift 1 ;;
         --workspace|-w)
             if [ -z "$2" ]; then
                 print_error "Error: $1 requires an argument."
                 exit 1
             fi
             SANDBOX_D="$2"
-            shift 2  # Shift past both the flag and its value
+            shift 2
             ;;
         -*)
             print_error "Unknown option: $1"
