@@ -71,6 +71,30 @@ check_auth() {
     fi
 }
 
+# Return 0 when Gemini credentials exist in a known persisted path.
+gemini_auth_check() {
+    [ -f "$HOME/.gemini/oauth_creds.json" ] || \
+        [ -f "$HOME/.gemini/credentials.json" ]
+}
+
+# Return 0 when Claude has an active login or API key auth.
+claude_auth_check() {
+    claude auth status > /dev/null 2>&1 || \
+        [ -n "${ANTHROPIC_API_KEY:-}" ] || \
+        [ -f "$HOME/.config/gcloud/application_default_credentials.json" ] || {
+            [ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] && \
+                [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]
+        }
+}
+
+# Return 0 when OpenCode can use ADC or an explicit credentials path.
+opencode_auth_check() {
+    [ -f "$HOME/.config/gcloud/application_default_credentials.json" ] || {
+        [ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] && \
+            [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]
+    }
+}
+
 # Print the banner header
 banner_header() {
     _mode="$(get_mode)"
@@ -165,7 +189,7 @@ agent_enabled "copilot" &&\
         "gh auth login --scopes 'copilot'"
 
 agent_enabled "gemini" &&\
-    banner_agent "Gemini CLI" "test -f $HOME/.gemini/credentials.json" \
+    banner_agent "Gemini CLI" "gemini_auth_check" \
         "gemini auth login" &&\
     banner_notes \
         "If you used a company plan linked to a google project, you would" \
@@ -174,7 +198,7 @@ agent_enabled "gemini" &&\
 
 agent_enabled "claude" &&\
     banner_agent "Claude Code" \
-        "claude auth status" \
+        "claude_auth_check" \
         "claude auth login  (or: export ANTHROPIC_API_KEY=sk-...)" &&\
     banner_notes \
         "To install though Vertex Ai, connect to Google Cloud with:" \
@@ -182,7 +206,7 @@ agent_enabled "claude" &&\
 
 agent_enabled "opencode" &&\
     banner_agent "Open Code" \
-        "test -f $HOME/.config/opencode/credentials.json" \
+        "opencode_auth_check" \
         "gcloud auth application-default login" &&\
     banner_notes \
         "Required environment variables:" \
