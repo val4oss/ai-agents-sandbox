@@ -130,6 +130,22 @@ mkdir -p \
 
 cp -n "$SKEL_D/skel/.gitconfig" "$HOME/.gitconfig" 2>/dev/null || true
 
+# Install sourceable Gemini helper and hook it into .bashrc.
+_gemini_helper_src="$SKEL_D/skel/gemini-env.sh"
+if agent_enabled "gemini" && [ -f "$_gemini_helper_src" ]; then
+    _bashrc="$HOME/.bashrc"
+    [ -f "$_bashrc" ] || : > "$_bashrc"
+    _gemini_marker="# >>> ai-sandbox gemini env helper >>>"
+    if ! grep -F "$_gemini_marker" "$_bashrc" > /dev/null 2>&1; then
+        cat >> "$_bashrc" << 'EOF'
+
+if [ -f "/usr/share/ai-sandbox/skel/gemini-env.sh" ]; then
+    . "/usr/share/ai-sandbox/skel/gemini-env.sh"
+fi
+EOF
+    fi
+fi
+
 # Per-agent provisioning
 agent_enabled "claude"  && provision_agents "claude"  "$HOME/.claude/agents"
 agent_enabled "copilot" && provision_agents "copilot" "$HOME/.copilot/agents"
