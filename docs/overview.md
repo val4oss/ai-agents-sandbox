@@ -83,15 +83,15 @@ automatically on first login. All runtime content is excluded from git via
 
 ## Images sizes
 
-> Fetched 26-06-03
+> Fetched 26-06-09
 
 |           Image               |   Size  |               Note               |
 |-------------------------------|---------|----------------------------------|
-| ai-agents-sandbox-gemini      | 674 MB  |                                  | 
-| ai-agents-sandbox-claude      | 1.74 GB | storage used by `gcloud` utility |
-| ai-agents-sandbox-copilot     | 864 MB  |                                  |
-| ai-agents-sandbox-antigravity | 805 MB  |                                  |
-| ai-agents-sandbox             | 3.06 GB |                                  |
+| ai-agents-sandbox-gemini      | 833 MB  |                                  | 
+| ai-agents-sandbox-claude      | 1.8 GB  | storage used by `gcloud` utility |
+| ai-agents-sandbox-copilot     | 901 MB  |                                  |
+| ai-agents-sandbox-antigravity | 837 MB  |                                  |
+| ai-agents-sandbox             | 2.93 GB |                                  |
 
 ---
 
