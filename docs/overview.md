@@ -92,6 +92,7 @@ automatically on first login. All runtime content is excluded from git via
 | ai-agents-sandbox-claude      | 1.8 GB  | storage used by `gcloud` utility |
 | ai-agents-sandbox-copilot     | 901 MB  |                                  |
 | ai-agents-sandbox-antigravity | 837 MB  |                                  |
+| ai-agents-sandbox-hermes      | 1.88 GB |                                  |
 | ai-agents-sandbox             | 2.93 GB |                                  |
 
 ---
