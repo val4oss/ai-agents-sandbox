@@ -93,6 +93,7 @@ automatically on first login. All runtime content is excluded from git via
 | ai-agents-sandbox-copilot     | 864 MB  |                                  |
 | ai-agents-sandbox-antigravity | 805 MB  |                                  |
 | ai-agents-sandbox             | 3.06 GB |                                  |
+| ai-agents-hermes              | 1.88 GB |                                  |
 
 ---
 
