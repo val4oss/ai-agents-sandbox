@@ -20,7 +20,7 @@
 # ----------------
 
 SKEL_D="/usr/share/ai-sandbox"
-AGENT="${AGENT:-claude copilot gemini opencode antigravity}"
+AGENT="${AGENT:-claude copilot gemini opencode antigravity hermes-agent}"
 VERSION="${AI_SANDBOX_VERSION:-0.0.0}"
 BANNER_HEADLINE="AI AGENTS SANDBOX - $VERSION"
 
@@ -182,6 +182,12 @@ agent_enabled "antigravity" &&\
         "Only cli is installed: agy" \
         "When you authenticate through Google OAuth, the link provided can" \
         "integrate some spaces, be careful when you copy-paste the URL."
+agent_enabled "hermes-agent" &&\
+    banner_agent "Hermes Agent" "test -f \$HOME/.hermes/config.yaml" \
+        "hermes setup" &&\
+    banner_notes \
+        "Config lives at ~/.hermes/config.yaml" \
+        "Run 'hermes setup' or 'hermes model' to configure provider/keys."
 
 echo ""
 
