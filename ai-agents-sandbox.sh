@@ -35,6 +35,7 @@ CTN_NAME="ai-agents-sandbox"
 IMG_TAG="0.9.0"
 TRUSTED_AGENTS="copilot claude gemini opencode antigravity"
 UNTRUSTED_AGENTS="hermes-agent"
+UNTRUSTED_AGENTS_SENSITIVE_ACTIONS="build run"
 VALID_AGENTS="$TRUSTED_AGENTS $UNTRUSTED_AGENTS"
 AI_USER_NAME="aiuser"
 AI_USER_UID=1000
@@ -103,7 +104,12 @@ _valide_agent() {
     done
     for _agt_v in $UNTRUSTED_AGENTS; do
         if [ "$AGENT" = "$_agt_v" ]; then
-            _check_untrusted_disclaimer "$AGENT"
+            for _act_v in $UNTRUSTED_AGENTS_SENSITIVE_ACTIONS; do
+                if [ "$ACTION" = "$_act_v" ]; then
+                    _check_untrusted_disclaimer "$AGENT"
+                    break
+                fi
+            done
             _ret="$SUCCESS"
             return "$_ret"
         fi
