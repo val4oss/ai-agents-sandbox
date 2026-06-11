@@ -4,7 +4,7 @@ Shell project to:
 
 1. build pre-configured container image based on openSUSE Tumbleweed
 2. Run a secure, isolated environment for running AI coding agents
-   (GitHub Copilot, Gemini CLI, Claude Code, opencode), using rootless container with
+   (GitHub Copilot, Gemini CLI, Claude Code, opencode, hermes-agent), using rootless container with
    **podman** and microvm with **krun**.
 3. Provide a simple interface to use the environment, with a focus on security
    and ease of use for non-technical users.

@@ -6,7 +6,7 @@
 
 FROM registry.opensuse.org/opensuse/tumbleweed:latest
 
-ARG AGENT="copilot gemini claude opencode antigravity"
+ARG AGENT="copilot gemini claude opencode antigravity hermes-agent"
 ARG IMG_TAG="0.0.0"
 ARG AI_USER=aiuser
 ARG AI_UID=1000
@@ -129,7 +129,10 @@ RUN case " $AGENT " in *" gemini "*) \
         wget -qO- https://gh.io/copilot-install | bash ;; esac && \
     case " $AGENT " in *" antigravity "*) \
         curl -fsSL https://antigravity.google/cli/install.sh | \
-        bash -s -- -d "/usr/local/bin" ;; esac
+        bash -s -- -d "/usr/local/bin" ;; esac && \
+    case " $AGENT " in *" hermes-agent "*) \
+        curl -fsSL https://hermes-agent.nousresearch.com/install.sh | \
+        bash -s -- --skip-setup --non-interactive --skip-browser ;; esac
 
 # ============
 # Copy scripts

@@ -10,6 +10,7 @@ with **libkrun**.
   * `claude` - Anthropic Claude Code
   * `opencode` - Google OpenCode
   * `antigravity` - Google Antigravity-cli: `agy`
+  * `hermes-agent` - Nous Research Hermes Agent
 
 > Credentials are **never baked into the image**.
 > Authentication is performed at runtime and persisted via a mounted

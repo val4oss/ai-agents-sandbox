@@ -78,6 +78,7 @@ automatically on first login. All runtime content is excluded from git via
 | Claude Code | `claude` | `claude auth login` or `export ANTHROPIC_API_KEY=sk-...` or `gcloud ...` |
 | OpenCode | `opencode` | configure `~/.config/opencode/opencode.json` and select a model |
 | antigravity | `agye` | run `agy` and use `Google Oauth` , be carefull of spaces in the URL to copy-paste |
+| Hermes Agent | `hermes` | `hermes setup` to configure keys/models |
 
 ---
 
@@ -241,6 +242,7 @@ includes every agent. Use an agent name as an extra argument to produce a
 | `build gemini` | `ai-agents-sandbox-gemini:latest` | gemini-cli |
 | `build claude` | `ai-agents-sandbox-claude:latest` | Google Cloud SDK + claude-code |
 | `build opencode` | `ai-agents-sandbox-opencode:latest` | OpenCode CLI |
+| `build hermes-agent` | `ai-agents-sandbox-hermes-agent:latest` | Hermes Agent CLI |
 
 The corresponding `run <?agent>` and `clean <?agent> [all]` commands
 automatically target the matching image and container name
