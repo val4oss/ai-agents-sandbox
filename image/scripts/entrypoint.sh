@@ -20,6 +20,8 @@
 # ----------------
 
 SKEL_D="/usr/share/ai-sandbox"
+# Default agent list (contains both trusted and untrusted agents)
+# filtering happens in ai-agents-sandbox.sh script
 AGENT="${AGENT:-claude copilot gemini opencode antigravity hermes-agent}"
 VERSION="${AI_SANDBOX_VERSION:-0.0.0}"
 BANNER_HEADLINE="AI AGENTS SANDBOX - $VERSION"
@@ -182,8 +184,10 @@ agent_enabled "antigravity" &&\
         "Only cli is installed: agy" \
         "When you authenticate through Google OAuth, the link provided can" \
         "integrate some spaces, be careful when you copy-paste the URL."
+# Print disclaimer note for untrusted Hermes Agent
 agent_enabled "hermes-agent" &&\
-    banner_agent "Hermes Agent" "test -f \$HOME/.hermes/config.yaml" \
+    banner_agent "Hermes Agent (untrusted)" \
+        "test -f \$HOME/.hermes/config.yaml" \
         "hermes setup" &&\
     banner_notes \
         "Config lives at ~/.hermes/config.yaml" \
