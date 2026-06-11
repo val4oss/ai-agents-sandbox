@@ -71,14 +71,14 @@ automatically on first login. All runtime content is excluded from git via
 
 ## Available Agents
 
-| Agent | Command | First-time auth |
-|---|---|---|
-| GitHub Copilot | `copilot` | `gh auth login --scopes 'copilot'` |
-| Gemini CLI | `gemini` | `gemini auth login` |
-| Claude Code | `claude` | `claude auth login` or `export ANTHROPIC_API_KEY=sk-...` or `gcloud ...` |
-| OpenCode | `opencode` | configure `~/.config/opencode/opencode.json` and select a model |
-| antigravity | `agye` | run `agy` and use `Google Oauth` , be carefull of spaces in the URL to copy-paste |
-| Hermes Agent | `hermes` | `hermes setup` to configure keys/models |
+| Agent | Command | First-time auth | Status |
+|---|---|---|---|
+| GitHub Copilot | `copilot` | `gh auth login` | Trusted |
+| Gemini CLI | `gemini` | `gemini auth login` | Trusted |
+| Claude Code | `claude` | `claude auth login` | Trusted |
+| OpenCode | `opencode` | configure `opencode.json` | Trusted |
+| antigravity | `agye` | run `agy` | Trusted |
+| Hermes Agent | `hermes` | `hermes setup` | Untrusted |
 
 ---
 
@@ -236,14 +236,14 @@ By default `build` (and `run`) targets an all-in-one image that
 includes every agent. Use an agent name as an extra argument to produce a
 **slim, single-agent image** that only installs what is needed:
 
-| Command | Image name | Installed tools |
-|---|---|---|
-| `build` | `ai-agents-sandbox:latest` | gh CLI + gemini-cli + claude-code |
-| `build copilot` | `ai-agents-sandbox-copilot:latest` | gh CLI only |
-| `build gemini` | `ai-agents-sandbox-gemini:latest` | gemini-cli |
-| `build claude` | `ai-agents-sandbox-claude:latest` | Google Cloud SDK + claude-code |
-| `build opencode` | `ai-agents-sandbox-opencode:latest` | OpenCode CLI |
-| `build hermes-agent` | `ai-agents-sandbox-hermes-agent:latest` | Hermes Agent CLI |
+| Command | Image name | Installed tools | Status |
+|---|---|---|---|
+| `build` | `ai-agents-sandbox` | gh CLI + gemini + claude | Multi |
+| `build copilot` | `ai-agents-sandbox-copilot` | gh CLI | Trusted |
+| `build gemini` | `ai-agents-sandbox-gemini` | gemini-cli | Trusted |
+| `build claude` | `ai-agents-sandbox-claude` | gcloud + claude | Trusted |
+| `build opencode` | `ai-agents-sandbox-opencode` | opencode-ai | Trusted |
+| `build hermes-agent` | `ai-agents-sandbox-hermes-agent` | hermes | Untrusted |
 
 The corresponding `run <?agent>` and `clean <?agent> [all]` commands
 automatically target the matching image and container name

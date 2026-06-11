@@ -5,12 +5,14 @@ A secure, isolated environment for running AI coding agents on
 with **libkrun**.
 
 * supported agents:
-  * `copilot` - GitHub Copilot CLI
-  * `gemini` - Google Gemini CLI
-  * `claude` - Anthropic Claude Code
-  * `opencode` - Google OpenCode
-  * `antigravity` - Google Antigravity-cli: `agy`
-  * `hermes-agent` - Nous Research Hermes Agent
+  * **trusted** (comply with internal best practices):
+    * `copilot` - GitHub Copilot CLI
+    * `gemini` - Google Gemini CLI
+    * `claude` - Anthropic Claude Code
+    * `opencode` - Google OpenCode
+    * `antigravity` - Google Antigravity-cli: `agy`
+  * **untrusted** (does not comply with SUSE internal best practices):
+    * `hermes-agent` - Nous Research Hermes Agent
 
 > Credentials are **never baked into the image**.
 > Authentication is performed at runtime and persisted via a mounted

@@ -33,7 +33,9 @@ SANDBOX_D="${SANDBOX_D_DEFAULT}"
 IMG_NAME="ai-agents-sandbox"
 CTN_NAME="ai-agents-sandbox"
 IMG_TAG="0.9.0"
-VALID_AGENTS="copilot claude gemini opencode antigravity hermes-agent"
+TRUSTED_AGENTS="copilot claude gemini opencode antigravity"
+UNTRUSTED_AGENTS="hermes-agent"
+VALID_AGENTS="$TRUSTED_AGENTS $UNTRUSTED_AGENTS"
 AI_USER_NAME="aiuser"
 AI_USER_UID=1000
 AI_USER_GID=1000
@@ -77,13 +79,33 @@ _check_tools_needed() {
     return "$_ret"
 }
 
+# print warning and prompt confirmation for untrusted agent
+_check_untrusted_disclaimer() {
+    print_warning "WARNING: The agent '$1' is considered UNTRUSTED"
+    print_warning \
+        "and does not comply with SUSE internal best practices."
+    printf "Do you want to continue? [y/N]: "
+    read -r _ans
+    case "$_ans" in
+        [Yy]* ) ;;
+        * ) exit "$FAILURE";;
+    esac
+}
+
 # check if agent is valide
 _valide_agent() {
     _ret="$FAILURE"
-    for _agt_v in $VALID_AGENTS; do
+    for _agt_v in $TRUSTED_AGENTS; do
         if [ "$AGENT" = "$_agt_v" ]; then
             _ret="$SUCCESS"
-            break
+            return "$_ret"
+        fi
+    done
+    for _agt_v in $UNTRUSTED_AGENTS; do
+        if [ "$AGENT" = "$_agt_v" ]; then
+            _check_untrusted_disclaimer "$AGENT"
+            _ret="$SUCCESS"
+            return "$_ret"
         fi
     done
     return "$_ret"
@@ -193,7 +215,8 @@ Actions:
   status        Show the current status, built images, running containers...
 
 Agents:
-  $VALID_AGENTS
+  (trusted)     $TRUSTED_AGENTS
+  (untrusted)   $UNTRUSTED_AGENTS
                 if no agent is specified, all agents will be built
                 (only for build action)
 
@@ -498,7 +521,8 @@ _verify_workspace
 
 if [ "$AGENT" != "" ]; then
     if ! _valide_agent ; then
-        print_error "Unknown agent: '$AGENT'. Valid agents: $VALID_AGENTS"
+        print_error "Unknown agent: '$AGENT'. \
+Valid agents: $TRUSTED_AGENTS (trusted) or $UNTRUSTED_AGENTS (untrusted)"
         exit $FAILURE
     else
         IMG_NAME="${IMG_NAME}-${AGENT}"
