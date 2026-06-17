@@ -36,7 +36,6 @@ IMG_TAG="0.9.0"
 TRUSTED_AGENTS="copilot claude gemini opencode antigravity"
 UNTRUSTED_AGENTS="hermes-agent"
 UNTRUSTED_AGENTS_SENSITIVE_ACTIONS="build run"
-VALID_AGENTS="$TRUSTED_AGENTS $UNTRUSTED_AGENTS"
 AI_USER_NAME="aiuser"
 AI_USER_UID=1000
 AI_USER_GID=1000
@@ -535,7 +534,7 @@ Valid agents: $TRUSTED_AGENTS (trusted) or $UNTRUSTED_AGENTS (untrusted)"
         CTN_NAME="${CTN_NAME}-${AGENT}"
     fi
 else
-    AGENT="$VALID_AGENTS"
+    AGENT="$TRUSTED_AGENTS"
 fi
 
 if ! eval "$ACTION"; then

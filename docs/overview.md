@@ -238,7 +238,7 @@ includes every agent. Use an agent name as an extra argument to produce a
 
 | Command | Image name | Installed tools | Status |
 |---|---|---|---|
-| `build` | `ai-agents-sandbox` | gh CLI + gemini + claude | Multi |
+| `build` | `ai-agents-sandbox` | gh CLI + gemini + claude | Trusted |
 | `build copilot` | `ai-agents-sandbox-copilot` | gh CLI | Trusted |
 | `build gemini` | `ai-agents-sandbox-gemini` | gemini-cli | Trusted |
 | `build claude` | `ai-agents-sandbox-claude` | gcloud + claude | Trusted |
