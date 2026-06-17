@@ -186,8 +186,11 @@ container process
 > cpu and memory limits for microVMs can be set via `krun_vm.json` (for
 > `crun --version` < `1.27`) or directly as container annotations
 > (`--annotation "krun.cpus=2" --annotation "krun.ram_mib=4096"`). The defaults
-> are 2 CPUs and 4 GB RAM, which are sufficient for typical agent workloads
+> are 4 CPUs and 8 GB RAM, which are sufficient for typical agent workloads
 > while keeping the attack surface minimal.
+> If you build an image with `crun` < `1.27`, uncomment the line from 
+> [Containerfile](../image/Containerfile) that copy the `.krun_vm.json` in the 
+> env.
 
 ```bash
 cat /sys/fs/cgroup/user.slice/user-$(id -u).slice/cgroup.controllers

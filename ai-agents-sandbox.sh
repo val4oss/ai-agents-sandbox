@@ -368,7 +368,7 @@ run() {
     if [ "$USE_MICROVM" = "1" ]; then
         # Avaialble on crun > 1.27, below /.krun_config.json in the image is
         # required
-        set -- "$@" --annotation krun.ram_mib=4096 --annotation krun.cpus=2
+        set -- "$@" --annotation krun.ram_mib=8192 --annotation krun.cpus=4
     fi
     _args=$*
     print_info "Starting isolated container..."
