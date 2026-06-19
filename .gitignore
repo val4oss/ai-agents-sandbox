@@ -3,6 +3,8 @@ build
 # Ignore repo-local customization overlays and secrets
 .ai-agents-sandbox/**
 !.ai-agents-sandbox/
+!.ai-agents-sandbox/templates/
+!.ai-agents-sandbox/templates/**
 
 # Ignore everything in sandbox/ (runtime home dir contents)
 sandbox/**
