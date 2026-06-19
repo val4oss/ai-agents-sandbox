@@ -28,6 +28,10 @@ ROOT_D="$(cd "$(dirname "$0")" && pwd)"
 IMG_D="${ROOT_D}/image"
 SANDBOX_D_DEFAULT="$ROOT_D/workspace"
 SANDBOX_D="${SANDBOX_D_DEFAULT}"
+USER_CFG_D="${ROOT_D}/.ai-agents-sandbox"
+LOCAL_CONTAINERFILE="${USER_CFG_D}/Containerfile.local"
+LOCAL_ENV_FILE="${USER_CFG_D}/.env"
+LOCAL_MOUNT_D="/usr/share/ai-sandbox/local-host"
 
 # Container variables
 IMG_NAME="ai-agents-sandbox"
@@ -201,6 +205,34 @@ _verify_workspace() {
     fi
 }
 
+_local_overlay_enabled() {
+    [ -f "$LOCAL_CONTAINERFILE" ]
+}
+
+_local_image_name() {
+    printf "%s-local" "$IMG_NAME"
+}
+
+_local_image_exists() {
+    podman image exists "$( _local_image_name ):latest"
+}
+
+_build_local_overlay() {
+    _local_img_name="$( _local_image_name )"
+    print_info "Building local overlay image ${_local_img_name}:${IMG_TAG} ..."
+    if ! podman build \
+        --build-arg "BASE_IMAGE=${IMG_NAME}:${IMG_TAG}" \
+        --tag "${_local_img_name}:${IMG_TAG}" \
+        --tag "${_local_img_name}:latest" \
+        --file "$LOCAL_CONTAINERFILE" \
+        "$USER_CFG_D"; then
+            print_error "Local overlay build failed."
+            return "$FAILURE"
+    fi
+    print_info "Local overlay image built successfully."
+    return "$SUCCESS"
+}
+
 # ================
 # Action functions
 # ----------------
@@ -257,6 +289,11 @@ build() {
             _ret="$FAILURE"
     else
         print_info "Image built successfully."
+        if _local_overlay_enabled; then
+            if ! _build_local_overlay; then
+                _ret="$FAILURE"
+            fi
+        fi
     fi
     return "$_ret"
 }
@@ -264,6 +301,8 @@ build() {
 # callback for run action
 run() {
     _ret="$SUCCESS"
+    _run_image="$IMG_NAME"
+    _build_hint="sh ai-agents-sandbox.sh build"
     
     if [ "$(uname -s)" = "Darwin" ] && [ "$USE_MICROVM" = "1" ]; then
         print_warning "[!] macOS detected — KVM is not available;"
@@ -375,6 +414,13 @@ run() {
         --env "AI_GID=${AI_USER_GID}" \
         --env "AI_SANDBOX_VERSION=${IMG_TAG}"
 
+    if [ -f "$LOCAL_ENV_FILE" ]; then
+        set -- "$@" --env-file "$LOCAL_ENV_FILE"
+    fi
+    if [ -d "$USER_CFG_D" ]; then
+        set -- "$@" --volume "$USER_CFG_D:${LOCAL_MOUNT_D}:ro,z"
+    fi
+
     # Forward cloud/relay settings needed by Vertex-backed OpenCode sessions.
     if [ -n "$GOOGLE_CLOUD_PROJECT" ]; then
         set -- "$@" --env "GOOGLE_CLOUD_PROJECT=$GOOGLE_CLOUD_PROJECT"
@@ -398,11 +444,23 @@ run() {
         # required
         set -- "$@" --annotation krun.ram_mib=8192 --annotation krun.cpus=4
     fi
-    _args=$*
+
+    if _local_overlay_enabled; then
+        if _local_image_exists; then
+            _run_image="$( _local_image_name )"
+            print_info "Using local overlay image ${_run_image}:latest."
+        else
+            if [ "$IMG_NAME" != "ai-agents-sandbox" ]; then
+                _build_hint="${_build_hint} ${AGENT}"
+            fi
+            print_warning "Local overlay requested but image '${IMG_NAME}-local:latest' is missing."
+            print_warning "     -> Run '${_build_hint}' to build it."
+        fi
+    fi
+
     print_info "Starting isolated container..."
-    _cmd="podman run -it $_args ${IMG_NAME}:latest"
-    print_debug "$_cmd"
-    if ! eval "$_cmd"; then
+    print_debug "podman run -it $* ${_run_image}:latest"
+    if ! podman run -it "$@" "${_run_image}:latest"; then
         print_error "Failed to start container ${CTN_NAME}."
         _ret="$FAILURE"
     fi

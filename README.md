@@ -105,6 +105,11 @@ The script copies injects the version number, passes the `AGENT` build-arg to
 Agent-specific builds only install the tools required by the selected agent,
 resulting in smaller images.
 
+If `.ai-agents-sandbox/Containerfile.local` exists, `build` also creates a
+derived local image named `ai-agents-sandbox[-<agent>]-local:latest`. Use this
+only for image-level customizations such as additional packages, tools, or
+files that must exist before the container starts.
+
 ```bash
 # Verify the build
 podman image inspect ai-agents-sandbox:latest | grep -E "User|Size"
@@ -122,6 +127,30 @@ sh ai-agents-sandbox.sh run <?agent> -w <dir_path>
 ```
 
 > `<?agent>` can be empty to use the all-in-one image.
+>
+> If a matching `-local` image exists, `run` prefers it automatically.
+> Repo-local configuration from `.ai-agents-sandbox/` is also mounted
+> read-only into the container, so most per-user config does not require a
+> rebuild.
+
+### Repo-local customizations
+
+Use `.ai-agents-sandbox/` for local, non-VCS customizations:
+
+```text
+.ai-agents-sandbox/
+├── .env                         # runtime env vars, loaded by podman --env-file
+├── Containerfile.local          # optional derived image for packages/tools
+├── agents/
+│   └── opencode/
+│       └── config.local.override.json
+├── entrypoint.pre.d/            # optional executable hooks, run before provisioning
+└── entrypoint.post.d/           # optional executable hooks, run after provisioning
+```
+
+Use the runtime-mounted files for user-specific configuration, secrets, MCP
+definitions, LSP definitions, and per-agent overrides. Use `Containerfile.local`
+only when you need to change the image itself.
 
 ### Clean the environment
 
@@ -253,6 +282,95 @@ credentials path created by `gcloud auth application-default login`.
 
 If `GOOGLE_CLOUD_PROJECT` is unset, the entrypoint tries to read it from
 `gcloud config get-value project`.
+
+---
+
+## OpenCode: MCP and LSP Configuration
+
+OpenCode configuration is now generated automatically on every container start:
+
+1. The base sandbox flow renders a default `config.json` for Vertex-backed
+  OpenCode from the current environment.
+2. If a local override file exists, it is deep-merged on top of that base
+  config.
+3. The result is written to both `~/.config/opencode/config.json` and
+  `~/.config/opencode/opencode.json`.
+
+That means MCPs, LSPs, and other user-specific OpenCode settings should live in
+the local override file, not in tracked files.
+
+### Location
+
+Create your local OpenCode override in one of these locations (checked in
+order):
+
+```bash
+# Primary (repo-local, gitignored, mounted read-only at runtime)
+.ai-agents-sandbox/agents/opencode/config.local.override.json
+
+# Fallback (persisted sandbox home volume)
+~/.config/opencode/config.local.override.json
+```
+
+### File Format
+
+Create a JSON object containing the settings you want to layer on top of the
+generated base config. For MCPs and LSPs, a typical file looks like this:
+
+```json
+{
+    "mcp": {
+        "jenkins-staging": {
+            "type": "remote",
+            "url": "https://your-jenkins-host/mcp-server/mcp",
+            "enabled": true,
+            "oauth": false,
+            "headers": {
+                "Authorization": "Bearer YOUR_TOKEN_HERE"
+            },
+            "timeout": 10000
+        }
+    },
+    "lsp": {
+        "gopls": {
+            "disabled": false,
+            "command": ["gopls"],
+            "extensions": [".go"]
+        }
+    }
+}
+```
+
+Because the local file is merged into the generated base config, you do not
+need to repeat the default Vertex provider or model settings unless you want to
+override them.
+
+### Security
+
+* **File permissions**: Must be readable/writable by owner only (`0600`).
+* Linux/macOS: `chmod 600 .ai-agents-sandbox/agents/opencode/config.local.override.json`
+* If permissions are broader, the file is ignored and a warning is printed.
+* **Location**: Store repo-local overrides in `.ai-agents-sandbox/`, which is
+  ignored by git.
+* **Merge behavior**: The override must be a JSON object. It is merged into the
+  generated base config with `jq`, so user settings replace or extend the base.
+* **No validation of values**: OpenCode will attempt to use whatever configuration
+  you provide; test connectivity before relying on your setup.
+
+### Validation
+
+After starting the sandbox, verify the final config:
+
+```bash
+cat ~/.config/opencode/config.json | jq .mcp
+cat ~/.config/opencode/config.json | jq .lsp
+```
+
+To inspect the fully merged file:
+
+```bash
+cat ~/.config/opencode/config.json | jq .
+```
 
 ---
 

@@ -1,5 +1,9 @@
 build
 
+# Ignore repo-local customization overlays and secrets
+.ai-agents-sandbox/**
+!.ai-agents-sandbox/
+
 # Ignore everything in sandbox/ (runtime home dir contents)
 sandbox/**
 workspace/**

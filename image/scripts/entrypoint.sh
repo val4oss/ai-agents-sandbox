@@ -20,6 +20,12 @@
 # ----------------
 
 SKEL_D="/usr/share/ai-sandbox"
+LOCAL_IMAGE_D="${SKEL_D}/local"
+LOCAL_HOST_D="${SKEL_D}/local-host"
+IMAGE_ENTRYPOINT_PRE_D="${LOCAL_IMAGE_D}/entrypoint.pre.d"
+IMAGE_ENTRYPOINT_POST_D="${LOCAL_IMAGE_D}/entrypoint.post.d"
+HOST_ENTRYPOINT_PRE_D="${LOCAL_HOST_D}/entrypoint.pre.d"
+HOST_ENTRYPOINT_POST_D="${LOCAL_HOST_D}/entrypoint.post.d"
 # Default agent list (contains both trusted and untrusted agents)
 # filtering happens in ai-agents-sandbox.sh script
 AGENT="${AGENT:-claude copilot gemini opencode antigravity hermes-agent}"
@@ -43,6 +49,35 @@ provision_agents() {
             fi
         done
     fi
+}
+
+provision_overlay_agents() {
+    _overlay_root="$1"
+    _agent_name="$2"
+    _target_dir="$3"
+    _src_dir="${_overlay_root}/agents/${_agent_name}"
+    if [ -d "$_src_dir" ]; then
+        mkdir -p "$_target_dir"
+        cp -R "$_src_dir"/. "$_target_dir"/ 2>/dev/null || true
+    fi
+}
+
+provision_local_agents() {
+    _agent_name="$1"
+    _target_dir="$2"
+    provision_overlay_agents "$LOCAL_IMAGE_D" "$_agent_name" "$_target_dir"
+    provision_overlay_agents "$LOCAL_HOST_D" "$_agent_name" "$_target_dir"
+}
+
+run_hook_dir() {
+    _hook_dir="$1"
+    [ -d "$_hook_dir" ] || return 0
+
+    for _hook in "$_hook_dir"/*; do
+        [ -f "$_hook" ] || continue
+        [ -x "$_hook" ] || continue
+        "$_hook"
+    done
 }
 
 # Return 0 if agent is enabled, 1 otherwise
@@ -147,6 +182,9 @@ if [ "$(id -u)" = "0" ] && id aiuser >/dev/null 2>&1; then
     exec setpriv --reuid="$_uid" --regid="$_guid" --init-groups "$0" "$@"
 fi
 
+run_hook_dir "$IMAGE_ENTRYPOINT_PRE_D"
+run_hook_dir "$HOST_ENTRYPOINT_PRE_D"
+
 # Home provisioning (first-run or after clean)
 # Files are copied only if they do not already exist (cp -n).
 # This allows users to customise their home without losing changes on restart.
@@ -181,6 +219,36 @@ agent_enabled "antigravity" &&\
 agent_enabled "opencode" &&\
     mkdir -p "$HOME/.config/opencode" &&\
     provision_agents "opencode" "$HOME/.config/opencode"
+
+# Apply user-local per-agent overrides after the packaged defaults.
+agent_enabled "claude" &&\
+    provision_local_agents "claude" "$HOME/.claude/agents"
+agent_enabled "copilot" &&\
+    provision_local_agents "copilot" "$HOME/.copilot/agents"
+agent_enabled "gemini" &&\
+    provision_local_agents "gemini" "$HOME/.gemini/agents"
+agent_enabled "antigravity" &&\
+    provision_local_agents "antigravity" "$HOME/.gemini/antigravity-cli"
+agent_enabled "opencode" &&\
+    provision_local_agents "opencode" "$HOME/.config/opencode"
+agent_enabled "hermes-agent" &&\
+    provision_local_agents "hermes-agent" "$HOME/.hermes"
+
+# If GOOGLE_CLOUD_PROJECT is not forwarded by the launcher, try to
+# read it from the persisted gcloud configuration (best-effort).
+if agent_enabled "opencode" && [ -z "$GOOGLE_CLOUD_PROJECT" ] \
+    && command -v gcloud > /dev/null 2>&1; then
+    _gc_proj=$(gcloud config get-value project 2>/dev/null) || true
+    case "${_gc_proj:-}" in
+        ''|'(unset)') ;;
+        *)  export GOOGLE_CLOUD_PROJECT="$_gc_proj" ;;
+    esac
+fi
+
+agent_enabled "opencode" && /usr/local/bin/opencode-bootstrap.sh
+
+run_hook_dir "$IMAGE_ENTRYPOINT_POST_D"
+run_hook_dir "$HOST_ENTRYPOINT_POST_D"
 
 # Print the banner with agent status and authentication hints
 banner_header

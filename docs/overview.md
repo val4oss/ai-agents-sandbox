@@ -28,8 +28,15 @@ measures.
 
 ## Project structure
 
-```
+```text
 ai-agents-sandbox/
+│
+├── .ai-agents-sandbox/         # Local, gitignored user overrides and optional local overlay
+│   ├── .env                    # Runtime env vars passed by podman --env-file
+│   ├── Containerfile.local     # Optional derived image layer for extra packages/tools
+│   ├── agents/                 # Per-agent local config copied into the container home
+│   ├── entrypoint.pre.d/       # Optional executable hooks run before provisioning
+│   └── entrypoint.post.d/      # Optional executable hooks run after provisioning
 │
 ├── image/
 │   ├── Containerfile          # Image definition — no secrets; AGENT build-arg for slim builds
@@ -38,9 +45,11 @@ ai-agents-sandbox/
 │   │   ├── copilot/           # Copilot agent definitions (provisioned to ~/.copilot/agents/)
 │   │   └── gemini/            # Gemini sub-agent definitions (provisioned to ~/.gemini/agents/)
 │   ├── skel/
-│   │   └── .gitconfig         # Default git config (provisioned to ~/.gitconfig on first run)
+│   │   ├── .gitconfig         # Default git config (provisioned to ~/.gitconfig on first run)
+│   │   └── opencode/          # Base OpenCode config template rendered at startup
 │   └── scripts/
 │       ├── entrypoint.sh      # Startup script — home provisioning + auth status check
+│       ├── opencode-bootstrap.sh  # Renders base OpenCode config, then merges local overrides
 │       └── healthcheck.sh     # Container health verification
 │
 ├── workspace/                 # ← Mounted as /home/aiuser (persistent, gitignored)
@@ -55,12 +64,14 @@ ai-agents-sandbox/
 
 A `podman volume` is used for the aiuser HOME directory `/home/aiuser`. It keeps
 authentication status between runs. The `workspace/` will be mounted into
-`/home/aiuser/workspace/`. A perfect place to store working project, it can be
-shared between different ai-agents-sandboxes. At every start, the entrypoint
-automatically provisions:
+`/home/aiuser/workspace/`. If `.ai-agents-sandbox/` exists, it is also mounted
+read-only into the container so local hooks and per-agent config can be applied
+without rebuilding the image. At every start, the entrypoint automatically
+provisions:
 
 - `~/.gitconfig` — default git configuration
 - `~/.copilot/agents/` — Copilot agent definitions
+- `~/.config/opencode/config.json` — generated OpenCode base config
 - `~/workspace/` — your projects directory
 
 Auth token directories (`.config/gh/`, `.gemini/`, `.claude/`) are created
@@ -76,7 +87,7 @@ automatically on first login. All runtime content is excluded from git via
 | GitHub Copilot | `copilot` | `gh auth login` | Trusted |
 | Gemini CLI | `gemini` | `gemini auth login` | Trusted |
 | Claude Code | `claude` | `claude auth login` | Trusted |
-| OpenCode | `opencode` | configure `opencode.json` | Trusted |
+| OpenCode | `opencode` | `gcloud auth application-default login` | Trusted |
 | antigravity | `agye` | run `agy` | Trusted |
 | Hermes Agent | `hermes` | `hermes setup` | Untrusted |
 
@@ -113,7 +124,7 @@ automatically on first login. All runtime content is excluded from git via
 | Measure | Effect |
 |---|---|
 | Dedicated home volume | The real `$HOME` is never mounted |
-| Explicit volume whitelist | Only `sandbox/` is mounted as `/home/aiuser` |
+| Explicit volume whitelist | Only the sandbox home volume, `workspace/`, and optional `.ai-agents-sandbox/` are mounted |
 | `--tmpfs /tmp:noexec,nosuid` | `/tmp` is in RAM, non-executable, non-setuid |
 | No Docker / Podman socket | Container cannot spawn other containers |
 
@@ -227,6 +238,32 @@ run            # new container, everything intact ✅
 > `clean all` removes auth token directories but preserves `workspace/`.
 > Defaults (`.gitconfig`, `.copilot/agents/`) are re-provisioned from the
 > image on the next `run`.
+
+---
+
+## Local customization flow
+
+Use `.ai-agents-sandbox/` for non-VCS user customizations.
+
+- `.env` is passed at runtime with `podman --env-file`.
+- `agents/<agent>/` is mounted read-only and copied into the agent's home config
+  path on startup.
+- `entrypoint.pre.d/` and `entrypoint.post.d/` contain executable hooks that run
+  before and after normal provisioning.
+- `Containerfile.local` is optional and only needed for image-level changes such
+  as extra packages or additional binaries.
+
+For OpenCode specifically, the startup flow is:
+
+1. Render the base config from `image/skel/opencode/config.template.json`.
+2. Load a local override from `.ai-agents-sandbox/agents/opencode/config.local.override.json`
+   when present, otherwise from `~/.config/opencode/config.local.override.json`.
+3. Deep-merge the local override into the generated base config.
+4. Write the merged result to both `~/.config/opencode/config.json` and
+   `~/.config/opencode/opencode.json`.
+
+This keeps base provider/model defaults in the image while allowing user-local
+MCP, LSP, and other OpenCode settings to stay out of version control.
 
 ---
 

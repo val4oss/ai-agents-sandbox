@@ -1,0 +1,17 @@
+{
+    "$schema": "https://opencode.ai/config.json",
+    "enabled_providers": [
+        "google-vertex"
+    ],
+    "provider": {
+        "google-vertex": {
+            "npm": "@google-cloud/vertexai",
+            "name": "Vertex",
+            "options": {
+                "projectId": "${GOOGLE_CLOUD_PROJECT}",
+                "location": "${VERTEX_LOCATION}"
+            }
+        }
+    },
+    "model": "google-vertex/gemini-2.0-flash"
+}
