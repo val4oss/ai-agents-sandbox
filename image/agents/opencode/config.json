@@ -1,0 +1,30 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "enabled_providers": [
+    "ollama",
+    "google-vertex"
+  ],
+  "provider": {
+    "google-vertex": {
+      "npm": "@google-cloud/vertexai",
+      "name": "Vertex",
+      "options": {
+        "projectId": "$GOOGLE_CLOUD_PROJECT",
+        "location": "$VERTEX_LOCATION"
+      }
+    },
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama",
+      "options": {
+        "baseURL": "$OPENCODE_OLLAMA_BASE_URL"
+      },
+      "models": {
+        "default:latest": {
+          "name": "default:latest"
+        }
+      }
+    }
+  },
+  "model": "ollama/default:latest"
+}

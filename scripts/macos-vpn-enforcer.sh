@@ -61,6 +61,11 @@ _log_error() {
 
 # apply blanket egress block — used only as fallback when no
 # VPN routes can be discovered (FALLBACK_POLICY=block).
+# Allows exceptions for OLLAMA_IP:OLLAMA_PORT if configured, 
+# so that Ollama-hosted models can be used even with a full-tunnel 
+# VPN that hides all routes.  This is a single catch-all DROP rule, 
+# scoped to the VM external NIC and new connections only.  
+# Established/related traffic is kept.
 _apply_blanket_block() {
     _abb_ollama_ip="$1"
     _abb_ollama_port="$2"
