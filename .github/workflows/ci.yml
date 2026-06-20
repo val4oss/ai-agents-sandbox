@@ -17,13 +17,17 @@ jobs:
         run: |
           zypper --non-interactive refresh
           zypper --non-interactive install --no-recommends \
-            git ShellCheck tar gzip
+            git jq ShellCheck tar gzip
       - uses: actions/checkout@v6
       - name: Run shellcheck
         run: |
           shellcheck -x ai-agents-sandbox.sh
           shellcheck -x printer.sh
           shellcheck -x image/scripts/entrypoint.sh
+          shellcheck -x image/scripts/opencode-bootstrap.sh
+          shellcheck -x tests/opencode-bootstrap-test.sh
+      - name: Run OpenCode bootstrap tests
+        run: sh tests/opencode-bootstrap-test.sh
 
   # ------------------------------------------------------------------
   # Build every image variant on every supported architecture.
