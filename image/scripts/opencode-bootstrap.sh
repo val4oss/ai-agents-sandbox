@@ -1,10 +1,12 @@
 #!/bin/sh
 # opencode-bootstrap.sh - render OpenCode config from base and local overlays.
+# This script is intended to be run at container startup to generate the OpenCode
+# configuration file based on a template and any local overrides.
 
 set -eu
 
-LOCAL_IMAGE_D="/usr/share/ai-sandbox/local"
-LOCAL_HOST_D="/usr/share/ai-sandbox/local-host"
+LOCAL_IMAGE_D="${OPENCODE_LOCAL_IMAGE_DIR:-/usr/share/ai-sandbox/local}"
+LOCAL_HOST_D="${OPENCODE_LOCAL_HOST_DIR:-/usr/share/ai-sandbox/local-host}"
 
 expand_file_env_refs() {
     _src="$1"
@@ -24,6 +26,11 @@ expand_file_env_refs() {
     ' "$_src" > "$_dst"
 }
 
+# Looks for an override file in several locations, with the following precedence:
+# 1. The file specified by the OPENCODE_CONFIG_OVERRIDE_FILE environment variable, if set.
+# 2. A file named config.local.override.json in the LOCAL_HOST_D directory.
+# 3. A file named config.local.override.json in the LOCAL_IMAGE_D directory.
+# 4. A file named config.local.override.json in the target OpenCode config directory.
 pick_override_file() {
     _opencode_dir="$1"
 
@@ -45,13 +52,15 @@ pick_override_file() {
     return 1
 }
 
+# Takes a base config file and an override file, validates the
+# override, and merges it into the base config with precedence.
 apply_local_override() {
     _base_cfg="$1"
     _override_cfg="$2"
 
     [ -f "$_override_cfg" ] || return 0
 
-    _mode="$(stat -c '%a' "$_override_cfg" 2>/dev/null || true)"
+    _mode="$(_file_mode "$_override_cfg" 2>/dev/null || true)"
     case "$_mode" in
         600|0600) ;;
         *)
@@ -71,9 +80,23 @@ apply_local_override() {
     mv "$_merged_cfg" "$_base_cfg"
 }
 
+_file_mode() {
+    _path="$1"
+    if stat -c '%a' "$_path" > /dev/null 2>&1; then
+        stat -c '%a' "$_path"
+        return 0
+    fi
+    if stat -f '%OLp' "$_path" > /dev/null 2>&1; then
+        stat -f '%OLp' "$_path"
+        return 0
+    fi
+    return 1
+}
+
+# Normalize the OLLAMA_BASE_URL environment variable based on various inputs and fallbacks.
 normalize_ollama_base_url() {
-    if [ -n "${OPENCODE_OLLAMA_BASE_URL:-}" ]; then
-        _oc_ollama="$OPENCODE_OLLAMA_BASE_URL"
+    if [ -n "${OLLAMA_BASE_URL:-}" ]; then
+        _oc_ollama="$OLLAMA_BASE_URL"
         _oc_ollama_src="base_url"
     elif [ -n "${OLLAMA_HOST:-}" ]; then
         _oc_ollama="$OLLAMA_HOST"
@@ -94,11 +117,11 @@ normalize_ollama_base_url() {
             ;;
     esac
 
-    export OPENCODE_OLLAMA_BASE_URL="$_oc_ollama"
+    export OLLAMA_BASE_URL="$_oc_ollama"
 }
 
 _opencode_dir="${HOME}/.config/opencode"
-_template="/usr/share/ai-sandbox/skel/opencode/config.template.json"
+_template="${OPENCODE_TEMPLATE_FILE:-/usr/share/ai-sandbox/skel/opencode/config.template.json}"
 _cfg="${_opencode_dir}/config.json"
 _legacy_cfg="${_opencode_dir}/opencode.json"
 
@@ -107,6 +130,7 @@ mkdir -p "$_opencode_dir"
 normalize_ollama_base_url
 export VERTEX_LOCATION="${VERTEX_LOCATION:-global}"
 
+# If the template exists, render it with environment variable substitution, then apply any local overrides.
 if [ -f "$_template" ]; then
     expand_file_env_refs "$_template" "$_cfg"
     if _override_cfg="$(pick_override_file "$_opencode_dir")"; then

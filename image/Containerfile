@@ -139,6 +139,8 @@ RUN case " $AGENT " in *" gemini "*) \
 COPY --chmod=755 scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY --chmod=755 scripts/opencode-bootstrap.sh \
     /usr/local/bin/opencode-bootstrap.sh
+COPY --chmod=644 scripts/local-provision.sh \
+    /usr/share/ai-sandbox/scripts/local-provision.sh
 
 # =====================================
 # Default home provisioning (skel-like)

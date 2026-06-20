@@ -2,9 +2,17 @@ build
 
 # Ignore repo-local customization overlays and secrets
 .ai-agents-sandbox/**
-!.ai-agents-sandbox/
+
+# Track only example template files and documentation
 !.ai-agents-sandbox/templates/
-!.ai-agents-sandbox/templates/**
+!.ai-agents-sandbox/templates/entrypoint.pre.d/
+!.ai-agents-sandbox/templates/entrypoint.pre.d/10-example.sh
+!.ai-agents-sandbox/templates/entrypoint.post.d/
+!.ai-agents-sandbox/templates/entrypoint.post.d/90-example.sh
+!.ai-agents-sandbox/templates/agents/
+!.ai-agents-sandbox/templates/agents/opencode/
+!.ai-agents-sandbox/templates/agents/opencode/config.local.override.example.json
+!.ai-agents-sandbox/MIGRATION.md
 
 # Ignore everything in sandbox/ (runtime home dir contents)
 sandbox/**

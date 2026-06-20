@@ -1,0 +1,21 @@
+{
+    "mcp": {
+        "jenkins-staging": {
+            "type": "remote",
+            "url": "https://your-jenkins-host/mcp-server/mcp",
+            "enabled": true,
+            "oauth": false,
+            "headers": {
+                "Authorization": "Bearer ${JENKINS_MCP_TOKEN}"
+            },
+            "timeout": 10000
+        }
+    },
+    "lsp": {
+        "gopls": {
+            "disabled": false,
+            "command": ["gopls"],
+            "extensions": [".go"]
+        }
+    }
+}

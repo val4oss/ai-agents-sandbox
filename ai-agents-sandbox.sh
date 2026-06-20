@@ -59,6 +59,8 @@ MIN_LIBKRUN_VER="1.18.0"
 # --------
 
 . "${ROOT_D}/printer.sh"
+# shellcheck source=scripts/local-customization.sh
+. "${ROOT_D}/scripts/local-customization.sh"
 
 # ==================
 # Internal functions
@@ -203,34 +205,6 @@ _verify_workspace() {
         print_warning "Falling back to default workspace directory: '$SANDBOX_D_DEFAULT'."
         SANDBOX_D="$SANDBOX_D_DEFAULT"
     fi
-}
-
-_local_overlay_enabled() {
-    [ -f "$LOCAL_CONTAINERFILE" ]
-}
-
-_local_image_name() {
-    printf "%s-local" "$IMG_NAME"
-}
-
-_local_image_exists() {
-    podman image exists "$( _local_image_name ):latest"
-}
-
-_build_local_overlay() {
-    _local_img_name="$( _local_image_name )"
-    print_info "Building local overlay image ${_local_img_name}:${IMG_TAG} ..."
-    if ! podman build \
-        --build-arg "BASE_IMAGE=${IMG_NAME}:${IMG_TAG}" \
-        --tag "${_local_img_name}:${IMG_TAG}" \
-        --tag "${_local_img_name}:latest" \
-        --file "$LOCAL_CONTAINERFILE" \
-        "$USER_CFG_D"; then
-            print_error "Local overlay build failed."
-            return "$FAILURE"
-    fi
-    print_info "Local overlay image built successfully."
-    return "$SUCCESS"
 }
 
 # ================
@@ -593,6 +567,10 @@ Valid agents: $TRUSTED_AGENTS (trusted) or $UNTRUSTED_AGENTS (untrusted)"
     fi
 else
     AGENT="$TRUSTED_AGENTS"
+fi
+
+if [ "$ACTION" = "run" ] || [ "$ACTION" = "build" ]; then
+    _validate_local_customization
 fi
 
 if ! eval "$ACTION"; then

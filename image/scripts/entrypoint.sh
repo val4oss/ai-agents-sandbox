@@ -36,49 +36,8 @@ BANNER_HEADLINE="AI AGENTS SANDBOX - $VERSION"
 # Internal functions
 # ------------------
 
-# Provision sub-agents for each relevant agent
-provision_agents() {
-    _agent_name="$1"
-    _target_dir="$2"
-    _src_dir="$SKEL_D/agents/${_agent_name}"
-    if [ -d "$_src_dir" ]; then
-        mkdir -p "$_target_dir"
-        for f in "$_src_dir"/*; do
-            if [ -f "$f" ]; then
-                cp -n "$f" "$_target_dir/" 2>/dev/null || true
-            fi
-        done
-    fi
-}
-
-provision_overlay_agents() {
-    _overlay_root="$1"
-    _agent_name="$2"
-    _target_dir="$3"
-    _src_dir="${_overlay_root}/agents/${_agent_name}"
-    if [ -d "$_src_dir" ]; then
-        mkdir -p "$_target_dir"
-        cp -R "$_src_dir"/. "$_target_dir"/ 2>/dev/null || true
-    fi
-}
-
-provision_local_agents() {
-    _agent_name="$1"
-    _target_dir="$2"
-    provision_overlay_agents "$LOCAL_IMAGE_D" "$_agent_name" "$_target_dir"
-    provision_overlay_agents "$LOCAL_HOST_D" "$_agent_name" "$_target_dir"
-}
-
-run_hook_dir() {
-    _hook_dir="$1"
-    [ -d "$_hook_dir" ] || return 0
-
-    for _hook in "$_hook_dir"/*; do
-        [ -f "$_hook" ] || continue
-        [ -x "$_hook" ] || continue
-        "$_hook"
-    done
-}
+# shellcheck source=image/scripts/local-provision.sh
+. "/usr/share/ai-sandbox/scripts/local-provision.sh"
 
 # Return 0 if agent is enabled, 1 otherwise
 agent_enabled() {

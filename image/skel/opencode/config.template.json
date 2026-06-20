@@ -1,7 +1,9 @@
 {
     "$schema": "https://opencode.ai/config.json",
     "enabled_providers": [
-        "google-vertex"
+        "ollama",
+        "google-vertex",
+        "github-copilot"
     ],
     "provider": {
         "google-vertex": {
@@ -11,7 +13,39 @@
                 "projectId": "${GOOGLE_CLOUD_PROJECT}",
                 "location": "${VERTEX_LOCATION}"
             }
+        },
+        "ollama": {
+            "npm": "@ai-sdk/openai-compatible",
+            "name": "Ollama",
+            "options": {
+                "baseURL": "${OLLAMA_BASE_URL}"
+            },
+            "models": {
+                "default:latest": {
+                    "name": "default:latest"
+                }
+            }
+        },
+        "github-copilot": {
+            "npm": "@ai-sdk/openai-compatible",
+            "name": "GitHub Copilot",
+            "options": {
+                "baseURL": "https://api.githubcopilot.com"
+            }
         }
     },
-    "model": "google-vertex/gemini-2.0-flash"
+    "mcp": {
+        "jenkins": {
+            "type": "remote",
+            "url": "${JENKINS_MCP_URL}",
+            "enabled": true,
+            "oauth": false,
+            "headers": {
+                "Authorization": "Bearer ${JENKINS_MCP_TOKEN}"
+            },
+            "timeout": 10000
+        }
+    },
+    "lsp": {},
+    "model": "ollama/default:latest"
 }
