@@ -11,6 +11,7 @@ ARG IMG_TAG="0.0.0"
 ARG AI_USER=aiuser
 ARG AI_UID=1000
 ARG AI_GID=1000
+ARG PKGS=""
 
 LABEL maintainer="val4oss" \
       description="AI Agents sandbox —${AGENT}, rootless" \
@@ -58,6 +59,7 @@ RUN zypper --non-interactive refresh && \
         wget \
         which \
         xclip \
+        ${PKGS} \
     && zypper clean --all \
     && rm -rf /var/cache/zypp/* /tmp/* /var/tmp/*
 

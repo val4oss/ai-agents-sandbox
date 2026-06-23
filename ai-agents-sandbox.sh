@@ -28,6 +28,7 @@ ROOT_D="$(cd "$(dirname "$0")" && pwd)"
 IMG_D="${ROOT_D}/image"
 SANDBOX_D_DEFAULT="$ROOT_D/workspace"
 SANDBOX_D="${SANDBOX_D_DEFAULT}"
+CONF_P="${ROOT_D}/ai-agents-sandbox.conf"
 
 # Container variables
 IMG_NAME="ai-agents-sandbox"
@@ -39,6 +40,7 @@ UNTRUSTED_AGENTS_SENSITIVE_ACTIONS="build run"
 AI_USER_NAME="aiuser"
 AI_USER_UID=1000
 AI_USER_GID=1000
+PKGS=""
 
 # argument variables
 AGENT=""
@@ -77,6 +79,53 @@ _check_tools_needed() {
         _ret="$FAILURE"
     fi
     return "$_ret"
+}
+
+# parse configuration file if it exists
+_parse_conf() {
+    if [ -f "$CONF_P" ]; then
+        _in_block=0
+        _block_key=""
+        while IFS= read -r _line; do
+            # strip leading whitespace
+            _line="${_line#"${_line%%[! ]*}"}"
+            case "$_line" in
+                "" | \#*) continue ;;
+            esac
+            if [ "$_in_block" -eq 1 ]; then
+                case "$_line" in
+                    *")"*) _in_block=0; _block_key="" ;;
+                    *)
+                        # strip quotes
+                        _item=$(printf '%s' "$_line" \
+                            | sed 's/^["'"'"']//;s/["'"'"']$//')
+                        # Assigning to block keys
+                        case "$_block_key" in
+                            PACKAGES) PKGS="$PKGS $_item" ;;
+                        esac
+                        ;;
+                esac
+            else
+                _key="$(printf '%s' "$_line" | cut -d '=' -f 1)"
+                _value="$(printf '%s' "$_line" | cut -d '=' -f 2-)"
+                # strip quotes
+                _value=$(printf '%s' "$_value" \
+                    | sed 's/^["'"'"']//;s/["'"'"']$//')
+                case "$_value" in
+                    *"("*) _in_block=1; _block_key="$_key" ;;
+                    *)
+                        # Assigning to keys
+                        case "$_key" in
+                            AGENT) AGENT="$_value" ;;
+                            USE_MICROVM) USE_MICROVM="$_value" ;;
+                            WORKSPACE) SANDBOX_D="$_value" ;;
+                            IMG_TAG) IMG_TAG="$_value" ;;
+                        esac
+                esac
+            fi
+        done < "$CONF_P"
+    fi
+    return "$SUCCESS"
 }
 
 # print warning and prompt confirmation for untrusted agent
@@ -222,7 +271,7 @@ Actions:
 Agents:
   (trusted)     $TRUSTED_AGENTS
   (untrusted)   $UNTRUSTED_AGENTS
-                if no agent is specified, all agents will be built
+                if no agent is specified, all trusted agents will be built
                 (only for build action)
 
 Options:
@@ -231,8 +280,22 @@ Options:
                 For 'run' action, Specify a custom workspace directory
                 (default: $SANDBOX_D_DEFAULT) to mount in the sandbox at
                 /home/aiuser/workspace.
-
   --all, -a     For 'clean' action, also remove home volume and auth tokens
+
+Notes:
+  - The sandbox is designed to run in a secure, isolated environment.
+  - Untrusted agents may not comply with best practices and could pose security risks.
+  - To enable microVM isolation, ensure that KVM is available and the user is in the kvm group.
+  - To configure the sandbox, you can create a configuration file at $CONF_P with the following format:
+    AGENT=<agent_name>
+    USE_MICROVM=1
+    WORKSPACE=<workspace_directory>
+    IMG_TAG=<image_tag>
+    PACKAGES=(
+        <package1>
+        <package2>
+        ...
+    )
 "
     printf "%s\n" "$_str"
 }
@@ -249,6 +312,7 @@ build() {
     if ! podman build \
         --build-arg "AGENT=${AGENT}" \
         --build-arg "IMG_TAG=${IMG_TAG}" \
+        --build-arg "PKGS=${PKGS}" \
         --tag "${IMG_NAME}:${IMG_TAG}" \
         --tag "${IMG_NAME}:latest" \
         --file "${IMG_D}/Containerfile" \
@@ -487,6 +551,12 @@ _check_tools_needed || {
     print_error "Please install the missing tools and try again. Aborting."
     exit $FAILURE
 }
+
+# Parse configuration file if it exists
+if ! _parse_conf; then
+    print_error "Failed to parse configuration file: $CONF_P"
+    exit $FAILURE
+fi
 
 # Get arguments
 if [ $# -lt 1 ]; then

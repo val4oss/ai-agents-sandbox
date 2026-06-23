@@ -130,6 +130,23 @@ sh ai-agents-sandbox.sh clean     # Remove the container (auth and workspace pre
 sh ai-agents-sandbox.sh clean all # Remove a specific agent container + its auth tokens
 ```
 
+### Use a config file to customized your image
+
+The project will look at ${ROOT_D}/ai-agents-sandbox.conf for a config file.
+You can use it to customize the image build, for example to add extra
+packages or change the base image.
+
+```conf
+USE_MICROVM=0
+AGENT=claude
+WORKSPACE=/home/valentin/workspace
+#IMG_TAG=1.0.0
+PACKAGES=(
+    osc
+    quilt
+)
+```
+
 ---
 
 ## Runtime Example
