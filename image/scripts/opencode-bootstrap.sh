@@ -57,6 +57,7 @@ pick_override_file() {
 apply_local_override() {
     _base_cfg="$1"
     _override_cfg="$2"
+    _expanded_override="${_base_cfg}.override.expanded"
 
     [ -f "$_override_cfg" ] || return 0
 
@@ -69,14 +70,18 @@ apply_local_override() {
             ;;
     esac
 
-    if ! jq -e 'type == "object"' "$_override_cfg" >/dev/null 2>&1; then
+    expand_file_env_refs "$_override_cfg" "$_expanded_override"
+
+    if ! jq -e 'type == "object"' "$_expanded_override" >/dev/null 2>&1; then
+        rm -f "$_expanded_override"
         echo "[opencode-bootstrap] Ignoring invalid override file: $_override_cfg" >&2
         echo "[opencode-bootstrap] Override must be a JSON object." >&2
         return 0
     fi
 
     _merged_cfg="${_base_cfg}.merged"
-    jq -s '.[0] * .[1]' "$_base_cfg" "$_override_cfg" > "$_merged_cfg"
+    jq -s '.[0] * .[1]' "$_base_cfg" "$_expanded_override" > "$_merged_cfg"
+    rm -f "$_expanded_override"
     mv "$_merged_cfg" "$_base_cfg"
 }
 

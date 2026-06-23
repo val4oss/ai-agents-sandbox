@@ -80,7 +80,10 @@ cat > "${LOCAL_HOST_D}/agents/opencode/config.local.override.json" << 'EOF'
     "mcp": {
         "jenkins": {
             "type": "remote",
-            "url": "https://jenkins.example/mcp"
+            "url": "https://${JENKINS_HOST}/mcp",
+            "headers": {
+                "Authorization": "Bearer ${JENKINS_TOKEN}"
+            }
         }
     },
     "lsp": {
@@ -95,6 +98,8 @@ chmod 600 "${LOCAL_HOST_D}/agents/opencode/config.local.override.json"
 
 GOOGLE_CLOUD_PROJECT="proj-merged" \
 VERTEX_LOCATION="global" \
+JENKINS_HOST="jenkins.example" \
+JENKINS_TOKEN="token-123" \
 HOME="${HOME_D}" \
 OPENCODE_LOCAL_IMAGE_DIR="${LOCAL_IMAGE_D}" \
 OPENCODE_LOCAL_HOST_DIR="${LOCAL_HOST_D}" \
@@ -104,11 +109,13 @@ sh "${SCRIPT_PATH}"
 _merged_model="$(jq -r '.model' "${BASE_CFG}")"
 _merged_project="$(jq -r '.provider["google-vertex"].options.projectId' "${BASE_CFG}")"
 _mcp_url="$(jq -r '.mcp.jenkins.url' "${BASE_CFG}")"
+_mcp_auth="$(jq -r '.mcp.jenkins.headers.Authorization' "${BASE_CFG}")"
 _lsp_cmd="$(jq -r '.lsp.gopls.command[0]' "${BASE_CFG}")"
 
 assert_eq "google-vertex/gemini-2.5-pro" "${_merged_model}" "model override"
 assert_eq "proj-merged" "${_merged_project}" "base provider preserved"
 assert_eq "https://jenkins.example/mcp" "${_mcp_url}" "mcp merge"
+assert_eq "Bearer token-123" "${_mcp_auth}" "override env expansion"
 assert_eq "gopls" "${_lsp_cmd}" "lsp merge"
 
 printf '[PASS] opencode-bootstrap base render + local merge\n'
