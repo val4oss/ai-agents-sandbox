@@ -23,12 +23,21 @@
 SUCCESS=0
 FAILURE=1
 
+# Main variables
+PRJ_ID="ai-agents-sandbox"
+
 # Path variables
 ROOT_D="$(cd "$(dirname "$0")" && pwd)"
 IMG_D="${ROOT_D}/image"
 SANDBOX_D_DEFAULT="$ROOT_D/workspace"
 SANDBOX_D="${SANDBOX_D_DEFAULT}"
-CONF_P="${ROOT_D}/ai-agents-sandbox.conf"
+CONF_P="${ROOT_D}/${PRJ_ID}.conf"
+BUILD_HOOK_ARG=""
+BUILD_HOOK=""
+BUILD_HOOK_P="${IMG_D}/hooks/build"
+RUN_HOOK_ARG=""
+RUN_HOOK=""
+RUN_HOOK_P="${IMG_D}/hooks/run"
 
 # Container variables
 IMG_NAME="ai-agents-sandbox"
@@ -126,6 +135,45 @@ _parse_conf() {
         done < "$CONF_P"
     fi
     return "$SUCCESS"
+}
+
+# Get hooks according type of the argument, directory or single file.
+# Id directory, it will return all scripts matching '[0-9][0-9]-*.sh'
+_parse_hooks_f() {
+    _hooks=""
+    if [ -d "$1" ]; then
+        for _h in "$1"/*.sh; do
+            _h=$(echo "$_h" | sed -e 's|//|/|') # remove double slashes
+            case "$(basename "$_h")" in
+                [0-9][0-9]-*.sh) {
+                    if [ -z "$_hooks" ]; then
+                        _hooks="$_h"
+                    else
+                        _hooks="$_hooks $_h"
+                    fi
+                };;
+            esac
+        done
+    elif [ -f "$1" ]; then
+        _hooks="$1"
+    fi
+    echo "$_hooks"
+}
+
+# check if scripts exist and are valid (shellcheck if available).
+_check_scripts() {
+    _ret="$SUCCESS"
+    _script="$1"
+    if [ -n "$_script" ] && [ -f "$_script" ]; then
+        if command -v shellcheck > /dev/null 2>&1; then
+            if ! shellcheck "$_script" > /dev/null 2>&1; then
+                print_error \
+                    "Script '$_script' has shellcheck errors."
+                _ret="$FAILURE"
+            fi
+        fi
+    fi
+    return "$_ret"
 }
 
 # print warning and prompt confirmation for untrusted agent
@@ -275,18 +323,24 @@ Agents:
                 (only for build action)
 
 Options:
-  no-microvm    Run the sandbox without microVM isolation (not recommended)
+  --no-microvm Run the sandbox without microVM isolation (not recommended)
+  --conf       Defined conf file path for building the image. See Notes.
+  --build-hook Defined hook(s) path for building the image. See Notes.
+  --run-hook   Defined hook(s) path for running the image. See Notes.
   --wokspace, -w <dir>
-                For 'run' action, Specify a custom workspace directory
-                (default: $SANDBOX_D_DEFAULT) to mount in the sandbox at
-                /home/aiuser/workspace.
-  --all, -a     For 'clean' action, also remove home volume and auth tokens
+               For 'run' action, Specify a custom workspace directory
+               (default: $SANDBOX_D_DEFAULT) to mount in the sandbox at
+               /home/aiuser/workspace.
+  --all, -a    For 'clean' action, also remove home volume and auth tokens
 
 Notes:
   - The sandbox is designed to run in a secure, isolated environment.
-  - Untrusted agents may not comply with best practices and could pose security risks.
-  - To enable microVM isolation, ensure that KVM is available and the user is in the kvm group.
-  - To configure the sandbox, you can create a configuration file at $CONF_P with the following format:
+  - Untrusted agents may not comply with best practices and could pose security
+    risks.
+  - To enable microVM isolation, ensure that KVM is available and the user is in
+    the kvm group.
+  - To configure the sandbox, you can 
+    1. create a configuration file at $CONF_P with the following format:
     AGENT=<agent_name>
     USE_MICROVM=1
     WORKSPACE=<workspace_directory>
@@ -296,6 +350,11 @@ Notes:
         <package2>
         ...
     )
+    2. Create hooks to customize the image build. Gives the path to a script or
+       to a folder containing '[0-9][0-9]-xxx.sh' scripts. Will be run as root.
+    3. Create hooks to customize the container. Gives the path to a script or
+       to a folder containing '[0-9][0-9]-xxx.sh' scripts. Will be run as
+       userai.
 "
     printf "%s\n" "$_str"
 }
@@ -308,6 +367,20 @@ print_version() {
 # callback for build action
 build() {
     _ret="$SUCCESS"
+
+    # Copy user hooks into the build context (image/) so podman
+    # can COPY them without escaping the context directory.
+    [ -n "$BUILD_HOOK" ] && {
+        print_debug "Copying build hook(s) to build context: ${BUILD_HOOK_P}"
+        print_debug "  -> Source: $BUILD_HOOK"
+        cp "$BUILD_HOOK" "${BUILD_HOOK_P}/"
+    }
+    [ -n "$RUN_HOOK" ] && {
+        print_debug "Copying run hook(s) to build context: ${RUN_HOOK_P}"
+        print_debug "  -> Source: $RUN_HOOK"
+        cp "$RUN_HOOK" "${RUN_HOOK_P}/"
+    }
+
     print_info "Building container image ${IMG_NAME}:${IMG_TAG} ..."
     if ! podman build \
         --build-arg "AGENT=${AGENT}" \
@@ -322,6 +395,21 @@ build() {
     else
         print_info "Image built successfully."
     fi
+
+    # clean up temporary hook files from build context
+    for _hook in $BUILD_HOOK; do
+        _hook_n="$(basename "$_hook")"
+        _hook_p="${BUILD_HOOK_P}/${_hook_n}"
+        if [ -z "$_hook_p" ] || [ ! -f "$_hook_p" ]; then
+            _hook_p="${RUN_HOOK_P}/${_hook_n}"
+            if [ -z "$_hook_p" ] || [ ! -f "$_hook_p" ]; then
+                print_warning "Hook '$_hook_n' not found in build or run hooks."
+                continue
+            fi
+        fi
+        print_debug "Removing temporary hook file: $_hook_p"
+        rm -f "$_hook_p"
+    done
     return "$_ret"
 }
 
@@ -552,12 +640,6 @@ _check_tools_needed || {
     exit $FAILURE
 }
 
-# Parse configuration file if it exists
-if ! _parse_conf; then
-    print_error "Failed to parse configuration file: $CONF_P"
-    exit $FAILURE
-fi
-
 # Get arguments
 if [ $# -lt 1 ]; then
     print_error "Missing command"
@@ -565,13 +647,16 @@ if [ $# -lt 1 ]; then
 fi
 while [ $# -gt 0 ]; do
     case "$1" in
-        help|--help|-h)          usage;         exit 0  ;;
-        verbose|--verbose|-v)    VERBOSE=1;     shift 1 ;;
-        quiet|--quiet|-q)        QUIET=1;       shift 1 ;;
-        version|--version)       print_version; exit 0  ;;
-        run|build|clean|status)  ACTION="$1";   shift 1 ;;
-        --no-microvm|no-microvm) USE_MICROVM=0; shift 1 ;;
-        all|--all|-a)            ALL=true;      shift 1 ;;
+        help|--help|-h)          usage;               exit 0  ;;
+        verbose|--verbose|-v)    VERBOSE=1;           shift 1 ;;
+        quiet|--quiet|-q)        QUIET=1;             shift 1 ;;
+        version|--version)       print_version;       exit 0  ;;
+        run|build|clean|status)  ACTION="$1";         shift 1 ;;
+        --no-microvm|no-microvm) USE_MICROVM=0;       shift 1 ;;
+        --conf)                  CONF_P="$2";         shift 2 ;;
+        --build-hook)            BUILD_HOOK_ARG="$2"; shift 2 ;;
+        --run-hook)              RUN_HOOK_ARG="$2";   shift 2 ;;
+        all|--all|-a)            ALL=true;            shift 1 ;;
         --workspace|-w)
             if [ -z "$2" ]; then
                 print_error "Error: $1 requires an argument."
@@ -590,6 +675,21 @@ while [ $# -gt 0 ]; do
             shift 1
             ;;
     esac
+done
+
+if ! _parse_conf; then
+    print_error "Failed to parse configuration file: $CONF_P"
+    exit $FAILURE
+fi
+
+# TODO: Get the hooks from vendordir `/usr/etc/${PRJ_ID}/*`
+# TODO: Get the hooks from admin config `/etc/${PRJ_ID}/*`
+[ -n "${BUILD_HOOK_ARG}" ] && BUILD_HOOK="$(_parse_hooks_f "${BUILD_HOOK_ARG}")"
+[ -n "${RUN_HOOK_ARG}" ] && RUN_HOOK="$(_parse_hooks_f "${RUN_HOOK_ARG}")"
+for _h in "$BUILD_HOOK" "$RUN_HOOK"; do
+    if ! _check_scripts "$_h"; then
+        exit $FAILURE
+    fi
 done
 
 _verify_workspace

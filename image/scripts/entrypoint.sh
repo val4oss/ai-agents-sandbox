@@ -147,12 +147,15 @@ if [ "$(id -u)" = "0" ] && id aiuser >/dev/null 2>&1; then
     exec setpriv --reuid="$_uid" --regid="$_guid" --init-groups "$0" "$@"
 fi
 
+# Run all run hooks
+find /usr/local/bin/ai-agents-sandbox-run-hooks/ -type f -name "*.sh" \
+    -exec sh {} \;
+
 # Home provisioning (first-run or after clean)
 # Files are copied only if they do not already exist (cp -n).
 # This allows users to customise their home without losing changes on restart.
 mkdir -p \
-    "$HOME/workspace" \
-    "$HOME/.copilot/agents"
+    "$HOME/workspace"
 
 cp -n "$SKEL_D/skel/.gitconfig" "$HOME/.gitconfig" 2>/dev/null || true
 

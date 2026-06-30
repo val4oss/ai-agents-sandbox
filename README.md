@@ -31,6 +31,7 @@ with **libkrun**.
 - [Requirements](#requirements)
 - [Usage](#usage)
 - [Runtime Example](#runtime-example)
+- [Customisation](#customisation)
 - [Additional docs](#additional-docs)
 
 ---
@@ -242,6 +243,47 @@ ls workspace/.config/gh/
 sh ai-agents-sandbox.sh run copilot
 # → ✅ GitHub (gh) : authenticated
 ```
+
+---
+
+## Customisation
+
+### Configuration file
+
+Where configuration file can be used to export arguments into a file, it allows
+you to add more packages to include in your image to build.
+
+* Example of a config file used to create environment for C-C++ development
+
+```conf
+USE_MICROVM=1
+AGENT=claude
+WORKSPACE=/home/user/workspace
+PACKAGES=(
+    patterns-devel-C-C++-devel_C_C++
+)
+```
+
+The project is looking for the config file in `${ROOT_D}/ai-agents-sandbox.conf`
+or the patch specified with `--conf` argument.
+
+### hooks
+
+Hooks are scripts that can be used to customize the image build or the container
+runtime. There are twho types of hooks: **build hooks** and **run hooks**.
+
+#### build hooks
+
+* Script given through `--build-hook` argument
+* Run as root during the image build (one-time)
+* Usefull to configure the image or add custom config for agents in the image
+
+#### run hooks
+
+* Script given through `--run-hook` argument
+  * script installed in the image, need to be passed during the `build` command.
+* Run as userai during the container runtime (every time)
+* Usefull for customizing the container runtime.
 
 ---
 

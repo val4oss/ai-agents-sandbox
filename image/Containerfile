@@ -12,6 +12,8 @@ ARG AI_USER=aiuser
 ARG AI_UID=1000
 ARG AI_GID=1000
 ARG PKGS=""
+ARG HOOKS_BUILD="hooks/build/"
+ARG HOOKS_RUN="hooks/run/"
 
 LABEL maintainer="val4oss" \
       description="AI Agents sandbox —${AGENT}, rootless" \
@@ -138,6 +140,8 @@ RUN case " $AGENT " in *" gemini "*) \
 # ============
 # Copy scripts
 # ------------
+COPY --chmod=555 ${HOOKS_BUILD}/* /usr/local/bin/ai-agents-sandbox-build-hooks/
+COPY --chmod=555 ${HOOKS_RUN}/* /usr/local/bin/ai-agents-sandbox-run-hooks/
 COPY --chmod=755 scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 # =====================================
@@ -155,6 +159,12 @@ COPY --chmod=644 skel/gemini-env.sh          /usr/share/ai-sandbox/skel/gemini-e
 # For now better to remove it, as during the build stage, crun could be at a
 # different version from the running stage. 
 #COPY --chmod=644 .krun_vm.json          /.krun_vm.json
+
+# =============
+# RUN Build hooks
+# -------------
+RUN find /usr/local/bin/ai-agents-sandbox-build-hooks/ -type f -name "*.sh"\
+        -exec sh {} \;
 
 # =============
 # Switch to non-root user for runtime
