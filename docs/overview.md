@@ -53,19 +53,32 @@ ai-agents-sandbox/
 
 ## Volumes used
 
-A `podman volume` is used for the aiuser HOME directory `/home/aiuser`. It keeps
-authentication status between runs. The `workspace/` will be mounted into
-`/home/aiuser/workspace/`. A perfect place to store working project, it can be
-shared between different ai-agents-sandboxes. At every start, the entrypoint
-automatically provisions:
+1. To keep authentication across container restarts, cache directory is used.
 
-- `~/.gitconfig` — default git configuration
-- `~/.copilot/agents/` — Copilot agent definitions
-- `~/workspace/` — your projects directory
+  ```
+  $CACHE_D/
+    .auth/
+      .config/
+        gh/        copilot
+        gcloud/    claude (Vertex) + opencode
+        opencode/  opencode
+      .claude/     claude
+      .claude.json claude (file — pre-touched)
+      .copilot/    copilot
+      .gemini/     gemini + antigravity
+      .hermes/     hermes-agent
+  ```
 
-Auth token directories (`.config/gh/`, `.gemini/`, `.claude/`) are created
-automatically on first login. All runtime content is excluded from git via
-`.gitignore`.
+  According the agent used, the cached auth will be mounted into the container.
+
+2. The `${SANDBOX_D}` will be mounted into `/home/aiuser/workspace/`. A perfect
+   place to store working project, it can be shared between different
+   ai-agents-sandboxes.
+
+3. At every start, the entrypoint automatically provisions:
+
+  - `~/.gitconfig` — default git configuration
+  - `<agents skills / others>` — agent specific configurations as skills, etc.
 
 ---
 

@@ -32,6 +32,8 @@ IMG_D="${ROOT_D}/image"
 SANDBOX_D_DEFAULT="$ROOT_D/workspace"
 SANDBOX_D="${SANDBOX_D_DEFAULT}"
 CONF_P="${ROOT_D}/${PRJ_ID}.conf"
+CACHE_D_DEFAULT="${HOME}/.cache/${PRJ_ID}"
+CACHE_D="${CACHE_D_DEFAULT}"
 BUILD_HOOK_ARG=""
 BUILD_HOOK=""
 BUILD_HOOK_P="${IMG_D}/hooks/build"
@@ -128,6 +130,7 @@ _parse_conf() {
                             AGENT) AGENT="$_value" ;;
                             USE_MICROVM) USE_MICROVM="$_value" ;;
                             WORKSPACE) SANDBOX_D="$_value" ;;
+                            CACHE) CACHE_D="$_value" ;;
                             IMG_TAG) IMG_TAG="$_value" ;;
                         esac
                 esac
@@ -282,20 +285,90 @@ _detect_public_iface() {
         | head -1
 }
 
-# Verify that the workspace directory exists and is a directory, otherwise fall
-# back to the default workspace directory. Also warn if the workspace is set to
-# the home directory.
-_verify_workspace() {
-    SANDBOX_D="$(echo "${SANDBOX_D}" | sed "s|~|${HOME}|g")"
-    if [ ! -e "$SANDBOX_D" ] || [ ! -d "$SANDBOX_D" ]; then
-        print_warning "Workspace directory '$SANDBOX_D' does not exist or is not a directory."
-        print_warning "Falling back to default workspace directory: '$SANDBOX_D_DEFAULT'."
-        SANDBOX_D="$SANDBOX_D_DEFAULT"
-    elif [ "$SANDBOX_D" = "${HOME}" ]; then
-        print_warning "Workspace directory is set to the home directory, which is not recommended."
-        print_warning "Falling back to default workspace directory: '$SANDBOX_D_DEFAULT'."
-        SANDBOX_D="$SANDBOX_D_DEFAULT"
+# Verify that the directory exists and is a directorynot set to HOME
+_verify_mount_point() {
+    _ret="$FAILURE"
+    if [ -z "$1" ]; then
+        print_warning "Workspace directory is not set."
+    elif [ ! -e "$1" ] || [ ! -d "$1" ]; then
+        print_warning "Workspace directory '$1' not found or not a directory."
+    elif [ "$1" = "${HOME}" ]; then
+        print_warning "Directory is set to the home directory, not recommended."
+    else
+        _ret="$SUCCESS"
     fi
+    return "$_ret"
+}
+_verify_workspace_d() {
+    SANDBOX_D="$(echo "${SANDBOX_D}" | sed "s|~|${HOME}|g")"
+    _verify_mount_point "$SANDBOX_D" || {
+        print_warning "Falling back to default workspace: '$SANDBOX_D_DEFAULT'."
+        SANDBOX_D="$SANDBOX_D_DEFAULT"
+    }
+}
+_verify_cache_d() {
+    CACHE_D="$(echo "${CACHE_D}" | sed "s|~|${HOME}|g")"
+    _verify_mount_point "$CACHE_D" || {
+        print_warning "Falling back to default cache: '$CACHE_D_DEFAULT'."
+        CACHE_D="$CACHE_D_DEFAULT"
+    }
+}
+
+# Bind auth mounts for the agent, if applicable
+_bind_auth_mounts() {
+    _auth="${CACHE_D}/.auth"
+    _home="/home/aiuser"
+    _mounts=""
+    _gemini_mounted=0
+    _gcloud_mounted=0
+
+    case " $AGENT " in *" copilot "*)
+        mkdir -p "${_auth}/.config/gh" "${_auth}/.copilot"
+        _mounts="$_mounts --volume $_auth/.config/gh:$_home/.config/gh:z"
+        _mounts="$_mounts --volume $_auth/.copilot:$_home/.copilot:z"
+    ;; esac
+    
+    # gemini + antigravity share ~/.gemini/
+    case " $AGENT " in *" gemini "*|*" antigravity "*)
+        if [ "$_gemini_mounted" = "0" ]; then
+            mkdir -p "$_auth/.gemini"
+            _mounts="$_mounts --volume $_auth/.gemini:$_home/.gemini:z"
+            _gemini_mounted=1
+        fi
+    ;; esac
+
+    # claude
+    case " $AGENT " in *" claude "*)
+        mkdir -p "$_auth/.claude"
+        touch "$_auth/.claude.json"          # must exist as file before mount
+        _mounts="$_mounts --volume $_auth/.claude:$_home/.claude:z"
+        _mounts="$_mounts --volume $_auth/.claude.json:$_home/.claude.json:z"
+    ;; esac
+
+    # claude (Vertex) + opencode share ~/.config/gcloud/
+    case " $AGENT " in *" claude "*|*" opencode "*)
+        if [ "$_gcloud_mounted" = "0" ]; then
+            mkdir -p "$_auth/.config/gcloud"
+            _mounts="$_mounts \
+--volume $_auth/.config/gcloud:$_home/.config/gcloud:z"
+            _gcloud_mounted=1
+        fi
+    ;; esac
+
+    # opencode
+    case " $AGENT " in *" opencode "*)
+        mkdir -p "$_auth/.config/opencode"
+        _mounts="$_mounts \
+--volume $_auth/.config/opencode:$_home/.config/opencode:z"
+    ;; esac
+
+    # hermes-agent
+    case " $AGENT " in *" hermes-agent "*)
+        mkdir -p "$_auth/.hermes"
+        _mounts="$_mounts --volume $_auth/.hermes:$_home/.hermes:z"
+    ;; esac
+
+    printf '%s' "$_mounts"
 }
 
 # ================
@@ -324,6 +397,7 @@ Agents:
 
 Options:
   --no-microvm Run the sandbox without microVM isolation (not recommended)
+  --cache      Defined path for caching agent's data
   --conf       Defined conf file path for building the image. See Notes.
   --build-hook Defined hook(s) path for building the image. See Notes.
   --run-hook   Defined hook(s) path for running the image. See Notes.
@@ -446,17 +520,6 @@ run() {
 '${AGENT}' (not recommended)..."
     fi
     
-    _home_volume="$CTN_NAME-home"
-    if podman volume exists "$_home_volume"; then
-        print_debug "Using existing home volume '$_home_volume'."
-    else
-        print_info "Creating home volume '$_home_volume'..."
-        if ! podman volume create "$_home_volume" ; then
-            print_error "Failed to create volume '$_home_volume'."
-            return "$FAILURE"
-        fi
-    fi
-
     if [ "$USE_MICROVM" = "1" ]; then
         TOOLS_NEEDED="$TOOLS_NEEDED krun"
         CTN_NAME="${CTN_NAME}-microvm"
@@ -510,11 +573,12 @@ run() {
         esac
     fi
 
+    _auth_mounts="$(_bind_auth_mounts)"
     set --
     [ "$USE_MICROVM" = "1" ] && set -- --runtime krun
     set -- "$@" \
         --name "$CTN_NAME" \
-        --volume "$_home_volume:/home/aiuser:z" \
+        "${_auth_mounts}" \
         --volume "$SANDBOX_D:/home/aiuser/workspace:z" \
         --tmpfs "/tmp:rw,nosuid,size=1g" \
         --cap-drop ALL \
@@ -595,17 +659,21 @@ clean() {
     fi
 
     if [ "$ALL" = true ]; then
+        # Keep care of old volumes
+        # ---
         _home_volume="$CTN_NAME-home"
         if podman volume exists "$_home_volume"; then
-            print_info "Removing home volume '$_home_volume'..."
-            if podman volume rm -f "$_home_volume"; then
-                print_info "Volume removed."
-            else
+            if ! podman volume rm -f "$_home_volume"; then
                 print_error "Failed to remove volume '$_home_volume'."
                 _ret="$FAILURE"
             fi
-        else
-            print_debug "No volume '$_home_volume' found."
+        fi
+        # ---
+        _auth_dir="$CACHE_D/.auth"
+        if [ -d "$_auth_dir" ]; then
+            print_info "Removing auth directory '$_auth_dir'..."
+            rm -rf "$_auth_dir"
+            print_info "Auth tokens cleaned."
         fi
         print_info "Auth tokens and workspace cleaned."
     fi
@@ -654,6 +722,7 @@ while [ $# -gt 0 ]; do
         run|build|clean|status)  ACTION="$1";         shift 1 ;;
         --no-microvm|no-microvm) USE_MICROVM=0;       shift 1 ;;
         --conf)                  CONF_P="$2";         shift 2 ;;
+        --cache)                 CACHE_D="$2";        shift 2 ;;
         --build-hook)            BUILD_HOOK_ARG="$2"; shift 2 ;;
         --run-hook)              RUN_HOOK_ARG="$2";   shift 2 ;;
         all|--all|-a)            ALL=true;            shift 1 ;;
@@ -692,7 +761,8 @@ for _h in "$BUILD_HOOK" "$RUN_HOOK"; do
     fi
 done
 
-_verify_workspace
+[ "$SANDBOX_D" != "${SANDBOX_D_DEFAULT}" ] && _verify_workspace_d
+[ "$CACHE_D" != "${CACHE_D_DEFAULT}" ] && _verify_cache_d
 
 if [ "$AGENT" != "" ]; then
     if ! _valide_agent ; then
