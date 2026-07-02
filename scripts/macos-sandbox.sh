@@ -1,7 +1,7 @@
 #!/bin/sh
 # macos-sandbox.sh - macOS-specific VPN enforcement helpers.
 # Sourced by ai-agents-sandbox.sh on Darwin only.
-# Copyright (C) 2026  val4oss <val4oss@pm.me>
+# Copyright (C) 2026  git-ival <iramis.valentin@suse.com>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -196,10 +196,14 @@ _macos_ensure_enforcer() {
     # Inject runtime PATH so launchd can find podman.
     # launchd does not inherit the user's shell PATH.
     _podman_bin="$(command -v podman 2>/dev/null)"
-    _podman_dir="$(dirname "$_podman_bin" 2>/dev/null)"
-    _plist_path="${_podman_dir}:/opt/homebrew/bin"
-    _plist_path="${_plist_path}:/usr/local/bin"
-    _plist_path="${_plist_path}:/usr/bin:/bin:/usr/sbin:/sbin"
+    [ -n "$_podman_bin" ] &&\
+        _podman_dir="$(dirname "$_podman_bin" 2>/dev/null)"
+    if [ -n "$_podman_dir" ]; then
+        _plist_path="${_podman_dir}:/opt/homebrew/bin"
+    else
+        _plist_path="/opt/homebrew/bin"
+    fi
+    _plist_path="${_plist_path}:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
     if ! _sed_inplace "s|{{HOME}}|${HOME}|g" "$_plist_dst"; then
         print_error "Failed to update plist HOME."
         return "$FAILURE"
@@ -314,19 +318,19 @@ _macos_wait_enforcer_ready() {
     _ready="/tmp/ai-sandbox-enforcer.ready"
     _elapsed=0
     print_info "Waiting for VPN enforcer to apply network state..."
-    timeout=300
-    while [ "$_elapsed" -lt "$timeout" ]; do
+    _timeout=300
+    while [ "$_elapsed" -lt "$_timeout" ]; do
         if [ -f "$_ready" ]; then
             print_info "VPN enforcer ready (${_elapsed}s)."
             return "$SUCCESS"
         fi
         sleep 1
         _elapsed=$(( _elapsed + 1 ))
-        printf '  [%2ds / %ds]\r' "$_elapsed" "$timeout" >&2
+        printf '  [%2ds / %ds]\r' "$_elapsed" "$_timeout" >&2
     done
     printf '\n' >&2
     print_error \
-        "VPN enforcer did not become ready within ${timeout}s."
+        "VPN enforcer did not become ready within ${_timeout}s."
     print_error \
         "Check logs: ~/Library/Logs/ai-agents-sandbox/macos-vpn-enforcer.log"
     return "$FAILURE"

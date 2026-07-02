@@ -1,6 +1,6 @@
 #!/bin/sh
 # macos-network-policy.sh - macOS VPN route discovery helpers.
-# Copyright (C) 2026  val4oss <val4oss@pm.me>
+# Copyright (C) 2026  git-ival <iramis.valentin@suse.com>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as

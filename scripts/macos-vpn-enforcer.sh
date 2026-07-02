@@ -1,6 +1,6 @@
 #!/bin/sh
 # macos-vpn-enforcer - macOS daemon that enforces VM-layer nftables rules.
-# Copyright (C) 2026  val4oss <val4oss@pm.me>
+# Copyright (C) 2026  git-ival <iramis.valentin@suse.com>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -320,6 +320,7 @@ while :; do
     route -n monitor 2>/dev/null \
         | while IFS= read -r _line; do
             _handle_event
+            sleep 1
         done
     _log_warn "route monitor exited; restarting in 2s..."
     sleep 2
