@@ -18,11 +18,12 @@ measures.
     - [📁 Filesystem isolation](#-filesystem-isolation)
     - [🔑 Credentials](#-credentials)
     - [🌐 Network isolation](#-network-isolation)
-    - [🧊 MicroVM isolation (krun)](#-microvm-isolation-krun)
       - [macOS](#macos)
+    - [🧊 MicroVM isolation (krun)](#-microvm-isolation-krun)
     - [📊 Resource limits](#-resource-limits)
   - [Persistence](#persistence)
   - [Per-Agent Builds](#per-agent-builds)
+  - [Configuration Examples](#configuration-examples)
 
 ---
 
@@ -147,6 +148,53 @@ ai-agents-sandbox/
 | `outbound_addr=${_iface}` | Outbound to a public interface prevents requests from passing through internal company VPN |
 | Internet access preserved | OAuth flows, API calls, package downloads work normally |
 
+#### macOS
+
+On macOS, `slirp4netns outbound_addr` is replaced by a **VPN enforcer** that
+blocks corporate VPN routes at the Podman Machine VM kernel level using
+`nftables`.
+
+Before each container start, `run` inspects the macOS routing table and
+handles three cases:
+
+| VPN state | Detection | Behaviour |
+|---|---|---|
+| No VPN | No `utun`/`ppp` interface with an IPv4 address | Unrestricted egress |
+| Split-tunnel | Specific host/network routes via `utun`/`ppp` | Discovered CIDRs blocked in VM |
+| Full-tunnel | Default route (`0.0.0.0/0`) via VPN interface | Refused — user must reconfigure to split-tunnel |
+| VPN active, no routes | `utun`/`ppp` present but no specific routes | User prompted: allow or block-all |
+
+The **enforcer daemon** (`macos-vpn-enforcer.sh`) is installed as a
+LaunchAgent (`~/Library/LaunchAgents/com.ai-agents-sandbox.macos-vpn-enforcer.plist`)
+and runs for the lifetime of the container:
+
+1. Connects to the Podman Machine VM via `podman machine ssh`.
+2. Discovers the VM's external NIC and applies per-CIDR `nftables` DROP
+   rules on new outbound connections to VPN-routed addresses.
+3. Watches `route -n monitor` for routing changes and refreshes rules
+   automatically — VPN connect/disconnect events are handled without user
+   intervention.
+4. Removes all rules and exits when the container stops.
+
+```
+container process
+  → slirp4netns (user-space NAT, no outbound_addr binding on macOS)
+  → Podman Machine VM kernel
+      nftables: DROP new connections to VPN CIDRs
+      nftables: ACCEPT established/related + internet-bound traffic
+  → Apple Hypervisor.framework boundary
+  → macOS host
+```
+
+The relevant scripts are:
+
+| Script | Role |
+|---|---|
+| `scripts/macos-sandbox.sh` | Enforcer lifecycle: install, start, stop, teardown |
+| `scripts/macos-network-policy.sh` | VPN detection and route discovery (shared by daemon and main script) |
+| `scripts/macos-vpn-enforcer.sh` | Daemon: applies/removes nftables rules inside Podman Machine VM |
+| `launchd/com.ai-agents-sandbox.macos-vpn-enforcer.plist.template` | LaunchAgent plist template |
+
 
 ### 🧊 MicroVM isolation (krun)
 
@@ -171,24 +219,10 @@ container process
 Use `run no-microvm` (or `run <agent> no-microvm`) to opt out when
 KVM is not available or not desired.
 
-#### macOS
-
-KVM is not available on macOS, so krun does not apply. `run` detects
-macOS automatically, prints a notice, and falls back to standard mode without
-requiring `no-microvm`.
-
-Podman on macOS runs every container inside a Linux VM managed by
-`podman machine` and backed by **Apple Hypervisor.framework**. That VM is
-itself a hardware-level boundary between the container and the macOS host,
-providing isolation comparable to what krun adds on Linux — with no extra
-configuration needed.
-
-```
-container process
-  → escape namespaces    (caps / seccomp / rootless — existing defence)
-  → reach podman machine VM kernel   (hardware boundary via Hypervisor.framework)
-  → reach macOS host
-```
+> On macOS, KVM is not available. `run` detects macOS automatically and
+> skips microVM mode without requiring `no-microvm`. See the
+> [macOS network isolation section](#macos) for the equivalent isolation
+> boundary provided by Podman Machine.
 
 ### 📊 Resource limits
 
@@ -261,4 +295,96 @@ includes every agent. Use an agent name as an extra argument to produce a
 The corresponding `run <?agent>` and `clean <?agent> [all]` commands
 automatically target the matching image and container name
 (`ai-agents-sandbox<?-agent>`).
+
+---
+
+## Configuration Examples
+
+The examples below can be combined freely. Place the config file with
+`--conf` and pass hooks with `--build-hook` `--run-hook` at **build** time.
+
+### Adding extra packages
+
+Use the `PACKAGES` array in the config file to install additional openSUSE
+packages at image build time. No hook is needed for packages available in the
+default Tumbleweed repositories.
+
+```conf
+# /tmp/ai-agents-sandbox.conf
+AGENT=claude
+PACKAGES=(
+    osc
+    quilt
+    patterns-devel-C-C++-devel_C_C++
+)
+```
+
+```bash
+sh ai-agents-sandbox.sh build claude --conf /tmp/ai-agents-sandbox.conf
+```
+
+### Adding packages from a custom repository (build hook)
+
+When a package lives outside the default Tumbleweed repos, use a build hook
+to add the repository and install the package during the image build. The hook
+runs as root inside the build context.
+
+```bash
+sh ai-agents-sandbox.sh build claude --build-hook path/to/build-hook.sh
+```
+
+```sh
+#!/bin/sh
+# build-hook.sh — install customize-ps1 from a custom OBS repo
+
+echo "Installing custom package from a custom repo"
+zypper --non-interactive addrepo \
+    https://download.opensuse.org/repositories/home:/val4oss/openSUSE_Tumbleweed/ \
+    home:val4oss
+zypper --non-interactive --gpg-auto-import-keys refresh home:val4oss
+zypper --non-interactive install --no-recommends customize-ps1
+zypper clean --all
+rm -rf /var/cache/zypp/*
+```
+
+### Configuring an agent at runtime (run hook)
+
+Run hooks execute as `aiuser` every time the container starts — ideal for
+provisioning agent configuration files that should not be baked into the image.
+
+The hook must be installed into the image at build time, then referenced at
+runtime:
+
+```bash
+sh ai-agents-sandbox.sh build claude --run-hook path/to/run-hook.sh
+sh ai-agents-sandbox.sh run claude
+```
+
+The example below writes a Claude Code `settings.json` on first start,
+configuring Vertex AI as the backend:
+
+```sh
+#!/bin/sh
+# run-hook.sh — provision Claude Code settings
+
+CLAUDE_SETTINGS="${HOME}/.claude/settings.json"
+if [ ! -f "${CLAUDE_SETTINGS}" ]; then
+    cat <<EOF > "${CLAUDE_SETTINGS}"
+{
+  "permissions": {
+    "defaultMode": "default"
+  },
+  "env": {
+    "CLAUDE_CODE_USE_VERTEX": "1",
+    "CLOUD_ML_REGION": "global",
+    "ANTHROPIC_VERTEX_PROJECT_ID": "xxxxxxx",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-sonnet-4-6",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-4-8",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "claude-haiku-4-5@20251001"
+  },
+  "model": "sonnet"
+}
+EOF
+fi
+```
 
