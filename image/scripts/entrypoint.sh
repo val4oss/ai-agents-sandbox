@@ -148,8 +148,16 @@ if [ "$(id -u)" = "0" ] && id aiuser >/dev/null 2>&1; then
 fi
 
 # Run all run hooks
-find /usr/local/bin/ai-agents-sandbox-run-hooks/ -type f -name "*.sh" \
-    -exec sh {} \;
+find "/usr/local/bin/ai-agents-sandbox-run-hooks/" !\
+    -name "$(printf "*\n*")"\
+    -name "*.sh" \
+    | sort > tmp
+while IFS= read -r _h;
+do
+    echo "==> Running build hook: $_h";
+    sh "$_h" || exit 1;
+done < tmp
+rm -f tmp
 
 # Home provisioning (first-run or after clean)
 # Files are copied only if they do not already exist (cp -n).

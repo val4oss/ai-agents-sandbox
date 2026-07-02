@@ -163,8 +163,10 @@ COPY --chmod=644 skel/gemini-env.sh          /usr/share/ai-sandbox/skel/gemini-e
 # =============
 # RUN Build hooks
 # -------------
-RUN find /usr/local/bin/ai-agents-sandbox-build-hooks/ -type f -name "*.sh"\
-        -exec sh {} \;
+RUN set -e;\
+    for script in $(find /usr/local/bin/ai-agents-sandbox-build-hooks/ -type f -name "*.sh" | sort); do\
+        sh "$script" || exit 1; \
+    done
 
 # =============
 # Switch to non-root user for runtime

@@ -447,12 +447,16 @@ build() {
     [ -n "$BUILD_HOOK" ] && {
         print_debug "Copying build hook(s) to build context: ${BUILD_HOOK_P}"
         print_debug "  -> Source: $BUILD_HOOK"
-        cp "$BUILD_HOOK" "${BUILD_HOOK_P}/"
+        for _h in $BUILD_HOOK; do
+            cp "$_h" "${BUILD_HOOK_P}/"
+        done
     }
     [ -n "$RUN_HOOK" ] && {
         print_debug "Copying run hook(s) to build context: ${RUN_HOOK_P}"
         print_debug "  -> Source: $RUN_HOOK"
-        cp "$RUN_HOOK" "${RUN_HOOK_P}/"
+        for _h in $RUN_HOOK; do
+            cp "$_h" "${RUN_HOOK_P}/"
+        done
     }
 
     print_info "Building container image ${IMG_NAME}:${IMG_TAG} ..."
@@ -473,7 +477,7 @@ build() {
     fi
 
     # clean up temporary hook files from build context
-    for _hook in $BUILD_HOOK; do
+    for _hook in $BUILD_HOOK $RUN_HOOK; do
         _hook_n="$(basename "$_hook")"
         _hook_p="${BUILD_HOOK_P}/${_hook_n}"
         if [ -z "$_hook_p" ] || [ ! -f "$_hook_p" ]; then
