@@ -457,6 +457,8 @@ build() {
 
     print_info "Building container image ${IMG_NAME}:${IMG_TAG} ..."
     if ! podman build \
+        --no-cache \
+        --rm \
         --build-arg "AGENT=${AGENT}" \
         --build-arg "IMG_TAG=${IMG_TAG}" \
         --build-arg "PKGS=${PKGS}" \
