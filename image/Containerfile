@@ -12,8 +12,8 @@ ARG AI_USER=aiuser
 ARG AI_UID=1000
 ARG AI_GID=1000
 ARG PKGS=""
-ARG HOOKS_BUILD="hooks/build/"
-ARG HOOKS_RUN="hooks/run/"
+ARG HOOKS_BUILD="hooks/build"
+ARG HOOKS_RUN="hooks/run"
 
 LABEL maintainer="val4oss" \
       description="AI Agents sandbox —${AGENT}, rootless" \
@@ -140,16 +140,17 @@ RUN case " $AGENT " in *" gemini "*) \
 # ============
 # Copy scripts
 # ------------
-COPY --chmod=555 ${HOOKS_BUILD}/* /usr/local/bin/ai-agents-sandbox-build-hooks/
-COPY --chmod=555 ${HOOKS_RUN}/* /usr/local/bin/ai-agents-sandbox-run-hooks/
+COPY --chmod=555 ${HOOKS_BUILD}/ /usr/local/bin/ai-agents-sandbox-build-hooks/
+COPY --chmod=555 ${HOOKS_RUN}/ /usr/local/bin/ai-agents-sandbox-run-hooks/
 COPY --chmod=755 scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
 
-# =====================================
-# Default home provisioning (skel-like)
-# -------------------------------------
-COPY --chmod=644 agents/copilot/*.md         /usr/share/ai-sandbox/agents/copilot/
-COPY --chmod=644 skel/.gitconfig             /usr/share/ai-sandbox/skel/.gitconfig
-COPY --chmod=644 skel/gemini-env.sh          /usr/share/ai-sandbox/skel/gemini-env.sh
+# ====================================
+# Copy setup and skel for intial setup
+# ------------------------------------
+COPY --chown=$AI_UID:$AI_GID --chmod=744 \
+    agents /usr/share/ai-agents-sandbox/agents
+COPY --chown=$AI_UID:$AI_GID --chmod=744 \
+    skel   /usr/share/ai-agents-sandbox/skel
 
 # =======================
 # Config for krun microvm (needed for crun version < 1.27)
@@ -164,7 +165,9 @@ COPY --chmod=644 skel/gemini-env.sh          /usr/share/ai-sandbox/skel/gemini-e
 # RUN Build hooks
 # -------------
 RUN set -e;\
-    for script in $(find /usr/local/bin/ai-agents-sandbox-build-hooks/ -type f -name "*.sh" | sort); do\
+    for script in $(find /usr/local/bin/ai-agents-sandbox-build-hooks/ \
+                    -type f \
+                    -name "*.sh" | sort); do\
         sh "$script" || exit 1; \
     done
 

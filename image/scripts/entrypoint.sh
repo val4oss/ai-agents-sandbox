@@ -18,8 +18,10 @@
 # ================
 # Global variables
 # ----------------
+PRJ_ID="ai-agents-sandbox"
 
-SKEL_D="/usr/share/ai-sandbox"
+SHARE_SKEL_D="/usr/share/$PRJ_ID/skel"
+SHARE_AGENTS_D="/usr/share/$PRJ_ID/agents"
 # Default agent list (contains both trusted and untrusted agents)
 # filtering happens in ai-agents-sandbox.sh script
 AGENT="${AGENT:-claude copilot gemini opencode antigravity hermes-agent}"
@@ -30,18 +32,14 @@ BANNER_HEADLINE="AI AGENTS SANDBOX - $VERSION"
 # Internal functions
 # ------------------
 
-# Provision sub-agents for each relevant agent
-provision_agents() {
+# Provision setup agents for each relevant agent
+setup_agent() {
     _agent_name="$1"
     _target_dir="$2"
-    _src_dir="$SKEL_D/agents/${_agent_name}"
+    _src_dir="$SHARE_AGENTS_D/${_agent_name}"
     if [ -d "$_src_dir" ]; then
         mkdir -p "$_target_dir"
-        for f in "$_src_dir"/*; do
-            if [ -f "$f" ]; then
-                cp -n "$f" "$_target_dir/" 2>/dev/null || true
-            fi
-        done
+        cp -rn "$_src_dir"/* "${_target_dir}/" 2>/dev/null || true
     fi
 }
 
@@ -147,51 +145,50 @@ if [ "$(id -u)" = "0" ] && id aiuser >/dev/null 2>&1; then
     exec setpriv --reuid="$_uid" --regid="$_guid" --init-groups "$0" "$@"
 fi
 
-# Run all run hooks
-find "/usr/local/bin/ai-agents-sandbox-run-hooks/" !\
-    -name "$(printf "*\n*")"\
-    -name "*.sh" \
-    | sort > tmp
-while IFS= read -r _h;
-do
-    echo "==> Running build hook: $_h";
-    sh "$_h" || exit 1;
-done < tmp
-rm -f tmp
-
-# Home provisioning (first-run or after clean)
-# Files are copied only if they do not already exist (cp -n).
-# This allows users to customise their home without losing changes on restart.
-mkdir -p \
-    "$HOME/workspace"
-
-cp -n "$SKEL_D/skel/.gitconfig" "$HOME/.gitconfig" 2>/dev/null || true
+# Initial setup (one-time)
+_work_d="$HOME/workspace"
+[ -d "$_work_d" ] && mkdir -p "$_work_d"
+[ -d "$SHARE_SKEL_D" ] && {
+    cp -r "$SHARE_SKEL_D"/* "$HOME"/
+    rm -rf "$SHARE_SKEL_D"
+}
+[ -d "$SHARE_AGENTS_D" ] && {
+    agent_enabled "antigravity" &&\
+        setup_agent "antigravity" "$HOME/.gemini/config"
+    agent_enabled "claude" && setup_agent "claude" "$HOME/.claude"
+    agent_enabled "copilot" && setup_agent "copilot" "$HOME/.copilot"
+    agent_enabled "gemini" && setup_agent "gemini" "$HOME/.gemini"
+    agent_enabled "opencode" && setup_agent "opencode" "$HOME/.config/opencode"
+    agent_enabled "hermes-agent" && setup_agent "hermes-agent" "$HOME/.hermes"
+    rm -rf "$SHARE_AGENTS_D"
+}
 
 # Install sourceable Gemini helper and hook it into .bashrc.
-_gemini_helper_src="$SKEL_D/skel/gemini-env.sh"
+_gemini_helper_src="$HOME/gemini-env.sh"
 if agent_enabled "gemini" && [ -f "$_gemini_helper_src" ]; then
     _bashrc="$HOME/.bashrc"
     [ -f "$_bashrc" ] || : > "$_bashrc"
-    _gemini_marker="# >>> ai-sandbox gemini env helper >>>"
+    _gemini_marker="# >>> $PRJ_ID gemini env helper >>>"
     if ! grep -F "$_gemini_marker" "$_bashrc" > /dev/null 2>&1; then
         cat >> "$_bashrc" << 'EOF'
 
-if [ -f "/usr/share/ai-sandbox/skel/gemini-env.sh" ]; then
-    . "/usr/share/ai-sandbox/skel/gemini-env.sh"
+if [ -f "${HOME}/gemini-env.sh" ]; then
+    . "${HOME}/gemini-env.sh"
 fi
 EOF
     fi
 fi
 
-# Per-agent provisioning
-agent_enabled "claude"  && provision_agents "claude"  "$HOME/.claude/agents"
-agent_enabled "copilot" && provision_agents "copilot" "$HOME/.copilot/agents"
-agent_enabled "gemini"  && provision_agents "gemini"  "$HOME/.gemini/agents"
-agent_enabled "antigravity" &&\
-    provision_agents "antigravity" "$HOME/.gemini/antigravity-cli"
-agent_enabled "opencode" &&\
-    mkdir -p "$HOME/.config/opencode" &&\
-    provision_agents "opencode" "$HOME/.config/opencode"
+# Run all run hooks
+find "/usr/local/bin/$PRJ_ID-run-hooks/" !\
+    -name "$(printf "*\n*")"\
+    -name "*.sh" \
+    | sort > tmp
+while IFS= read -r _h;
+do
+    sh "$_h" || exit 1;
+done < tmp
+rm -f tmp
 
 # Print the banner with agent status and authentication hints
 banner_header
