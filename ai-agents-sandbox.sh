@@ -670,7 +670,7 @@ run() {
         --name "$CTN_NAME" \
         "${_auth_mounts}" \
         --volume "$SANDBOX_D:/home/aiuser/workspace:z" \
-        --tmpfs "/tmp:rw,nosuid,size=1g" \
+        --tmpfs "/tmp:rw,nosuid,noexec,size=1g" \
         --cap-drop ALL \
         --security-opt no-new-privileges \
         --userns="keep-id:uid=${AI_USER_UID},gid=${AI_USER_GID}" \
