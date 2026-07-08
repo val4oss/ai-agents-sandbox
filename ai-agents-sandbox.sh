@@ -483,6 +483,16 @@ print_version() {
 build() {
     _ret="$SUCCESS"
 
+    # TODO: Get the hooks from vendordir `/usr/etc/${PRJ_ID}/*`
+    # TODO: Get the hooks from admin config `/etc/${PRJ_ID}/*`
+    [ -n "${BUILD_HOOK_ARG}" ] && BUILD_HOOK="$(_parse_hooks_f "${BUILD_HOOK_ARG}")"
+    [ -n "${RUN_HOOK_ARG}" ] && RUN_HOOK="$(_parse_hooks_f "${RUN_HOOK_ARG}")"
+    for _h in "$BUILD_HOOK" "$RUN_HOOK"; do
+        if ! _check_scripts "$_h"; then
+            return "$FAILURE"
+        fi
+    done
+
     # When IMG_D is not writable (e.g. system-wide install), stage
     # hooks in a temp copy of the build context so podman can COPY
     # them without needing write access to the installed share dir.
@@ -552,6 +562,8 @@ build() {
 # callback for run action
 run() {
     _ret="$SUCCESS"
+
+    _verify_workspace_d || return "$FAILURE"
     
     [ "$(uname -s)" = "Darwin" ] && _macos_adjust_microvm
     if [ "$USE_MICROVM" -eq 1 ]; then
@@ -852,17 +864,6 @@ if ! _parse_conf; then
     exit $FAILURE
 fi
 
-# TODO: Get the hooks from vendordir `/usr/etc/${PRJ_ID}/*`
-# TODO: Get the hooks from admin config `/etc/${PRJ_ID}/*`
-[ -n "${BUILD_HOOK_ARG}" ] && BUILD_HOOK="$(_parse_hooks_f "${BUILD_HOOK_ARG}")"
-[ -n "${RUN_HOOK_ARG}" ] && RUN_HOOK="$(_parse_hooks_f "${RUN_HOOK_ARG}")"
-for _h in "$BUILD_HOOK" "$RUN_HOOK"; do
-    if ! _check_scripts "$_h"; then
-        exit $FAILURE
-    fi
-done
-
-_verify_workspace_d || exit $FAILURE
 [ "$CACHE_D" != "${CACHE_D_DEFAULT}" ] && _verify_cache_d
 
 if [ "$AGENT" != "" ]; then
