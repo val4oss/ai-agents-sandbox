@@ -288,16 +288,17 @@ another VM."
 _detect_public_iface() {
     _ret="$SUCCESS"
     _iface=""
+    _vpn_if="tun|wg|vpn|tap|ppp|openvpn|docker0|br-"
 
     if command -v ip > /dev/null 2>&1; then
         _iface="$(ip route show default \
             | awk '{print $5}' \
-            | grep -Ev 'tun|wg|vpn|tap|ppp' \
+            | grep -Ev "${_vpn_if}" \
             | head -1)"
     elif command -v route > /dev/null 2>&1; then
         _iface="$(route -n get default 2>/dev/null \
             | awk '/interface:/{print $2; exit}' \
-            | grep -Ev 'tun|wg|vpn|tap|ppp' \
+            | grep -Ev "${_vpn_if}" \
             | head -1)"
     fi
 
