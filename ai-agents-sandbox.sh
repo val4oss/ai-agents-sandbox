@@ -331,11 +331,21 @@ _verify_mount_point() {
     return "$_ret"
 }
 _verify_workspace_d() {
+    _ret="$SUCCESS"
     SANDBOX_D="$(echo "${SANDBOX_D}" | sed "s|~|${HOME}|g")"
     _verify_mount_point "$SANDBOX_D" || {
-        print_warning "Falling back to default workspace: '$SANDBOX_D_DEFAULT'."
-        SANDBOX_D="$SANDBOX_D_DEFAULT"
+        # Default could be overriding.
+        if [ "$SANDBOX_D_DEFAULT" = "$HOME" ]; then
+            print_error "Default sandbox workspace points to HOME. Consider the"
+            print_error "use of '--workspace' to choose the workspace volume to"
+            print_error "mount."
+            _ret="$FAILURE"
+        else
+            print_warning "Falling back to default workspace: '$SANDBOX_D_DEFAULT'."
+            SANDBOX_D="$SANDBOX_D_DEFAULT"
+        fi
     }
+    return "$_ret"
 }
 _verify_cache_d() {
     CACHE_D="$(echo "${CACHE_D}" | sed "s|~|${HOME}|g")"
@@ -408,7 +418,7 @@ _bind_auth_mounts() {
 
 # Print usage information
 usage() {
-    _str="Usage: $0 [-q|-v|-h] <actions> <agent> [options]
+    _str="Usage: ${PRJ_ID} [-q|-v|-h] <actions> <agent> [options]
   -q, --quiet   Suppress all output except errors
   -v, --verbose Enable verbose output
   --version     Show version information and exit
@@ -421,8 +431,8 @@ Actions:
   status        Show the current status, built images, running containers...
 
 Agents:
-  (trusted)     $TRUSTED_AGENTS
-  (untrusted)   $UNTRUSTED_AGENTS
+  (trusted)     ${TRUSTED_AGENTS}
+  (untrusted)   ${UNTRUSTED_AGENTS}
                 if no agent is specified, all trusted agents will be built
                 (only for build action)
 
@@ -434,7 +444,7 @@ Options:
   --run-hook   Defined hook(s) path for running the image. See Notes.
   --workspace, -w <dir>
                For 'run' action, Specify a custom workspace directory
-               (default: $SANDBOX_D_DEFAULT) to mount in the sandbox at
+               (default: ${SANDBOX_D_DEFAULT}) to mount in the sandbox at
                /home/aiuser/workspace.
   --all, -a    For 'clean' action, also remove home volume and auth tokens
 
@@ -445,7 +455,7 @@ Notes:
   - To enable microVM isolation, ensure that KVM is available and the user is in
     the kvm group.
   - To configure the sandbox, you can 
-    1. create a configuration file at $CONF_P with the following format:
+    1. create a configuration file at ${CONF_P} with the following format:
     AGENT=<agent_name>
     USE_MICROVM=1
     WORKSPACE=<workspace_directory>
@@ -473,8 +483,21 @@ print_version() {
 build() {
     _ret="$SUCCESS"
 
-    # Copy user hooks into the build context (image/) so podman
-    # can COPY them without escaping the context directory.
+    # When IMG_D is not writable (e.g. system-wide install), stage
+    # hooks in a temp copy of the build context so podman can COPY
+    # them without needing write access to the installed share dir.
+    _img_ctx="${IMG_D}"
+    if [ -n "$BUILD_HOOK" ] || [ -n "$RUN_HOOK" ]; then
+        if [ ! -w "${IMG_D}/hooks" ]; then
+            _img_ctx="$(mktemp -d)"
+            cp -r "${IMG_D}/." "${_img_ctx}/"
+            BUILD_HOOK_P="${_img_ctx}/hooks/build"
+            RUN_HOOK_P="${_img_ctx}/hooks/run"
+        fi
+    fi
+
+    # Copy user hooks into the build context so podman can COPY
+    # them without escaping the context directory.
     [ -n "$BUILD_HOOK" ] && {
         print_debug "Copying build hook(s) to build context: ${BUILD_HOOK_P}"
         print_debug "  -> Source: $BUILD_HOOK"
@@ -499,8 +522,8 @@ build() {
         --build-arg "PKGS=${PKGS}" \
         --tag "${IMG_NAME}:${IMG_TAG}" \
         --tag "${IMG_NAME}:latest" \
-        --file "${IMG_D}/Containerfile" \
-        "${IMG_D}"; then
+        --file "${_img_ctx}/Containerfile" \
+        "${_img_ctx}"; then
             print_error "Image build failed."
             _ret="$FAILURE"
     else
@@ -521,6 +544,8 @@ build() {
         print_debug "Removing temporary hook file: $_hook_p"
         rm -f "$_hook_p"
     done
+    # Remove temp build context if it was created
+    [ "${_img_ctx}" != "${IMG_D}" ] && rm -rf "${_img_ctx}"
     return "$_ret"
 }
 
@@ -837,7 +862,7 @@ for _h in "$BUILD_HOOK" "$RUN_HOOK"; do
     fi
 done
 
-[ "$SANDBOX_D" != "${SANDBOX_D_DEFAULT}" ] && _verify_workspace_d
+_verify_workspace_d || exit $FAILURE
 [ "$CACHE_D" != "${CACHE_D_DEFAULT}" ] && _verify_cache_d
 
 if [ "$AGENT" != "" ]; then

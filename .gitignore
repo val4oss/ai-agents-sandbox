@@ -1,4 +1,4 @@
-./build
+build
 
 # Ignore everything in sandbox/ (runtime home dir contents)
 sandbox/**

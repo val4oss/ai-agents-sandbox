@@ -93,6 +93,37 @@ git clone https://github.com/val4oss/ai-agents-sandbox.git
 cd ai-agents-sandbox
 ```
 
+### Install (optional)
+
+Use `make` to install the tool system-wide so it can be run from any directory
+as `ai-agents-sandbox` instead of `sh ai-agents-sandbox.sh`.
+
+```bash
+# System install (needs sudo) — installs to /usr/local/bin and /usr/local/share
+make build
+sudo make install
+
+# User-local install (no sudo) — ~/.local/bin must be on PATH
+make install PREFIX="${HOME}/.local"
+
+# System install under /usr
+sudo make install PREFIX=/usr
+
+# Packager / DESTDIR staging
+make install PREFIX=/usr DESTDIR=/tmp/pkg-root
+
+# Uninstall
+sudo make uninstall
+```
+
+> After a system install, use `ai-agents-sandbox` in place of
+> `sh ai-agents-sandbox.sh` in all commands below.
+> The installed version uses the current working directory as the default
+> workspace (equivalent to always passing `-w .`), and looks for the config
+> file at `${XDG_CONFIG_HOME:-~/.config}/ai-agents-sandbox/ai-agents-sandbox.conf`.
+
+---
+
 ### Build the image
 
 ```bash
