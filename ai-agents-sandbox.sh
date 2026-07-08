@@ -674,7 +674,7 @@ run() {
         --tmpfs "/tmp:rw,nosuid,noexec,size=1g" \
         --cap-drop ALL \
         --security-opt no-new-privileges \
-        --userns="keep-id:uid=${AI_USER_UID},gid=${AI_USER_GID}" \
+        --userns keep-id \
         --hostname ai-sandbox \
         --pids-limit 1024 \
         --env "AI_USER=${AI_USER_NAME}" \
