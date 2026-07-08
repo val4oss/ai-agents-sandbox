@@ -5,7 +5,7 @@ sandbox/**
 workspace/**
 
 # Ignore changes on main conf
-./ai-agents-sandbox.conf
+ai-agents-sandbox.conf
 
 # Keep the directory tracked
 !sandbox/.gitkeep
