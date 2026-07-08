@@ -144,13 +144,13 @@ ai-agents-sandbox/
 
 | Measure | Effect |
 |---|---|
-| `--network=slirp4netns` | User-space network stack, fully isolated from the host |
+| `--network=pasta` | User-space network stack, fully isolated from the host |
 | `outbound_addr=${_iface}` | Outbound to a public interface prevents requests from passing through internal company VPN |
 | Internet access preserved | OAuth flows, API calls, package downloads work normally |
 
 #### macOS
 
-On macOS, `slirp4netns outbound_addr` is replaced by a **VPN enforcer** that
+On macOS, `pasta outbound_addr` is replaced by a **VPN enforcer** that
 blocks corporate VPN routes at the Podman Machine VM kernel level using
 `nftables`.
 
@@ -178,7 +178,7 @@ and runs for the lifetime of the container:
 
 ```
 container process
-  → slirp4netns (user-space NAT, no outbound_addr binding on macOS)
+  → pasta (user-space NAT, no outbound_addr binding on macOS)
   → Podman Machine VM kernel
       nftables: DROP new connections to VPN CIDRs
       nftables: ACCEPT established/related + internet-bound traffic
@@ -214,7 +214,7 @@ container process
 |---|---|
 | Separate kernel | A container kernel exploit stays inside the microVM |
 | Hardware boundary | Two extra escape layers vs. namespace-only isolation |
-| Network | TSI (Transparent Socket Impersonation) replaces slirp4netns — internet access is preserved |
+| Network | TSI (Transparent Socket Impersonation) replaces pasta — internet access is preserved |
 
 Use `run no-microvm` (or `run <agent> no-microvm`) to opt out when
 KVM is not available or not desired.

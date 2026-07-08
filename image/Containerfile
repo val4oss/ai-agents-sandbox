@@ -19,7 +19,7 @@ LABEL maintainer="val4oss" \
       description="AI Agents sandbox —${AGENT}, rootless" \
       version="${IMG_TAG}" \
       security.caps="none" \
-      security.network="slirp4netns" \
+      security.network="pasta" \
       security.credentials="runtime-only"
 
 # ==============

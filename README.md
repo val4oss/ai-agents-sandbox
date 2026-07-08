@@ -42,7 +42,7 @@ with **libkrun**.
 ### Dependency installation
 
 ```bash
-sudo zypper install podman slirp4netns crun libkrun1 libkrunfw5
+sudo zypper install podman passt crun libkrun1 libkrunfw5
 ```
 
 * Minimum required versions: `crun ≥ 1.22`, `libkrun ≥ 1.18`, `libkrunfw ≥ 5`.

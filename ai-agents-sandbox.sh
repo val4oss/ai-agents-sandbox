@@ -553,7 +553,7 @@ run() {
         TOOLS_NEEDED="$TOOLS_NEEDED krun"
         CTN_NAME="${CTN_NAME}-microvm"
     else
-        TOOLS_NEEDED="$TOOLS_NEEDED slirp4netns"
+        TOOLS_NEEDED="$TOOLS_NEEDED passt"
         if [ "$(uname -s)" != "Darwin" ]; then
             TOOLS_NEEDED="$TOOLS_NEEDED ip"
         fi
@@ -652,7 +652,7 @@ run() {
         set -- "$@" --env "VERTEX_LOCATION=$VERTEX_LOCATION"
     fi
     
-    # On macOS, slirp4netns:outbound_addr cannot bind at the host
+    # On macOS, pasta:outbound_addr cannot bind at the host
     # level because containers run inside Podman Machine (Linux
     # VM) and all traffic is proxied through gvproxy on the macOS
     # host. VM-layer nftables enforcement is handled by
@@ -667,10 +667,10 @@ run() {
         # breaks sites like googleapis.com when the corporate VPN
         # intercepts or blocks direct UDP/53 to external resolvers.
         print_info "VM-layer nftables enforcement active."
-        set -- "$@" --network slirp4netns
+        set -- "$@" --network pasta
     else
         print_info "Binding outbound to interface: $_iface"
-        set -- "$@" --network "slirp4netns:outbound_addr=${_iface}" \
+        set -- "$@" --network "pasta:--outbound-if4,${_iface}" \
             --dns 1.1.1.1 --dns 8.8.8.8
     fi
 
