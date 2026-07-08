@@ -230,7 +230,7 @@ KVM is not available or not desired.
 |---|---|---|
 | Memory limit | `krun.ram_mib=4096` | **microvm** only. Set in krun_vm.json OR annotations |
 | CPU limit | `krun.cpus=2` | **microvm** only. Set in krun_vm.json OR annotations |
-| Process limit | `pids_limit = 100` | Container cannot spawn more than 100 processes |
+| Process limit | `pids_limit = 1024` | Container cannot spawn more than 100 processes |
 
 > cpu and memory limits for microVMs can be set via `krun_vm.json` (for
 > `crun --version` < `1.27`) or directly as container annotations
