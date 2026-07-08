@@ -1,5 +1,9 @@
 # AI Agents Sandbox
 
+<div align="center">
+  <img src="docs/logo.png" alt="AI Agents Sandbox Logo" width="200">
+</div>
+
 A secure, isolated environment for running AI coding agents on
 **openSUSE Tumbleweed** using rootless container with **Podman** and microvm 
 with **libkrun**.
