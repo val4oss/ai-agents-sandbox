@@ -93,7 +93,7 @@ RUN case " $AGENT " in \
 RUN case " $AGENT " in \
     *\ claude\ *|*\ opencode\ *) \
         REPO_ARCH=$(uname -m) && \
-        rpm --import https://packages.cloud.google.com/yum/doc/rpm-package-key-v10.gpg && \
+        rpm --import https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg && \
         zypper refresh && \
         zypper --non-interactive addrepo \
             https://packages.cloud.google.com/yum/repos/cloud-sdk-el10-${REPO_ARCH} \
