@@ -722,8 +722,11 @@ run() {
         TOOLS_NEEDED="$TOOLS_NEEDED krun"
         CTN_NAME="${CTN_NAME}-microvm"
     else
+        # On macOS, pasta/passt runs inside the Podman Machine VM,
+        # not on the host, so it must not be required as a host
+        # tool. On Linux it is a genuine host dependency.
         if [ "$(uname -s)" != "Darwin" ]; then
-            TOOLS_NEEDED="$TOOLS_NEEDED ip passt"
+            TOOLS_NEEDED="$TOOLS_NEEDED passt ip"
         fi
     fi
 
@@ -795,13 +798,14 @@ run() {
     fi
 
     _auth_mounts="$(_bind_auth_mounts)"
+
     set --
     [ "$USE_MICROVM" = "1" ] && set -- --runtime krun
     set -- "$@" \
         --name "$CTN_NAME" \
         "${_auth_mounts}" \
         --volume "$SANDBOX_D:/home/aiuser/workspace:z" \
-        --tmpfs "/tmp:rw,nosuid,noexec,size=1g" \
+        --tmpfs "/tmp:${_tmp_opts}" \
         --cap-drop ALL \
         --security-opt no-new-privileges \
         --userns keep-id \
@@ -818,6 +822,14 @@ run() {
     if [ -n "$VERTEX_LOCATION" ]; then
         set -- "$@" --env "VERTEX_LOCATION=$VERTEX_LOCATION"
     fi
+
+    # OpenCode's TUI (OpenTUI) extracts native libraries and dlopen()s them.
+    # Redirect to home directory (exec-capable) instead of /tmp (hardened).
+    case " $AGENT " in
+        *" opencode "*)
+            set -- "$@" --env "BUN_TMPDIR=/home/aiuser/.cache/"
+            ;;
+    esac
     
     # On macOS, pasta:outbound_addr cannot bind at the host
     # level because containers run inside Podman Machine (Linux
@@ -955,6 +967,8 @@ if [ $# -lt 1 ]; then
     print_error "Missing command"
     usage & exit 1
 fi
+
+# get actions/agents/options
 while [ $# -gt 0 ]; do
     case "$1" in
         help|--help|-h)          usage;               exit 0  ;;
@@ -969,10 +983,6 @@ while [ $# -gt 0 ]; do
         --run-hook)              RUN_HOOK_ARG="$2";   shift 2 ;;
         all|--all|-a)            ALL=true;            shift 1 ;;
         --workspace|-w)
-            if [ -z "$2" ]; then
-                print_error "Error: $1 requires an argument."
-                exit 1
-            fi
             SANDBOX_D="$2"
             shift 2
             ;;
