@@ -484,48 +484,46 @@ _bind_auth_mounts() {
 
     case " $AGENT " in *" copilot "*)
         mkdir -p "${_auth}/.config/gh" "${_auth}/.copilot"
-        _mounts="$_mounts --volume $_auth/.config/gh:$_home/.config/gh:z"
-        _mounts="$_mounts --volume $_auth/.copilot:$_home/.copilot:z"
+        _mounts="${_mounts} --volume ${_auth}/.config/gh:${_home}/.config/gh:z"
+        _mounts="${_mounts} --volume ${_auth}/.copilot:${_home}/.copilot:z"
     ;; esac
     
     # gemini + antigravity share ~/.gemini/
     case " $AGENT " in *" gemini "*|*" antigravity "*)
         if [ "$_gemini_mounted" = "0" ]; then
-            mkdir -p "$_auth/.gemini"
-            _mounts="$_mounts --volume $_auth/.gemini:$_home/.gemini:z"
+            mkdir -p "${_auth}/.gemini"
+            _mounts="${_mounts} --volume ${_auth}/.gemini:${_home}/.gemini:z"
             _gemini_mounted=1
         fi
     ;; esac
 
     # claude
     case " $AGENT " in *" claude "*)
-        mkdir -p "$_auth/.claude"
-        touch "$_auth/.claude.json"          # must exist as file before mount
-        _mounts="$_mounts --volume $_auth/.claude:$_home/.claude:z"
-        _mounts="$_mounts --volume $_auth/.claude.json:$_home/.claude.json:z"
+        mkdir -p "${_auth}/.claude"
+        touch "${_auth}/.claude.json"
+        _mounts="${_mounts} --volume ${_auth}/.claude:${_home}/.claude:z"
+        _mounts="${_mounts} --volume ${_auth}/.claude.json:${_home}/.claude.json:z"
     ;; esac
 
     # claude (Vertex) + opencode share ~/.config/gcloud/
     case " $AGENT " in *" claude "*|*" opencode "*)
         if [ "$_gcloud_mounted" = "0" ]; then
-            mkdir -p "$_auth/.config/gcloud"
-            _mounts="$_mounts \
---volume $_auth/.config/gcloud:$_home/.config/gcloud:z"
+            mkdir -p "${_auth}/.config/gcloud"
+            _mounts="${_mounts} --volume ${_auth}/.config/gcloud:${_home}/.config/gcloud:z"
             _gcloud_mounted=1
         fi
     ;; esac
 
     # opencode
     case " $AGENT " in *" opencode "*)
-        mkdir -p "$_auth/.config/opencode"
-        _mounts="$_mounts \
---volume $_auth/.config/opencode:$_home/.config/opencode:z"
+        mkdir -p "${_auth}/.config/opencode"
+        _mounts="${_mounts} --volume ${_auth}/.config/opencode:${_home}/.config/opencode:z"
     ;; esac
 
     # hermes-agent
     case " $AGENT " in *" hermes-agent "*)
-        mkdir -p "$_auth/.hermes"
-        _mounts="$_mounts --volume $_auth/.hermes:$_home/.hermes:z"
+        mkdir -p "${_auth}/.hermes"
+        _mounts="${_mounts} --volume ${_auth}/.hermes:${_home}/.hermes:z"
     ;; esac
 
     printf '%s' "$_mounts"
@@ -805,7 +803,7 @@ run() {
         --name "$CTN_NAME" \
         "${_auth_mounts}" \
         --volume "$SANDBOX_D:/home/aiuser/workspace:z" \
-        --tmpfs "/tmp:${_tmp_opts}" \
+        --tmpfs "/tmp:rw,nosuid,noexec,size=1g" \
         --cap-drop ALL \
         --security-opt no-new-privileges \
         --userns keep-id \
@@ -967,7 +965,6 @@ if [ $# -lt 1 ]; then
     print_error "Missing command"
     usage & exit 1
 fi
-
 # get actions/agents/options
 while [ $# -gt 0 ]; do
     case "$1" in
