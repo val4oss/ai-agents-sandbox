@@ -143,7 +143,7 @@ if [ "$(id -u)" = "0" ] && id aiuser >/dev/null 2>&1; then
     export TERM="xterm-256color"
     cd "$HOME" 2>/dev/null || true
     exec setpriv --reuid="$_uid" --regid="$_guid" --init-groups \
-        --clear-groups --inh-caps=-all "$0" "$@"
+        --inh-caps=-all "$0" "$@"
 fi
 
 # Initial setup (one-time)
