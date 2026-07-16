@@ -3,7 +3,6 @@ name: Go modules investigation
 description: Investigate Go module dependencies, vendor usage, and function references in a Go project.
 when_to_use: When working with Go module dependencies — finding what modules are imported, checking if a vendored function is used, auditing go.mod/go.sum, or tracing dependency trees.
 allowed-tools: Bash(go *), Bash(grep *), Bash(find *), Bash(cat *), Read
-model: sonnet
 ---
 
 ## Prerequisites

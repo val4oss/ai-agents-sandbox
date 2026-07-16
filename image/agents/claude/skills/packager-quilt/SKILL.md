@@ -3,7 +3,6 @@ name: Quilt tool for packager
 description: Use the tool `quilt` to manage patches in a packaging source tree.
 when_to_use: if working with patches in a packaging source tree.
 allowed-tools: Bash(quilt *), Bash(cd *), Read, Write
-model: sonnet
 ---
 
 ## Directory layout — read this first
