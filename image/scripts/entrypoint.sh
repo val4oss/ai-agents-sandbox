@@ -21,7 +21,6 @@
 PRJ_ID="ai-agents-sandbox"
 
 SHARE_SKEL_D="/usr/share/$PRJ_ID/skel"
-SHARE_AGENTS_D="/usr/share/$PRJ_ID/agents"
 # Default agent list (contains both trusted and untrusted agents)
 # filtering happens in ai-agents-sandbox.sh script
 AGENT="${AGENT:-claude copilot gemini opencode antigravity hermes-agent}"

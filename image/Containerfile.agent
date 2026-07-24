@@ -10,7 +10,6 @@ ARG IMG_TAG="0.0.0"
 ARG PKGS=""
 ARG AI_USER=aiuser
 ARG HOOKS_BUILD="hooks/build"
-ARG HOOKS_RUN="hooks/run"
 
 LABEL maintainer="val4oss" \
       description="AI Agents sandbox customized - %%AGENT%%" \
@@ -36,7 +35,6 @@ RUN if [ -n "$PKGS" ]; then \
 # Copy scripts
 # ------------
 COPY --chmod=555 ${HOOKS_BUILD}/ /usr/local/bin/ai-agents-sandbox-build-hooks/
-COPY --chmod=555 ${HOOKS_RUN}/ /usr/local/bin/ai-agents-sandbox-run-hooks/
 
 # =============
 # RUN Build hooks

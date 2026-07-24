@@ -316,7 +316,8 @@ runtime. There are twho types of hooks: **build hooks** and **run hooks**.
 #### run hooks
 
 * Script given through `--run-hook` argument
-  * script installed in the image, need to be passed during the `build` command.
+  * passed during the `run` command; mounted into the container at runtime
+    (not baked into the image).
 * Run as userai during the container runtime (every time)
 * Usefull for customizing the container runtime.
 

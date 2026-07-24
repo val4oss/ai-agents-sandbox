@@ -369,7 +369,7 @@ _copy_agent_files() {
     return "$SUCCESS"
 }
 
-# Bind agent mounts for the auth, config, skills..., if applicable
+# Bind and fill agent mounts for the auth, config, skills..., if applicable
 _bind_agent_mounts() {
     _mount_d="${CACHE_D}/agents-mount"
     _home="/home/aiuser"
@@ -516,9 +516,7 @@ build() {
     # TODO: Get the hooks from admin config `/etc/${PRJ_ID}/*`
     [ -n "${BUILD_HOOK_ARG}" ] && \
         _build_hook="$(_parse_hooks_f "${BUILD_HOOK_ARG}")"
-    [ -n "${RUN_HOOK_ARG}" ] && \
-        _run_hook="$(_parse_hooks_f "${RUN_HOOK_ARG}")"
-    for _h in "$_build_hook" "$_run_hook"; do
+    for _h in $_build_hook; do
         if ! _check_scripts "$_h"; then
             print_warning "malformated hook script: $_h"
             _ret="$FAILURE"
@@ -536,12 +534,6 @@ build() {
         print_debug "Copying build hook(s): $_build_hook"
         for _h in $_build_hook; do
             cp "$_h" "${_build_d}/hooks/build/"
-        done
-    }
-    [ -n "$_run_hook" ] && {
-        print_debug "Copying run hook(s): $_run_hook"
-        for _h in $_run_hook; do
-            cp "$_h" "${_build_d}/hooks/run/"
         done
     }
 
@@ -689,12 +681,37 @@ run() {
         fi
     fi
 
+    # Setup agents config
     _agent_mounts="$(_bind_agent_mounts)"
+
+    # Setup run hooks
+    # TODO: Get the hooks from vendordir `/usr/etc/${PRJ_ID}/*`
+    # TODO: Get the hooks from admin config `/etc/${PRJ_ID}/*`
+    _hooks_mount_d="${CACHE_D}/run-hooks"
+    [ -d "${_hooks_mount_d}" ] && rm -r "${_hooks_mount_d}"
+    mkdir -p "${_hooks_mount_d}"
+    [ -n "${RUN_HOOK_ARG}" ] && \
+        _run_hook="$(_parse_hooks_f "${RUN_HOOK_ARG}")"
+    for _h in $_run_hook; do
+        if ! _check_scripts "$_h"; then
+            print_warning "malformated hook script: $_h"
+            _ret="$FAILURE"
+        fi
+    done
+    [ "${_ret}" = "$FAILURE" ] && return $_ret
+    [ -n "$_run_hook" ] && {
+        print_debug "Copying run hook(s): $_run_hook"
+        for _h in $_run_hook; do
+            cp "$_h" "${_hooks_mount_d}/"
+        done
+    }
+
     set --
     [ "$USE_MICROVM" = "1" ] && set -- --runtime krun
     set -- "$@" \
         --name "$CTN_NAME" \
         "${_agent_mounts}" \
+        --volume "${_hooks_mount_d}:/usr/local/bin/${PRJ_ID}-run-hooks/:z" \
         --volume "$SANDBOX_D:/home/aiuser/workspace:z" \
         --tmpfs "/tmp:rw,nosuid,noexec,size=1g" \
         --cap-drop ALL \
@@ -799,11 +816,17 @@ clean() {
             fi
         fi
         # ---
-        _mount_volume="$CACHE_D/agents-mount"
-        if [ -d "$_mount_volume" ]; then
-            print_info "Removing agent mount directory '$_mount_volume'..."
-            rm -rf "$_mount_volume"
+        _agent_volume="$CACHE_D/agents-mount"
+        if [ -d "$_agent_volume" ]; then
+            print_info "Removing agent mount directory '$_agent_volume'..."
+            rm -rf "$_agent_volume"
             print_info "Config agents cleaned."
+        fi
+        _hooks_volume="$CACHE_D/run-hooks"
+        if [ -d "$_hooks_volume" ]; then
+            print_info "Removing hooks mount directory '$_hooks_volume'..."
+            rm -rf "$_hooks_volume"
+            print_info "Hooks volume cleaned."
         fi
 
         if [ "$(uname -s)" = "Darwin" ]; then

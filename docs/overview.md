@@ -301,7 +301,8 @@ automatically target the matching image and container name
 ## Configuration Examples
 
 The examples below can be combined freely. Place the config file with
-`--conf` and pass hooks with `--build-hook` `--run-hook` at **build** time.
+`--conf` and pass `--build-hook` at **build** time; pass `--run-hook` at
+**run** time.
 
 ### Adding extra packages
 
@@ -352,12 +353,11 @@ rm -rf /var/cache/zypp/*
 Run hooks execute as `aiuser` every time the container starts — ideal for
 provisioning agent configuration files that should not be baked into the image.
 
-The hook must be installed into the image at build time, then referenced at
-runtime:
+The hook is passed at run time and mounted into the container (not baked into
+the image), so no rebuild is needed to change it:
 
 ```bash
-sh ai-agents-sandbox.sh build claude --run-hook path/to/run-hook.sh
-sh ai-agents-sandbox.sh run claude
+sh ai-agents-sandbox.sh run claude --run-hook path/to/run-hook.sh
 ```
 
 The example below writes a Claude Code `settings.json` on first start,
