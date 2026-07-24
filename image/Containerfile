@@ -16,7 +16,7 @@ ARG HOOKS_BUILD="hooks/build"
 ARG HOOKS_RUN="hooks/run"
 
 LABEL maintainer="val4oss" \
-      description="AI Agents sandbox —${AGENT}, rootless" \
+      description="AI Agents sandbox - ${AGENT}, rootless" \
       version="${IMG_TAG}" \
       security.caps="none" \
       security.network="pasta" \
@@ -61,9 +61,9 @@ RUN zypper --non-interactive refresh && \
         wget \
         which \
         xclip \
-        ${PKGS} \
-    && zypper clean --all \
-    && rm -rf /var/cache/zypp/* /tmp/* /var/tmp/*
+        ${PKGS} && \
+    zypper clean --all && \
+    rm -rf /var/cache/zypp/* /tmp/* /var/tmp/*
 
 RUN zypper --non-interactive addrepo \
         https://download.opensuse.org/repositories/home:/val4oss/openSUSE_Tumbleweed/ \

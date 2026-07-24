@@ -32,17 +32,6 @@ BANNER_HEADLINE="AI AGENTS SANDBOX - $VERSION"
 # Internal functions
 # ------------------
 
-# Provision setup agents for each relevant agent
-setup_agent() {
-    _agent_name="$1"
-    _target_dir="$2"
-    _src_dir="$SHARE_AGENTS_D/${_agent_name}"
-    if [ -d "$_src_dir" ]; then
-        mkdir -p "$_target_dir"
-        cp -rn "$_src_dir"/* "${_target_dir}/" 2>/dev/null || true
-    fi
-}
-
 # Return 0 if agent is enabled, 1 otherwise
 agent_enabled() {
     case " $AGENT " in
@@ -152,16 +141,6 @@ _work_d="$HOME/workspace"
 [ -d "$SHARE_SKEL_D" ] && {
     cp -r "$SHARE_SKEL_D"/* "$HOME"/
     rm -rf "$SHARE_SKEL_D"
-}
-[ -d "$SHARE_AGENTS_D" ] && {
-    agent_enabled "antigravity" &&\
-        setup_agent "antigravity" "$HOME/.gemini/config"
-    agent_enabled "claude" && setup_agent "claude" "$HOME/.claude"
-    agent_enabled "copilot" && setup_agent "copilot" "$HOME/.copilot"
-    agent_enabled "gemini" && setup_agent "gemini" "$HOME/.gemini"
-    agent_enabled "opencode" && setup_agent "opencode" "$HOME/.config/opencode"
-    agent_enabled "hermes-agent" && setup_agent "hermes-agent" "$HOME/.hermes"
-    rm -rf "$SHARE_AGENTS_D"
 }
 
 # Install sourceable Gemini helper and hook it into .bashrc.

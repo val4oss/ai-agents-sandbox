@@ -35,13 +35,10 @@ CONF_P="${ROOT_D}/${PRJ_ID}.conf"
 CACHE_D_DEFAULT="${HOME}/.cache/${PRJ_ID}"
 CACHE_D="${CACHE_D_DEFAULT}"
 BUILD_HOOK_ARG=""
-BUILD_HOOK=""
-BUILD_HOOK_P="${IMG_D}/hooks/build"
 RUN_HOOK_ARG=""
-RUN_HOOK=""
-RUN_HOOK_P="${IMG_D}/hooks/run"
 
 # Container variables
+DEFAULT_IMG_REPO="registry.opensuse.org/home/vlefebvre/container-images/containers/opensuse"
 IMG_NAME="ai-agents-sandbox"
 CTN_NAME="ai-agents-sandbox"
 IMG_TAG="0.9.0"
@@ -311,10 +308,14 @@ _detect_public_iface() {
     return "$_ret"
 }
 
-# check if a local image exists
-_image_exists() {
-    _img="$1"
-    podman image exists "$_img"
+# Check if IMG_NAME exists
+_podman_img_exists() {
+    podman image exists "${IMG_NAME}"
+}
+
+# Get the repository of IMG_NAME
+_podman_img_repo() {
+    podman images "${IMG_NAME}" --format '{{.Repository}}'
 }
 
 # Verify that the directory exists and is a directorynot set to HOME
@@ -356,59 +357,82 @@ _verify_cache_d() {
     }
 }
 
-# Bind auth mounts for the agent, if applicable
-_bind_auth_mounts() {
-    _auth="${CACHE_D}/.auth"
+# Copy an agent's skel files from ${IMG_D}/agents/<agent> into a mount dir,
+# preserving their parent directory layout. Existing files are kept (cp -n),
+# while existing folders are reused.
+_copy_agent_files() {
+    _src="${IMG_D}/agents/$1"
+    _dst="$2"
+    [ -d "$_src" ] || return "$SUCCESS"
+    mkdir -p "$_dst"
+    cp -rn "$_src/." "$_dst/"
+    return "$SUCCESS"
+}
+
+# Bind agent mounts for the auth, config, skills..., if applicable
+_bind_agent_mounts() {
+    _mount_d="${CACHE_D}/agents-mount"
     _home="/home/aiuser"
     _mounts=""
     _gemini_mounted=0
     _gcloud_mounted=0
 
     case " $AGENT " in *" copilot "*)
-        mkdir -p "${_auth}/.config/gh" "${_auth}/.copilot"
-        _mounts="$_mounts --volume $_auth/.config/gh:$_home/.config/gh:z"
-        _mounts="$_mounts --volume $_auth/.copilot:$_home/.copilot:z"
+        mkdir -p "${_mount_d}/.config/gh" "${_mount_d}/.copilot"
+        _mounts="$_mounts --volume $_mount_d/.config/gh:$_home/.config/gh:z"
+        _mounts="$_mounts --volume $_mount_d/.copilot:$_home/.copilot:z"
     ;; esac
     
     # gemini + antigravity share ~/.gemini/
     case " $AGENT " in *" gemini "*|*" antigravity "*)
         if [ "$_gemini_mounted" = "0" ]; then
-            mkdir -p "$_auth/.gemini"
-            _mounts="$_mounts --volume $_auth/.gemini:$_home/.gemini:z"
+            mkdir -p "$_mount_d/.gemini"
+            _mounts="$_mounts --volume $_mount_d/.gemini:$_home/.gemini:z"
             _gemini_mounted=1
         fi
     ;; esac
 
     # claude
     case " $AGENT " in *" claude "*)
-        mkdir -p "$_auth/.claude"
-        touch "$_auth/.claude.json"          # must exist as file before mount
-        _mounts="$_mounts --volume $_auth/.claude:$_home/.claude:z"
-        _mounts="$_mounts --volume $_auth/.claude.json:$_home/.claude.json:z"
+        mkdir -p "$_mount_d/.claude"
+        touch "$_mount_d/.claude.json"          # must exist as file before mount
+        _mounts="$_mounts --volume $_mount_d/.claude:$_home/.claude:z"
+        _mounts="$_mounts --volume $_mount_d/.claude.json:$_home/.claude.json:z"
     ;; esac
 
     # claude (Vertex) + opencode share ~/.config/gcloud/
     case " $AGENT " in *" claude "*|*" opencode "*)
         if [ "$_gcloud_mounted" = "0" ]; then
-            mkdir -p "$_auth/.config/gcloud"
+            mkdir -p "$_mount_d/.config/gcloud"
             _mounts="$_mounts \
---volume $_auth/.config/gcloud:$_home/.config/gcloud:z"
+--volume $_mount_d/.config/gcloud:$_home/.config/gcloud:z"
             _gcloud_mounted=1
         fi
     ;; esac
 
     # opencode
     case " $AGENT " in *" opencode "*)
-        mkdir -p "$_auth/.config/opencode"
+        mkdir -p "$_mount_d/.config/opencode"
         _mounts="$_mounts \
---volume $_auth/.config/opencode:$_home/.config/opencode:z"
+--volume $_mount_d/.config/opencode:$_home/.config/opencode:z"
     ;; esac
 
     # hermes-agent
     case " $AGENT " in *" hermes-agent "*)
-        mkdir -p "$_auth/.hermes"
-        _mounts="$_mounts --volume $_auth/.hermes:$_home/.hermes:z"
+        mkdir -p "$_mount_d/.hermes"
+        _mounts="$_mounts --volume $_mount_d/.hermes:$_home/.hermes:z"
     ;; esac
+
+    # Seed each mounted config dir with the agent's skel files from the image.
+    # Most agents map to ".<agent>", except antigravity (shares .gemini) and
+    # hermes-agent (.hermes).
+    for _agt in $AGENT; do
+        case "$_agt" in
+            antigravity)  _copy_agent_files "$_agt" "$_mount_d/.gemini" ;;
+            hermes-agent) _copy_agent_files "$_agt" "$_mount_d/.hermes" ;;
+            *)            _copy_agent_files "$_agt" "$_mount_d/.$_agt" ;;
+        esac
+    done
 
     printf '%s' "$_mounts"
 }
@@ -428,6 +452,7 @@ usage() {
 Actions:
   run           Run the sandbox with the specified agent
   build         Build the container image for the specified agent
+                By default it bases from the registry: ${DEFAULT_IMG_REPO}
   clean         Remove built images and containers for the specified agent
   status        Show the current status, built images, running containers...
 
@@ -447,6 +472,8 @@ Options:
                For 'run' action, Specify a custom workspace directory
                (default: ${SANDBOX_D_DEFAULT}) to mount in the sandbox at
                /home/aiuser/workspace.
+  --full       Build fully the container image instead of refering to the one
+               from registry ${DEFAULT_IMG_REPO}
   --all, -a    For 'clean' action, also remove home volume and auth tokens
 
 Notes:
@@ -484,46 +511,46 @@ print_version() {
 build() {
     _ret="$SUCCESS"
 
+    # Check scripts before continuing
     # TODO: Get the hooks from vendordir `/usr/etc/${PRJ_ID}/*`
     # TODO: Get the hooks from admin config `/etc/${PRJ_ID}/*`
-    [ -n "${BUILD_HOOK_ARG}" ] && BUILD_HOOK="$(_parse_hooks_f "${BUILD_HOOK_ARG}")"
-    [ -n "${RUN_HOOK_ARG}" ] && RUN_HOOK="$(_parse_hooks_f "${RUN_HOOK_ARG}")"
-    for _h in "$BUILD_HOOK" "$RUN_HOOK"; do
+    [ -n "${BUILD_HOOK_ARG}" ] && \
+        _build_hook="$(_parse_hooks_f "${BUILD_HOOK_ARG}")"
+    [ -n "${RUN_HOOK_ARG}" ] && \
+        _run_hook="$(_parse_hooks_f "${RUN_HOOK_ARG}")"
+    for _h in "$_build_hook" "$_run_hook"; do
         if ! _check_scripts "$_h"; then
-            return "$FAILURE"
+            print_warning "malformated hook script: $_h"
+            _ret="$FAILURE"
         fi
     done
+    [ "${_ret}" = "$FAILURE" ] && return $_ret
 
-    # When IMG_D is not writable (e.g. system-wide install), stage
-    # hooks in a temp copy of the build context so podman can COPY
-    # them without needing write access to the installed share dir.
-    _img_ctx="${IMG_D}"
-    if [ -n "$BUILD_HOOK" ] || [ -n "$RUN_HOOK" ]; then
-        if [ ! -w "${IMG_D}/hooks" ]; then
-            _img_ctx="$(mktemp -d)"
-            cp -r "${IMG_D}/." "${_img_ctx}/"
-            BUILD_HOOK_P="${_img_ctx}/hooks/build"
-            RUN_HOOK_P="${_img_ctx}/hooks/run"
-        fi
+    # Populate the build dir
+    _build_d="${CACHE_D}/build"
+    [ -d "${_build_d}" ] || mkdir -p "{$_build_d}"
+    cp -r "${IMG_D}/." "${_build_d}/"
+
+    # Copy user hooks into the build context
+    [ -n "$_build_hook" ] && {
+        print_debug "Copying build hook(s): $_build_hook"
+        for _h in $_build_hook; do
+            cp "$_h" "${_build_d}/hooks/build/"
+        done
+    }
+    [ -n "$_run_hook" ] && {
+        print_debug "Copying run hook(s): $_run_hook"
+        for _h in $_run_hook; do
+            cp "$_h" "${_build_d}/hooks/run/"
+        done
+    }
+
+    if $BUILD_FULL; then
+        _container_f="${_build_d}/Containerfile"
+    else
+        _container_f="${_build_d}/Containerfile.agent"
+        sed -i "s|%%AGENT%%|$AGENT|g" "${_container_f}"
     fi
-
-    # Copy user hooks into the build context so podman can COPY
-    # them without escaping the context directory.
-    [ -n "$BUILD_HOOK" ] && {
-        print_debug "Copying build hook(s) to build context: ${BUILD_HOOK_P}"
-        print_debug "  -> Source: $BUILD_HOOK"
-        for _h in $BUILD_HOOK; do
-            cp "$_h" "${BUILD_HOOK_P}/"
-        done
-    }
-    [ -n "$RUN_HOOK" ] && {
-        print_debug "Copying run hook(s) to build context: ${RUN_HOOK_P}"
-        print_debug "  -> Source: $RUN_HOOK"
-        for _h in $RUN_HOOK; do
-            cp "$_h" "${RUN_HOOK_P}/"
-        done
-    }
-
     print_info "Building container image ${IMG_NAME}:${IMG_TAG} ..."
     if ! podman build \
         --no-cache \
@@ -533,8 +560,8 @@ build() {
         --build-arg "PKGS=${PKGS}" \
         --tag "${IMG_NAME}:${IMG_TAG}" \
         --tag "${IMG_NAME}:latest" \
-        --file "${_img_ctx}/Containerfile" \
-        "${_img_ctx}"; then
+        --file "${_container_f}" \
+        "${_build_d}"; then
             print_error "Image build failed."
             _ret="$FAILURE"
     else
@@ -542,21 +569,7 @@ build() {
     fi
 
     # clean up temporary hook files from build context
-    for _hook in $BUILD_HOOK $RUN_HOOK; do
-        _hook_n="$(basename "$_hook")"
-        _hook_p="${BUILD_HOOK_P}/${_hook_n}"
-        if [ -z "$_hook_p" ] || [ ! -f "$_hook_p" ]; then
-            _hook_p="${RUN_HOOK_P}/${_hook_n}"
-            if [ -z "$_hook_p" ] || [ ! -f "$_hook_p" ]; then
-                print_warning "Hook '$_hook_n' not found in build or run hooks."
-                continue
-            fi
-        fi
-        print_debug "Removing temporary hook file: $_hook_p"
-        rm -f "$_hook_p"
-    done
-    # Remove temp build context if it was created
-    [ "${_img_ctx}" != "${IMG_D}" ] && rm -rf "${_img_ctx}"
+    [ -d "${_build_d}" ] && rm -r "${_build_d}"
     return "$_ret"
 }
 
@@ -664,12 +677,24 @@ run() {
         esac
     fi
 
-    _auth_mounts="$(_bind_auth_mounts)"
+    # Check if image is built locally
+    _default_repo="${DEFAULT_IMG_REPO}/${IMG_NAME}"
+    if ! _podman_img_exists ||\
+       [ "$(_podman_img_repo)" = "${_default_repo}" ]; then
+        IMG_NAME="${_default_repo}"
+        print_info "Pulling image: ${IMG_NAME}..."
+        if ! podman pull -q "${IMG_NAME}" > /dev/null 2>&1; then
+            print_error "No Image built and cannot pull ${IMG_NAME}"
+            return "$FAILURE"
+        fi
+    fi
+
+    _agent_mounts="$(_bind_agent_mounts)"
     set --
     [ "$USE_MICROVM" = "1" ] && set -- --runtime krun
     set -- "$@" \
         --name "$CTN_NAME" \
-        "${_auth_mounts}" \
+        "${_agent_mounts}" \
         --volume "$SANDBOX_D:/home/aiuser/workspace:z" \
         --tmpfs "/tmp:rw,nosuid,noexec,size=1g" \
         --cap-drop ALL \
@@ -774,11 +799,11 @@ clean() {
             fi
         fi
         # ---
-        _auth_dir="$CACHE_D/.auth"
-        if [ -d "$_auth_dir" ]; then
-            print_info "Removing auth directory '$_auth_dir'..."
-            rm -rf "$_auth_dir"
-            print_info "Auth tokens cleaned."
+        _mount_volume="$CACHE_D/agents-mount"
+        if [ -d "$_mount_volume" ]; then
+            print_info "Removing agent mount directory '$_mount_volume'..."
+            rm -rf "$_mount_volume"
+            print_info "Config agents cleaned."
         fi
 
         if [ "$(uname -s)" = "Darwin" ]; then
@@ -839,6 +864,7 @@ while [ $# -gt 0 ]; do
         --cache)                 CACHE_D="$2";        shift 2 ;;
         --build-hook)            BUILD_HOOK_ARG="$2"; shift 2 ;;
         --run-hook)              RUN_HOOK_ARG="$2";   shift 2 ;;
+        full|--full)             BUILD_FULL=1;        shift 1 ;;
         all|--all|-a)            ALL=true;            shift 1 ;;
         --workspace|-w)
             if [ -z "$2" ]; then

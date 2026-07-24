@@ -58,7 +58,7 @@ ai-agents-sandbox/
 
   ```
   $CACHE_D/
-    .auth/
+    agents-mount/
       .config/
         gh/        copilot
         gcloud/    claude (Vertex) + opencode

@@ -1,0 +1,54 @@
+# =============================================================================
+#  AI Agents Sandbox — %%AGENT%% customized image
+#  Base : ai-agents-sandbox-%%AGENT%%
+#  Auth : runtime only, persisted via agent volume
+# =============================================================================
+
+FROM registry.opensuse.org/home/vlefebvre/container-images/containers/opensuse/ai-agents-sandbox-%%AGENT%%:latest
+
+ARG IMG_TAG="0.0.0"
+ARG PKGS=""
+ARG AI_USER=aiuser
+ARG HOOKS_BUILD="hooks/build"
+ARG HOOKS_RUN="hooks/run"
+
+LABEL maintainer="val4oss" \
+      description="AI Agents sandbox customized - %%AGENT%%" \
+      version="${IMG_TAG}" \
+      security.caps="none" \
+      security.network="pasta" \
+      security.credentials="runtime-only"
+
+USER root
+
+# ==============
+# System Package
+# --------------
+RUN if [ -n "$PKGS" ]; then \
+        zypper --non-interactive --gpg-auto-import-keys refresh && \
+        zypper --non-interactive update && \
+        zypper --non-interactive install --no-recommends ${PKGS} && \
+        zypper clean --all && \
+        rm -rf /var/cache/zypp/* /tmp/* /var/tmp/* ; \
+    fi
+
+# ============
+# Copy scripts
+# ------------
+COPY --chmod=555 ${HOOKS_BUILD}/ /usr/local/bin/ai-agents-sandbox-build-hooks/
+COPY --chmod=555 ${HOOKS_RUN}/ /usr/local/bin/ai-agents-sandbox-run-hooks/
+
+# =============
+# RUN Build hooks
+# -------------
+RUN set -e;\
+    for script in $(find /usr/local/bin/ai-agents-sandbox-build-hooks/ \
+                    -type f \
+                    -name "*.sh" | sort); do\
+        sh "$script" || exit 1; \
+    done
+
+# =============
+# Switch to non-root user for runtime
+# -------------
+USER $AI_USER
