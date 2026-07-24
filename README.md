@@ -130,14 +130,24 @@ sudo make uninstall
 
 ### Build the image
 
+> Building is **optional**. `run` pulls a prebuilt image from the registry
+> automatically (see [Run](#run-the-isolated-environment)). Build only when you
+> need to customise the image — extra packages, build hooks — or work offline.
+
 ```bash
 sh ai-agents-sandbox.sh build           # Build the all-in-one image  (ai-agents-sandbox:latest)
 sh ai-agents-sandbox.sh build <agent>   # Build an agent image        (ai-agents-sandbox-<agent>:latest)
+sh ai-agents-sandbox.sh build <agent> --full  # Build fully from source, not from the registry base
 ```
 
+By default `build` layers your customisations on top of the prebuilt image
+pulled from the registry
+(`registry.opensuse.org/home/vlefebvre/container-images/containers/opensuse/`),
+which is fast and keeps images slim. Pass `--full` to build the whole image
+from the `Containerfile` instead.
 
-The script copies injects the version number, passes the `AGENT` build-arg to
-`podman build`, builds the image as `ai-agents-sandbox[-<agent>]:latest`.
+The script injects the version number, passes the `AGENT` build-arg to
+`podman build`, and builds the image as `ai-agents-sandbox[-<agent>]:latest`.
 Agent-specific builds only install the tools required by the selected agent,
 resulting in smaller images.
 
@@ -147,6 +157,9 @@ podman image inspect ai-agents-sandbox:latest | grep -E "User|Size"
 ```
 
 ### Run the isolated environment
+
+> If no locally built image is present, `run` automatically pulls the prebuilt
+> image from the registry, so you can start straight away without building.
 
 ```bash
 # Start (or resume) the container (microVM if available)

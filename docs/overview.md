@@ -22,6 +22,7 @@ measures.
     - [🧊 MicroVM isolation (krun)](#-microvm-isolation-krun)
     - [📊 Resource limits](#-resource-limits)
   - [Persistence](#persistence)
+  - [Image source: registry vs local build](#image-source-registry-vs-local-build)
   - [Per-Agent Builds](#per-agent-builds)
   - [Configuration Examples](#configuration-examples)
 
@@ -33,7 +34,8 @@ measures.
 ai-agents-sandbox/
 │
 ├── image/
-│   ├── Containerfile          # Image definition — no secrets; AGENT build-arg for slim builds
+│   ├── Containerfile          # Full image definition — no secrets; used with `--full`
+│   ├── Containerfile.agent    # Slim per-agent image layered on the registry base (default build)
 │   ├── agents/
 │   │   ├── claude/            # Claude sub-agent definitions (provisioned to ~/.claude/agents/)
 │   │   ├── copilot/           # Copilot agent definitions (provisioned to ~/.copilot/agents/)
@@ -274,6 +276,25 @@ run            # new container, everything intact ✅
 > `clean all` removes auth token directories but preserves `workspace/`.
 > Defaults (`.gitconfig`, `.copilot/agents/`) are re-provisioned from the
 > image on the next `run`.
+
+---
+
+## Image source: registry vs local build
+
+Prebuilt images are published to
+`registry.opensuse.org/home/vlefebvre/container-images/containers/opensuse/`
+and used automatically, so building is optional:
+
+- **`run`** — if no local image exists (or the local image was itself pulled
+  from that registry), `run` pulls the matching prebuilt image
+  (`ai-agents-sandbox[-<agent>]`) and starts it. A locally built image always
+  takes precedence.
+- **`build`** — by default layers your customisations (packages, build hooks)
+  on top of the registry base via `Containerfile.agent`, producing a slim
+  image quickly. Pass **`--full`** to build the entire image from
+  `Containerfile` instead of pulling the base.
+
+This means the typical first run needs **no build step at all**.
 
 ---
 
