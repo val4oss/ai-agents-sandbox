@@ -54,6 +54,7 @@ PKGS=""
 AGENT=""
 USE_MICROVM=1
 ACTION=""
+DEBUG=0
 BUILD_FULL=0
 ALL=0
 CLEAN_IMG=0
@@ -480,6 +481,7 @@ usage() {
     _str="Usage: ${PRJ_ID} [-q|-v|-h] <actions> <agent> [options]
   -q, --quiet   Suppress all output except errors
   -v, --verbose Enable verbose output
+  -vv           Enable verbose and debug podman outputs
   --version     Show version information and exit
   -h, --help    Show this help message and exit
 
@@ -574,25 +576,30 @@ build() {
         done
     }
 
-    if $BUILD_FULL; then
+    if [ $BUILD_FULL -eq 1 ]; then
         _container_f="${_build_d}/Containerfile"
     else
         _container_f="${_build_d}/Containerfile.agent"
         sed -i "s|%%AGENT%%|$AGENT|g" "${_container_f}"
     fi
     print_info "Building container image ${IMG_NAME}:${IMG_TAG} ..."
-    if ! podman build \
-        --no-cache \
-        --rm \
+    set --
+    [ ${DEBUG} -eq 1 ] && set -- --log-level=debug
+    set -- "$@" build --no-cache --rm \
         --build-arg "AGENT=${AGENT}" \
         --build-arg "IMG_TAG=${IMG_TAG}" \
-        --build-arg "PKGS=${PKGS}" \
+        --build-arg "PKGS=\"${PKGS}\"" \
         --tag "${IMG_NAME}:${IMG_TAG}" \
         --tag "${IMG_NAME}:latest" \
         --file "${_container_f}" \
-        "${_build_d}"; then
-            print_error "Image build failed."
-            _ret="$FAILURE"
+        "${_build_d}"
+    _args=$*
+    _cmd="podman ${_args}"
+    [ ${VERBOSE} -eq 0 ] && _cmd="${_cmd} > /dev/null 2>&1"
+
+    if ! eval "$_cmd"; then
+        print_error "Image build failed."
+        _ret="$FAILURE"
     else
         print_info "Image built successfully."
     fi
@@ -608,6 +615,9 @@ run() {
 
     _verify_workspace_d || return "$FAILURE"
     
+    _podman_cmd="podman"
+    [ ${DEBUG} -eq 1 ] && _podman_cmd="podman --log-level=debug"
+
     [ "$(uname -s)" = "Darwin" ] && _macos_adjust_microvm
     if [ "$USE_MICROVM" -eq 1 ]; then
         if [ "$AGENT" = "copilot" ] || [ "$AGENT" = "opencode" ]; then
@@ -682,7 +692,7 @@ run() {
                     print_info "Creating a new one with suffixe $CTN_NAME."
                 else
                     print_info "Attaching to running container..."
-                    if ! podman exec -it "$CTN_NAME" bash; then
+                    if ! ${_podman_cmd} exec -it "$CTN_NAME" bash; then
                         _ret="$FAILURE"
                     fi
                     [ "$(uname -s)" = "Darwin" ] && _macos_run_teardown
@@ -691,7 +701,7 @@ run() {
             };;
             initialized|created|configured|exited) {
                 print_info "Starting container from '$STATE'..."
-                if ! podman start -ai "$CTN_NAME"; then
+                if ! ${_podman_cmd} start -ai "$CTN_NAME"; then
                     _ret="$FAILURE"
                 fi
                 [ "$(uname -s)" = "Darwin" ] && _macos_run_teardown
@@ -794,7 +804,7 @@ run() {
 
     _args=$*
     print_info "Starting isolated container..."
-    _cmd="podman run -it $_args ${IMG_NAME}:latest"
+    _cmd="${_podman_cmd} run -it $_args ${IMG_NAME}:latest"
     print_debug "$_cmd"
     if ! eval "$_cmd"; then
         print_error "Failed to start container ${CTN_NAME}."
@@ -945,6 +955,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         help|--help|-h)          usage;                     exit 0  ;;
         verbose|--verbose|-v)    VERBOSE=1;                 shift 1 ;;
+        -vv)                     VERBOSE=1; DEBUG=1;        shift 1 ;;
         quiet|--quiet|-q)        QUIET=1;                   shift 1 ;;
         version|--version)       print_version;             exit 0  ;;
         run|build|clean|status)  ACTION="$1";               shift 1 ;;
