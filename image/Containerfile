@@ -119,7 +119,7 @@ RUN groupadd --gid $AI_GID $AI_USER && \
 # =========
 # AI agents - installed selectively based on AGENT list
 # (trusted vs untrusted distinction: hermes-agent is untrusted)
-# filtering happens in ai-agents-sandbox.sh script
+# filtering happens in glaipnir.sh script
 # ---------
 RUN case " $AGENT " in *" gemini "*) \
         npm install -g @google/gemini-cli ;; esac && \

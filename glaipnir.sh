@@ -1,5 +1,6 @@
 #!/bin/sh
-# AI Agents Sandbox - Manage a secure, isolated environment for running agents.
+# GlAIpnir - AI Agents Sandbox - Manage a secure, isolated environment for
+# running agents.
 # Copyright (C) 2026  val4oss <val4oss@pm.me>
 # 
 # This program is free software: you can redistribute it and/or modify
@@ -24,7 +25,8 @@ SUCCESS=0
 FAILURE=1
 
 # Main variables
-PRJ_ID="ai-agents-sandbox"
+PRJ_ID="glaipnir"
+SANDBOX_ID="ai-agents-sandbox"
 
 # Path variables
 ROOT_D="$(cd "$(dirname "$0")" && pwd)"
@@ -39,8 +41,8 @@ RUN_HOOK_ARG=""
 
 # Container variables
 DEFAULT_IMG_REPO="registry.opensuse.org/home/vlefebvre/container-images/containers/opensuse"
-IMG_NAME="ai-agents-sandbox"
-CTN_NAME="ai-agents-sandbox"
+IMG_NAME="${SANDBOX_ID}"
+CTN_NAME="${SANDBOX_ID}"
 IMG_TAG="0.9.0"
 TRUSTED_AGENTS="copilot claude gemini opencode antigravity"
 UNTRUSTED_AGENTS="hermes-agent"
@@ -102,6 +104,16 @@ _check_tools_needed() {
 
 # parse configuration file if it exists
 _parse_conf() {
+    if [ "$(basename "${CONF_P}")" = "${PRJ_ID}.conf" ] &&\
+       [ ! -f "${CONF_P}" ]; then
+        _c_dir="$(dirname "${CONF_P}")"
+        _old_conf="${_c_dir}/${SANDBOX_ID}.conf"
+        if [ -f "${_old_conf}" ]; then
+            print_warning "Using legacy config $(basename "${_old_conf}"),"
+            print_warning "Rename it to $(basename "${CONF_P}")."
+            CONF_P="${_old_conf}"
+        fi
+    fi
     if [ -f "$CONF_P" ]; then
         _in_block=0
         _block_key=""
@@ -330,7 +342,7 @@ _podman_list_img() {
         podman images \
             --sort created \
             --format "{{.Repository}}:{{.Tag}}" \
-            --filter "reference=${PRJ_ID}*"\
+            --filter "reference=${IMG_NAME}*"\
             --filter "dangling=false" |\
         while IFS= read -r line; do
             printf "%s" "$line "
@@ -345,7 +357,7 @@ _podman_list_ctn() {
     _list=$(
         podman ps -a \
             --format "{{.Names}}" \
-            --filter "name=${PRJ_ID}*" |\
+            --filter "name=${CTN_NAME}*" |\
         while IFS= read -r line; do
             printf "%s" "$line "
         done
@@ -543,7 +555,7 @@ Notes:
 
 # Print version information
 print_version() {
-    printf "AI Agents Sandbox version: %s\n" "$IMG_TAG"
+    printf "%s version: %s\n" "${PRJ_ID}" "$IMG_TAG"
 }
 
 # callback for build action
@@ -759,7 +771,7 @@ run() {
     set -- "$@" \
         --name "$CTN_NAME" \
         "${_agent_mounts}" \
-        --volume "${_hooks_mount_d}:/usr/local/bin/${PRJ_ID}-run-hooks/:z" \
+        --volume "${_hooks_mount_d}:/usr/local/bin/${SANDBOX_ID}-run-hooks/:z" \
         --volume "$SANDBOX_D:/home/aiuser/workspace:z" \
         --tmpfs "/tmp:rw,nosuid,noexec,size=1g" \
         --cap-drop ALL \
@@ -999,7 +1011,15 @@ if ! _parse_conf; then
     exit $FAILURE
 fi
 
-[ "$CACHE_D" != "${CACHE_D_DEFAULT}" ] && _verify_cache_d
+if [ "$CACHE_D" != "${CACHE_D_DEFAULT}" ]; then
+    _verify_cache_d
+else
+    # Previous CACHE DIR was with "ai-agents-sandbox" name
+    _old_conf_d="${HOME}/.cache/${SANDBOX_ID}"
+    if [ -d "${_old_conf_d}" ] && [ ! -d "${CACHE_D_DEFAULT}" ]; then
+        mv "${_old_conf_d}" "${CACHE_D_DEFAULT}"
+    fi
+fi
 
 if [ "$AGENT" != "" ]; then
     if ! _valid_agent ; then

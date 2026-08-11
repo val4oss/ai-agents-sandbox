@@ -5,6 +5,7 @@ sandbox/**
 workspace/**
 
 # Ignore changes on main conf
+glaipnir.conf
 ai-agents-sandbox.conf
 
 # Keep the directory tracked

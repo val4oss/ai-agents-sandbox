@@ -32,7 +32,7 @@ _SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # ----------------
 
 _READY_FILE="/tmp/ai-sandbox-enforcer.ready"
-# Runtime config written by ai-agents-sandbox.sh before each run.
+# Runtime config written by glaipnir.sh before each run.
 # Contains VPN_ROUTES and FALLBACK_POLICY.
 _CONF_FILE="/tmp/ai-sandbox-enforcer.conf"
 _LABEL="com.ai-agents-sandbox.macos-vpn-enforcer"

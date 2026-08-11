@@ -1,4 +1,4 @@
-# Project: ai-agents-sandbox
+# Project: glaipnir (ai-agents-sandbox)
 
 Shell project to:
 
@@ -22,9 +22,9 @@ Shell project to:
 ## commands
 
 * `shellcheck -x <file.sh>`: verify shell scripts
-* `sh ai-agents-sandbox build <agent_name>`: Build the image
-* `sh ai-agents-sandbox run <agent_name>`: Run the agent environment
-* `sh ai-agents-sandbox clean`: Clean container state
+* `sh glaipnir.sh build <agent_name>`: Build the image
+* `sh glaipnir.sh run <agent_name>`: Run the agent environment
+* `sh glaipnir.sh clean`: Clean container state
 
 ## Architecture
 
@@ -36,7 +36,7 @@ Shell project to:
 * `image/Containerfile`: Containerfile used to build the image.
 * `sandbox/`: Volume mounted in the HOME directory of the container. Used to 
     store authentication tokens, sources code for development.
-* `ai-agents-sandbox.sh`: Main script to build and run the container.
+* `glaipnir.sh`: Main script to build and run the container.
 * `printer.sh`: Utility script to print colored messages in the terminal.
 
 ## Important Notes

@@ -16,7 +16,7 @@
 # License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 #
-# Sourced by macos-vpn-enforcer.sh and ai-agents-sandbox.sh.
+# Sourced by macos-vpn-enforcer.sh and glaipnir.sh.
 # Not intended to be executed directly.
 
 # return 0 if any VPN connection is active on macOS

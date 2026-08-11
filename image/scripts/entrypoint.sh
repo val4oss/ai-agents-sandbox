@@ -22,7 +22,7 @@ PRJ_ID="ai-agents-sandbox"
 
 SHARE_SKEL_D="/usr/share/$PRJ_ID/skel"
 # Default agent list (contains both trusted and untrusted agents)
-# filtering happens in ai-agents-sandbox.sh script
+# filtering happens in glaipnir.sh script
 AGENT="${AGENT:-claude copilot gemini opencode antigravity hermes-agent}"
 VERSION="${AI_SANDBOX_VERSION:-0.0.0}"
 BANNER_HEADLINE="AI AGENTS SANDBOX - $VERSION"

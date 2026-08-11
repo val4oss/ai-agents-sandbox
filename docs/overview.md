@@ -1,6 +1,6 @@
 # Overview
 
-Overview of the ai-agents-sandbox architecture, design decisions, and security
+Overview of the glaipnir project architecture, design decisions, and security
 measures.
 
 ---
@@ -49,7 +49,7 @@ ai-agents-sandbox/
 ├── workspace/                 # ← Mounted as /home/aiuser (persistent, gitignored)
 │   └── .gitkeep               #   Keeps the directory tracked in git
 │
-└── ai-agents-sandbox.sh       # build / run / clean / help — supports per-agent targets
+└── glaipnir.sh                # build / run / clean / help — supports per-agent targets
 ```
 
 ---
@@ -332,7 +332,7 @@ packages at image build time. No hook is needed for packages available in the
 default Tumbleweed repositories.
 
 ```conf
-# /tmp/ai-agents-sandbox.conf
+# /tmp/glaipnir.conf
 AGENT=claude
 PACKAGES=(
     osc
@@ -342,7 +342,7 @@ PACKAGES=(
 ```
 
 ```bash
-sh ai-agents-sandbox.sh build claude --conf /tmp/ai-agents-sandbox.conf
+sh glaipnir.sh build claude --conf /tmp/glaipnir.conf
 ```
 
 ### Adding packages from a custom repository (build hook)
@@ -352,7 +352,7 @@ to add the repository and install the package during the image build. The hook
 runs as root inside the build context.
 
 ```bash
-sh ai-agents-sandbox.sh build claude --build-hook path/to/build-hook.sh
+sh glaipnir.sh build claude --build-hook path/to/build-hook.sh
 ```
 
 ```sh
@@ -378,7 +378,7 @@ The hook is passed at run time and mounted into the container (not baked into
 the image), so no rebuild is needed to change it:
 
 ```bash
-sh ai-agents-sandbox.sh run claude --run-hook path/to/run-hook.sh
+sh glaipnir.sh run claude --run-hook path/to/run-hook.sh
 ```
 
 The example below writes a Claude Code `settings.json` on first start,

@@ -1,8 +1,10 @@
-# AI Agents Sandbox
+# GLAIPNIR Project (AI Agents Sandbox)
 
 <div align="center">
-  <img src="docs/logo.png" alt="AI Agents Sandbox Logo" width="200">
+  <img src="docs/banner.png" alt="Glaipnir project banner">
 </div>
+
+> The silken ribbon that binds the wolf - now it binds the AI agents.
 
 A secure, isolated environment for running AI coding agents on
 **openSUSE Tumbleweed** using rootless container with **Podman** and microvm 
@@ -22,11 +24,9 @@ with **libkrun**.
 > Authentication is performed at runtime and persisted via a mounted
 > volume on the host.
 
----
-
-## Project activity
-
-![Alt](https://repobeats.axiom.co/api/embed/4fa979a5fa985819cac3447152b2dfa6c697fafd.svg "Repobeats analytics image")
+> **Naming** — `glaipnir` is the tool you run. The images and containers it
+> builds and manages keep the name `ai-agents-sandbox`, so that is what you
+> will see in `podman images` and `podman ps`.
 
 ---
 
@@ -100,7 +100,7 @@ cd ai-agents-sandbox
 ### Install (optional)
 
 Use `make` to install the tool system-wide so it can be run from any directory
-as `ai-agents-sandbox` instead of `sh ai-agents-sandbox.sh`.
+as `glaipnir` instead of `sh glaipnir.sh`.
 
 ```bash
 # System install (needs sudo) — installs to /usr/local/bin and /usr/local/share
@@ -120,11 +120,18 @@ make install PREFIX=/usr DESTDIR=/tmp/pkg-root
 sudo make uninstall
 ```
 
-> After a system install, use `ai-agents-sandbox` in place of
-> `sh ai-agents-sandbox.sh` in all commands below.
+> After a system install, use `glaipnir` in place of
+> `sh glaipnir.sh` in all commands below.
 > The installed version uses the current working directory as the default
 > workspace (equivalent to always passing `-w .`), and looks for the config
-> file at `${XDG_CONFIG_HOME:-~/.config}/ai-agents-sandbox/ai-agents-sandbox.conf`.
+> file at `${XDG_CONFIG_HOME:-~/.config}/glaipnir/glaipnir.conf`.
+
+> /!\ If you installed a pre-rename version, remove it first, `make uninstall`
+> will not: `sudo rm -f /usr/local/bin/ai-agents-sandbox` and
+> `sudo rm -rf /usr/local/share/ai-agents-sandbox`
+> Same about the configuration file, you may want to mode:
+> `~/.config/ai-agents-sandbox/ai-agents-sandbox.conf` to
+> `~/.config/glaipnir/glaipnir.conf`
 
 ---
 
@@ -135,9 +142,9 @@ sudo make uninstall
 > need to customise the image — extra packages, build hooks — or work offline.
 
 ```bash
-sh ai-agents-sandbox.sh build           # Build the all-in-one image  (ai-agents-sandbox:latest)
-sh ai-agents-sandbox.sh build <agent>   # Build an agent image        (ai-agents-sandbox-<agent>:latest)
-sh ai-agents-sandbox.sh build <agent> --full  # Build fully from source, not from the registry base
+sh glaipnir.sh build           # Build the all-in-one image  (ai-agents-sandbox:latest)
+sh glaipnir.sh build <agent>   # Build an agent image        (ai-agents-sandbox-<agent>:latest)
+sh glaipnir.sh build <agent> --full  # Build fully from source, not from the registry base
 ```
 
 By default `build` layers your customisations on top of the prebuilt image
@@ -163,11 +170,11 @@ podman image inspect ai-agents-sandbox:latest | grep -E "User|Size"
 
 ```bash
 # Start (or resume) the container (microVM if available)
-sh ai-agents-sandbox.sh run <?agent>
+sh glaipnir.sh run <?agent>
 # Start without microVM isolation
-sh ai-agents-sandbox.sh run <?agent> no-microvm
+sh glaipnir.sh run <?agent> no-microvm
 # Define a custom workdir to mount as /home/aiuser/workspace.
-sh ai-agents-sandbox.sh run <?agent> -w <dir_path>
+sh glaipnir.sh run <?agent> -w <dir_path>
 ```
 
 > `<?agent>` can be empty to use the all-in-one image.
@@ -175,13 +182,13 @@ sh ai-agents-sandbox.sh run <?agent> -w <dir_path>
 ### Clean the environment
 
 ```bash
-sh ai-agents-sandbox.sh clean     # Remove the container (auth and workspace preserved)
-sh ai-agents-sandbox.sh clean all # Remove a specific agent container + its auth tokens
+sh glaipnir.sh clean     # Remove the container (auth and workspace preserved)
+sh glaipnir.sh clean all # Remove a specific agent container + its auth tokens
 ```
 
 ### Use a config file to customized your image
 
-The project will look at ${ROOT_D}/ai-agents-sandbox.conf for a config file.
+The project will look at ${ROOT_D}/glaipnir.conf for a config file.
 You can use it to customize the image build, for example to add extra
 packages or change the base image.
 
@@ -206,7 +213,7 @@ and use Copilot on the code.
 ### Step 1 - Build the image
 
 ```bash
-sh ai-agents-sandbox.sh build copilot
+sh glaipnir.sh build copilot
 [INFO] Building container image ai-agents-sandbox:0.9.0 ...
 ...
 Successfully tagged localhost/ai-agents-sandbox:latest
@@ -219,7 +226,7 @@ ed31835286b3b911ad1bd8ccd6f0f104aee6044e7e5d283111344fee27ac2812
 ### Step 2 — Start the container
 
 ```bash
-sh ai-agents-sandbox.sh run -w ~/workspace/
+sh glaipnir.sh run -w ~/workspace/
 
 [INFO] Running sandbox with microVM isolation for agent 'copilot claude gemini opencode'...
 [INFO] Binding outbound network to interface: wlan0
@@ -288,7 +295,7 @@ ls workspace/.config/gh/
 # → hosts.yml  ← your token, stored on YOUR host filesystem
 
 # Restart — authentication is immediately restored
-sh ai-agents-sandbox.sh run copilot
+sh glaipnir.sh run copilot
 # → ✅ GitHub (gh) : authenticated
 ```
 
@@ -313,7 +320,7 @@ PACKAGES=(
 DNS=x.x.x.x
 ```
 
-The project is looking for the config file in `${ROOT_D}/ai-agents-sandbox.conf`
+The project is looking for the config file in `${ROOT_D}/glaipnir.conf`
 or the patch specified with `--conf` argument.
 
 ### hooks

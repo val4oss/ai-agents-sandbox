@@ -1,6 +1,6 @@
 # TODO list
 
-List of todo task for the `ai-agents-sandbox` project.
+List of todo task for the `glaipnir` project.
 
 - [ ] Add tokens usage info ()
   * [claude status](https://code.claude.com/docs/en/statusline)

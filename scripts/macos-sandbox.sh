@@ -1,6 +1,6 @@
 #!/bin/sh
 # macos-sandbox.sh - macOS-specific VPN enforcement helpers.
-# Sourced by ai-agents-sandbox.sh on Darwin only.
+# Sourced by glaipnir.sh on Darwin only.
 # Copyright (C) 2026  git-ival <iramis.valentin@suse.com>
 #
 # This program is free software: you can redistribute it and/or modify
