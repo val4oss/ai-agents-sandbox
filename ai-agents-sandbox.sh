@@ -57,6 +57,7 @@ ACTION=""
 BUILD_FULL=0
 ALL=0
 CLEAN_IMG=0
+DNS_LIST=""
 TOOLS_NEEDED="podman sed grep"
 
 # useful vars
@@ -133,11 +134,12 @@ _parse_conf() {
                     *)
                         # Assigning to keys
                         case "$_key" in
-                            AGENT) AGENT="$_value" ;;
+                            AGENT)       AGENT="$_value" ;;
                             USE_MICROVM) USE_MICROVM="$_value" ;;
-                            WORKSPACE) SANDBOX_D="$_value" ;;
-                            CACHE) CACHE_D="$_value" ;;
-                            IMG_TAG) IMG_TAG="$_value" ;;
+                            WORKSPACE)   SANDBOX_D="$_value" ;;
+                            CACHE)       CACHE_D="$_value" ;;
+                            IMG_TAG)     IMG_TAG="$_value" ;;
+                            DNS)         DNS_LIST="$_value $DNS_LIST" ;;
                         esac
                 esac
             fi
@@ -500,6 +502,8 @@ Options:
   --conf       Defined conf file path for building the image. See Notes.
   --build-hook Defined hook(s) path for building the image. See Notes.
   --run-hook   Defined hook(s) path for running the image. See Notes.
+  --dns        Defined DNS to use when using microvm. Can be set multiple times,
+               default are 1.1.1.1 and 8.8.8.8
   --workspace, -w <dir>
                For 'run' action, Specify a custom workspace directory
                (default: ${SANDBOX_D_DEFAULT}) to mount in the sandbox at
@@ -770,21 +774,16 @@ run() {
     # VM) and all traffic is proxied through gvproxy on the macOS
     # host. VM-layer nftables enforcement is handled by
     # macos-vpn-enforcer.sh (started above via launchctl).
-    # On Linux, outbound_addr pins egress to the detected
-    # non-VPN interface at the kernel level.
     if [ "$(uname -s)" = "Darwin" ]; then
-        # On macOS, containers run inside the Podman Machine VM.
-        # gvproxy provides DNS via its internal resolver (VM gateway),
-        # which forwards to mDNSResponder — VPN-aware and not subject
-        # to the nftables oif rules. Overriding with 1.1.1.1/8.8.8.8
-        # breaks sites like googleapis.com when the corporate VPN
-        # intercepts or blocks direct UDP/53 to external resolvers.
         print_info "VM-layer nftables enforcement active."
         set -- "$@" --network pasta
     else
         print_info "Binding outbound to interface: $_iface"
-        set -- "$@" --network "pasta:--outbound-if4,${_iface}" \
-            --dns 1.1.1.1 --dns 8.8.8.8
+        set -- "$@" --network "pasta:--outbound-if4,${_iface}"
+        [ "$DNS_LIST" = "" ] && DNS_LIST="1.1.1.1 8.8.8.8"
+        for _dns in $DNS_LIST; do
+            set -- "$@" --dns "$_dns"
+        done
     fi
 
     if [ "$USE_MICROVM" = "1" ]; then
@@ -944,18 +943,19 @@ if [ $# -lt 1 ]; then
 fi
 while [ $# -gt 0 ]; do
     case "$1" in
-        help|--help|-h)          usage;               exit 0  ;;
-        verbose|--verbose|-v)    VERBOSE=1;           shift 1 ;;
-        quiet|--quiet|-q)        QUIET=1;             shift 1 ;;
-        version|--version)       print_version;       exit 0  ;;
-        run|build|clean|status)  ACTION="$1";         shift 1 ;;
-        --no-microvm|no-microvm) USE_MICROVM=0;       shift 1 ;;
-        --conf)                  CONF_P="$2";         shift 2 ;;
-        --cache)                 CACHE_D="$2";        shift 2 ;;
-        --build-hook)            BUILD_HOOK_ARG="$2"; shift 2 ;;
-        --run-hook)              RUN_HOOK_ARG="$2";   shift 2 ;;
-        full|--full)             BUILD_FULL=1;        shift 1 ;;
-        all|--all|-a)            ALL=1;               shift 1 ;;
+        help|--help|-h)          usage;                     exit 0  ;;
+        verbose|--verbose|-v)    VERBOSE=1;                 shift 1 ;;
+        quiet|--quiet|-q)        QUIET=1;                   shift 1 ;;
+        version|--version)       print_version;             exit 0  ;;
+        run|build|clean|status)  ACTION="$1";               shift 1 ;;
+        --no-microvm|no-microvm) USE_MICROVM=0;             shift 1 ;;
+        --conf)                  CONF_P="$2";               shift 2 ;;
+        --cache)                 CACHE_D="$2";              shift 2 ;;
+        --build-hook)            BUILD_HOOK_ARG="$2";       shift 2 ;;
+        --run-hook)              RUN_HOOK_ARG="$2";         shift 2 ;;
+        --dns)                   DNS_LIST="$2 $DNS_LIST";   shift 2 ;;
+        full|--full)             BUILD_FULL=1;              shift 1 ;;
+        all|--all|-a)            ALL=1;                     shift 1 ;;
         --image)
             if [ "$ACTION" =  "clean" ]; then
                 CLEAN_IMG=1;

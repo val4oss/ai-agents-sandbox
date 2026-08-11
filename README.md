@@ -310,6 +310,7 @@ WORKSPACE=/home/user/workspace
 PACKAGES=(
     patterns-devel-C-C++-devel_C_C++
 )
+DNS=x.x.x.x
 ```
 
 The project is looking for the config file in `${ROOT_D}/ai-agents-sandbox.conf`
