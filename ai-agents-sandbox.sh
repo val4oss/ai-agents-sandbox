@@ -54,7 +54,9 @@ PKGS=""
 AGENT=""
 USE_MICROVM=1
 ACTION=""
-ALL=false
+BUILD_FULL=0
+ALL=0
+CLEAN_IMG=0
 TOOLS_NEEDED="podman sed grep"
 
 # useful vars
@@ -318,6 +320,36 @@ _podman_img_repo() {
     podman images "${IMG_NAME}" --format '{{.Repository}}'
 }
 
+# Get the list of available images for the project
+_podman_list_img() {
+    _list=""
+    _list=$(
+        podman images \
+            --sort created \
+            --format "{{.Repository}}:{{.Tag}}" \
+            --filter "reference=${PRJ_ID}*"\
+            --filter "dangling=false" |\
+        while IFS= read -r line; do
+            printf "%s" "$line "
+        done
+    )
+    printf "%s" "$_list"
+}
+
+# Get the list of available containers
+_podman_list_ctn() {
+    _list=""
+    _list=$(
+        podman ps -a \
+            --format "{{.Names}}" \
+            --filter "name=${PRJ_ID}*" |\
+        while IFS= read -r line; do
+            printf "%s" "$line "
+        done
+    )
+    printf "%s" "$_list"
+}
+
 # Verify that the directory exists and is a directorynot set to HOME
 _verify_mount_point() {
     _ret="$FAILURE"
@@ -453,7 +485,7 @@ Actions:
   run           Run the sandbox with the specified agent
   build         Build the container image for the specified agent
                 By default it bases from the registry: ${DEFAULT_IMG_REPO}
-  clean         Remove built images and containers for the specified agent
+  clean         Remove generated container for the specified agent
   status        Show the current status, built images, running containers...
 
 Agents:
@@ -475,6 +507,7 @@ Options:
   --full       Build fully the container image instead of refering to the one
                from registry ${DEFAULT_IMG_REPO}
   --all, -a    For 'clean' action, also remove home volume and auth tokens
+  --image      For 'clean' action, Remove built images of an agent
 
 Notes:
   - The sandbox is designed to run in a secure, isolated environment.
@@ -779,33 +812,44 @@ clean() {
         CTN_NAME="${CTN_NAME}-microvm"
     fi
 
-    print_info "Cleaning containers for agent '${AGENT}'..."
-    if podman container exists "$CTN_NAME"; then
-        _ctns="$(podman ps -a --format '{{.Names}}' |\
-            grep -E "$CTN_NAME-[0-9]+")"
-        if [ -n "$_ctns" ]; then
-            for _ctn in $_ctns; do
-                print_info "Stopping and removing container '$_ctn'..."
-                if podman rm -f "$_ctn"; then
-                    print_info "Container removed."
-                else
-                    print_error "Failed to remove container '$_ctn'."
-                    _ret="$FAILURE"
-                fi
-            done
-        fi
-        print_info "Stopping and removing container '$CTN_NAME'..."
-        if podman rm -f "$CTN_NAME"; then
-            print_info "Container removed."
-        else
-            print_error "Failed to remove container '$CTN_NAME'."
-            _ret="$FAILURE"
-        fi
+    # Clean container(s)
+    if [ $ALL -eq 1 ]; then
+        _containers=$(_podman_list_ctn)
+        for _ctn in ${_containers}; do
+            if podman rm -f "$_ctn"; then
+                print_info "Container ${_ctn} removed."
+            else
+                print_error "Failed to remove container '$_ctn'."
+                _ret="$FAILURE"
+            fi
+        done
     else
-        print_info "No container '$CTN_NAME' found."
+        if podman container exists "$CTN_NAME"; then
+            _ctns="$(podman ps -a --format '{{.Names}}' |\
+                grep -E "$CTN_NAME-[0-9]+")"
+            if [ -n "$_ctns" ]; then
+                for _ctn in $_ctns; do
+                    print_info "Stopping and removing container '$_ctn'..."
+                    if podman rm -f "$_ctn"; then
+                        print_info "Container removed."
+                    else
+                        print_error "Failed to remove container '$_ctn'."
+                        _ret="$FAILURE"
+                    fi
+                done
+            fi
+            print_info "Stopping and removing container '$CTN_NAME'..."
+            if podman rm -f "$CTN_NAME"; then
+                print_info "Container removed."
+            else
+                print_error "Failed to remove container '$CTN_NAME'."
+                _ret="$FAILURE"
+            fi
+        fi
     fi
 
-    if [ "$ALL" = true ]; then
+    # Clean Cache
+    if [ $ALL -eq 1 ]; then
         # Keep care of old volumes
         # ---
         _home_volume="$CTN_NAME-home"
@@ -839,26 +883,49 @@ clean() {
 
         print_info "Auth tokens and workspace cleaned."
     fi
-    return "$_ret"
+
+    # Clean images, if all has been given all images will be removed. If an
+    # agent has been specified, the listing will show only related agent image.
+    if [ ${CLEAN_IMG} -eq 1 ] || [ ${ALL} -eq 1 ]; then
+        _images=$(_podman_list_img)
+        echo "images=${_images}"
+        # Protect from "all" not given, IMG_NAME whould list all.
+        if [ ${ALL} -eq 0 ]; then
+            _images=$(echo "${_images}" | tr ' ' '\n' | grep "${IMG_NAME}")
+        fi
+        echo "parsed images=${_images}"
+        for _img in ${_images}; do
+            podman image rm "${_img}"
+        done
+        print_info "All images related to ${IMG_NAME} has been removed."
+    fi
+    return "${_ret}"
 }
 
 # callback for status action
 status() {
     printf "Images :\n"
-    podman images \
-        --sort created \
-        --format "{{.Repository}}:{{.Tag}}" \
-        --filter "reference=${IMG_NAME}*"\
-        --filter "dangling=false" | while IFS= read -r line; do
-        printf "  - %s\n" "$line"
-    done
+    _images=$(_podman_list_img)
+    if [ "${_images}" = "" ]; then
+        printf "  None\n"
+    else
+        for _img in ${_images}; do
+            printf "  - %s\n" "${_img}"
+        done
+    fi
     printf "Containers :\n"
-    podman ps -a \
-        --format "{{.Names}} ({{.Image}}) [{{.Status}}]" \
-        --filter "name=${CTN_NAME}*" | while IFS= read -r line; do
-        printf "  - %s\n" "$line"
-    done
-    exit 0
+    _containers=$(_podman_list_ctn)
+    if [ "${_containers}" = "" ]; then
+        printf "  None\n"
+    else
+        for _ctn in ${_containers}; do
+            _status="$(podman inspect "${_ctn}" --format "{{.State.Status}}")"
+            _ctn_img="$(podman inspect "${_ctn}" --format "{{.ImageName}}")"
+            printf "  - %s [%s]\n" "${_ctn}" "${_status}"
+            printf "      with %s\n" "${_ctn_img}"
+        done
+    fi
+    exit ${SUCCESS}
 }
 
 # ===========
@@ -888,7 +955,13 @@ while [ $# -gt 0 ]; do
         --build-hook)            BUILD_HOOK_ARG="$2"; shift 2 ;;
         --run-hook)              RUN_HOOK_ARG="$2";   shift 2 ;;
         full|--full)             BUILD_FULL=1;        shift 1 ;;
-        all|--all|-a)            ALL=true;            shift 1 ;;
+        all|--all|-a)            ALL=1;               shift 1 ;;
+        --image)
+            if [ "$ACTION" =  "clean" ]; then
+                CLEAN_IMG=1;
+            fi
+            shift 1
+            ;;
         --workspace|-w)
             if [ -z "$2" ]; then
                 print_error "Error: $1 requires an argument."
