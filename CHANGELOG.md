@@ -2,6 +2,45 @@
 
 > All notable changes to this project will be documented in this file.
 
+## [1.0.0-rc2] - 2026-08-14
+
+* Added
+  * Prebuilt images: `run` pulls the registry image when no local one exists
+  * `build --full` to build entirely from source instead of the registry base
+  * `Containerfile.agent` to produce slim per-agent images
+  * `clean --image` to remove the generated images
+  * Configurable microVM DNS servers (argument or config file)
+  * `-vv` to enable podman debug output; build output hidden when quiet
+  * `Makefile` (`build`, `install`, `uninstall`, `clean`, `check`) for a
+    system-wide install; the installed binary defaults the workspace to `PWD`
+  * `claude`: `go-cve-investigator` sub-agent
+  * `claude`: `golang-modules` and `shell-scripting` skills
+* Changed
+  * Renamed the tool to `glaipnir` (`ai-agents-sandbox.sh` → `glaipnir.sh`,
+    config in `${XDG_CONFIG_HOME}/glaipnir/glaipnir.conf`); images and
+    containers keep the `ai-agents-sandbox` name
+  * Run hooks are mounted at run time instead of being baked into the image;
+    dropped `image/hooks/run/` and the related build args
+  * Agent files (auth, config, skills) are seeded from `image/agents/<agent>`
+    into the `agents-mount` cache with `cp -n`, preserving user edits;
+    the entrypoint no longer provisions them
+  * Network backend switched from `slirp4netns` to `pasta` (`passt`)
+  * `clean` and `status` reworked around `_podman_list_img()` /
+    `_podman_list_ctn()`
+  * Argument and file checks moved into their own action functions
+  * `claude` skills no longer pin a model
+  * Improved the `backport-patch-packager` agent and skill descriptions
+* Fixed
+  * `entrypoint`: capabilities leak through `setpriv`
+  * `entrypoint`: `setpriv` no longer clears supplementary groups with init
+  * `run`: missing `noexec` on tmpfs mounts
+  * `run`: user namespace mapping uses `keep-id` only
+  * VPN enforcer now covers all common interfaces
+  * Updated the Google CLI GPG key in the `Containerfile`
+  * `build`: quoting for multiple agents, misplaced braces in the build dir,
+    and full build for all agents
+  * `backport-patch-packager`: duplicated `cd` during the process
+
 ## [1.0.0-rc1] - 2026-07-06
 
 * Added
