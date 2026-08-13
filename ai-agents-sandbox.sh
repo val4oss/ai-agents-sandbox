@@ -586,7 +586,7 @@ build() {
     set --
     [ ${DEBUG} -eq 1 ] && set -- --log-level=debug
     set -- "$@" build --no-cache --rm \
-        --build-arg "AGENT=${AGENT}" \
+        --build-arg "AGENT=\"${AGENT}\"" \
         --build-arg "IMG_TAG=${IMG_TAG}" \
         --build-arg "PKGS=\"${PKGS}\"" \
         --tag "${IMG_NAME}:${IMG_TAG}" \
@@ -597,6 +597,7 @@ build() {
     _cmd="podman ${_args}"
     [ ${VERBOSE} -eq 0 ] && _cmd="${_cmd} > /dev/null 2>&1"
 
+    print_debug "$_cmd"
     if ! eval "$_cmd"; then
         print_error "Image build failed."
         _ret="$FAILURE"
