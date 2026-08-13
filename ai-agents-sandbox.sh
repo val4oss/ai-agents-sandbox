@@ -565,7 +565,7 @@ build() {
 
     # Populate the build dir
     _build_d="${CACHE_D}/build"
-    [ -d "${_build_d}" ] || mkdir -p "{$_build_d}"
+    [ -d "${_build_d}" ] || mkdir -p "${_build_d}"
     cp -r "${IMG_D}/." "${_build_d}/"
 
     # Copy user hooks into the build context
