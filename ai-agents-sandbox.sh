@@ -1011,6 +1011,9 @@ Valid agents: $TRUSTED_AGENTS (trusted) or $UNTRUSTED_AGENTS (untrusted)"
         CTN_NAME="${CTN_NAME}-${AGENT}"
     fi
 else
+    # IF build is invoked, it should act like full argument.
+    # Todo: Create the all image to export the full build for all agents
+    BUILD_FULL=1
     AGENT="$TRUSTED_AGENTS"
 fi
 
