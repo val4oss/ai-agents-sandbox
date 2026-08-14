@@ -22,6 +22,66 @@
 QUIET=0
 VERBOSE=0
 
+# Colours are mid-tone on purpose: they keep a contrast ratio above 3.5:1
+# on a white *and* on a black background, so the output stays readable in
+# light and dark terminal themes. Bright/bold variants are avoided, they
+# wash out on light themes (yellow being the worst offender). Only the tag
+# is coloured, the message keeps the terminal default foreground colour.
+_C_WARN=""
+_C_ERR=""
+_C_INFO=""
+_C_DEBG=""
+_C_OFF=""
+
+# =================
+# Private functions
+# -----------------
+
+###
+# Set the colour palette according to the terminal capabilities.
+# Honours NO_COLOR (https://no-color.org) and disables colours when the
+# output is not a terminal.
+# OUTPUTS:
+#   sets the _C_* global variables
+###
+_init_colors() {
+    _ncolors=0
+    if [ -z "${NO_COLOR}" ] && [ -t 1 ]; then
+        _ncolors=$(tput colors 2>/dev/null) || _ncolors=0
+    fi
+    case "${_ncolors}" in
+        *[!0-9]*|"") _ncolors=0 ;;
+    esac
+
+    if [ "${_ncolors}" -ge 256 ]; then
+        _C_WARN="\033[38;5;166m"    # amber
+        _C_ERR="\033[38;5;160m"     # red
+        _C_INFO="\033[38;5;29m"     # green
+        _C_DEBG="\033[38;5;32m"     # blue
+        _C_OFF="\033[0m"
+    elif [ "${_ncolors}" -ge 8 ]; then
+        _C_WARN="\033[0;33m"
+        _C_ERR="\033[0;31m"
+        _C_INFO="\033[0;32m"
+        _C_DEBG="\033[0;34m"
+        _C_OFF="\033[0m"
+    fi
+    unset _ncolors
+}
+
+###
+# Print a tagged message.
+# ARGUMENTS:
+#   1 - colour escape sequence of the tag
+#   2 - tag
+#   3 - message to print
+# OUTPUTS:
+#   tagged message on stdout
+###
+_print() {
+    printf "%b%s%b %s\n" "$1" "$2" "${_C_OFF}" "$3"
+}
+
 # ================
 # Public functions
 # ----------------
@@ -35,11 +95,7 @@ VERBOSE=0
 ###
 print_warning() {
     [ "$QUIET" -eq 1 ] && return
-    color="\033[0;33m"
-    color_light="\033[1;33m"
-    color_none="\033[0m"
-    printf "%b[WARN]%b %s%b\n" "${color}" "${color_light}" "$1" \
-        "${color_none}"
+    _print "${_C_WARN}" "[WARN]" "$1"
 }
 
 ###
@@ -50,11 +106,7 @@ print_warning() {
 #   error message
 ###
 print_error() {
-    color="\033[0;31m"
-    color_light="\033[1;31m"
-    color_none="\033[0m"
-    printf "%b [ERR]%b %s%b\n" "${color}" "${color_light}" "$1" \
-        "${color_none}" >&2
+    _print "${_C_ERR}" " [ERR]" "$1" >&2
 }
 
 ###
@@ -66,10 +118,7 @@ print_error() {
 ###
 print_info() {
     [ "$QUIET" -eq 1 ] && return
-    color="\033[0;32m"
-    color_light="\033[1;32m"
-    color_none="\033[0m"
-    printf "%b[INFO]%b %s%b\n" "${color}" "${color_light}" "$1" "${color_none}"
+    _print "${_C_INFO}" "[INFO]" "$1"
 }
 
 ###
@@ -81,8 +130,7 @@ print_info() {
 ###
 print_debug() {
     [ "$VERBOSE" -eq 0 ] && return
-    color="\033[0;34m"
-    color_light="\033[1;34m"
-    color_none="\033[0m"
-    printf "%b[DEBG]%b %s%b\n" "${color}" "${color_light}" "$1" "${color_none}"
+    _print "${_C_DEBG}" "[DEBG]" "$1"
 }
+
+_init_colors

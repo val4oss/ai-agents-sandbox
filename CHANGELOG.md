@@ -13,6 +13,10 @@
   * `-vv` to enable podman debug output; build output hidden when quiet
   * `Makefile` (`build`, `install`, `uninstall`, `clean`, `check`) for a
     system-wide install; the installed binary defaults the workspace to `PWD`
+  * `run`: offers to add the user to the `kvm` group when it is missing, and
+    applies it to the running session without a re-login
+  * Troubleshooting note about the user namespace mapping and the traversal
+    of the container storage path
   * `claude`: `go-cve-investigator` sub-agent
   * `claude`: `golang-modules` and `shell-scripting` skills
 * Changed
@@ -40,6 +44,7 @@
   * `build`: quoting for multiple agents, misplaced braces in the build dir,
     and full build for all agents
   * `backport-patch-packager`: duplicated `cd` during the process
+  * Nicer log colors management 
 
 ## [1.0.0-rc1] - 2026-07-06
 
