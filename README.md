@@ -344,6 +344,99 @@ runtime. There are twho types of hooks: **build hooks** and **run hooks**.
 
 ---
 
+## Troubleshooting
+
+### OCI permissions denied
+
+```bash
+[INFO] Starting isolated container...
+Error: krun: open `/home/user/.local/share/containers/storage/overlay/0e8145fb1488986827f9e57dda305062fe06f2b1c8f25d441c0b0a5a693ba1be/merged`: Permission denied: OCI permission denied
+```
+
+OR
+
+```bash
+DEBU[0000] Unmounted container "c83638e08d75442a5c383ed3790d0fed6c0778c7faaf953e5560ab570f3983b3"
+DEBU[0000] ExitCode msg: "container create failed (no logs from conmon): conmon bytes \"\": readobjectstart: expect { or n, but found \x00, error found in #0 byte of ...||..., bigger context ...||..."
+Error: container create failed (no logs from conmon): conmon bytes "": readObjectStart: expect { or n, but found , error found in #0 byte of ...||..., bigger context ...||...
+```
+
+#### Why ?
+
+The sandbox runs with `--userns keep-id`, so that the files you create in the
+workspace still belong to you on the host. The counterpart is that **container
+root is mapped to one of your subordinate IDs** (`/etc/subuid`, usually
+`100000`), and this is the ID opening the container storage.
+
+It has to cross every directory from `/` down to
+`~/.local/share/containers/storage`, and down to the mounted volumes. A
+directory blocks it as soon as **both** conditions are met:
+
+1. it is not traversable by "other" (no `o+x`, so `0700` but not `0755`),
+   **and**
+2. its group is **not your primary group**.
+
+Either condition alone is harmless, which is what makes it look random:
+`/home` in `0555` is crossed thanks to its `o+x` bit whatever its group, and
+a `0700` home is crossed as long as its group is your own. The kernel only
+lets a subordinate ID cross a directory it has no right on when the owner and
+the group of that directory are mapped in the user namespace, and only your
+own UID/GID are mapped — a supplementary group never is, even after a
+`usermod -aG`.
+
+Typical case: `${HOME}` in `0700` group-owned by `users`, on accounts
+inherited from the legacy openSUSE/SLE scheme where homes belong to
+`<user>:users` while the account primary group is its own private group.
+
+#### Diagnose
+
+```bash
+id
+stat -c '%n %U:%G %a' / /home "$HOME" "$HOME/.local" "$HOME/.local/share" \
+    "$HOME/.local/share/containers"
+```
+
+The culprit is any line whose mode does not end with an odd digit (no `x` for
+"other") **and** whose group differs from the primary group reported by `id`.
+A broken home of the user `devel`, whose primary group is `devel`:
+
+```bash
+/home/devel devel:users 700
+```
+
+#### Solution
+
+Give the directory back to your primary group. You own it, so no privilege is
+required, and the mode stays `0700`:
+
+```bash
+chgrp "$(id -gn)" ~
+```
+
+If that group ownership is required (shared home directory, corporate
+policy...), grant the traversal instead. `0711` lets any local user cross the
+directory — without listing it — to reach the paths they already know:
+
+```bash
+chmod o+x ~
+```
+
+The same applies to the workspace given with `-w` and to the cache directory
+when they live outside of `${HOME}`. As a last resort, the container storage
+can be moved out of `${HOME}` with `rootless_storage_path` in
+`~/.config/containers/storage.conf`, to a path whose parents are traversable.
+
+> Being a member of the `users` group is **not** a fix, only your *primary*
+> group counts. Adding it only ever helped as a side effect of the re-login it
+> requires, or of a YaST user edit resetting the home directory ownership.
+
+If the problem persists, or on the second error above, the culprit is a stale
+podman state — a leftover pause process still holding an old ID mapping. Be
+sure to remove all artefacts previously created by podman, `podman system
+prune` may help, then log out and log back in.
+
+---
+
 ## Additional docs
 
 * [Overview](docs/overview.md) — architecture, volumes, image sizes, security measures
