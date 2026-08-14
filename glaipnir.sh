@@ -30,6 +30,7 @@ SANDBOX_ID="ai-agents-sandbox"
 
 # Path variables
 ROOT_D="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_P="${ROOT_D}/$(basename "$0")"
 IMG_D="${ROOT_D}/image"
 SANDBOX_D_DEFAULT="$ROOT_D/workspace"
 SANDBOX_D="${SANDBOX_D_DEFAULT}"
@@ -65,6 +66,10 @@ TOOLS_NEEDED="podman sed grep"
 
 # useful vars
 MIN_LIBKRUN_VER="1.18.0"
+# Set once the script restarted itself through 'sg', prevents a restart loop.
+GLAIPNIR_SG="${GLAIPNIR_SG:-}"
+# Arguments of the current run, used to restart after a group change.
+CMD_LINE=""
 
 # ========
 # Includes
@@ -237,6 +242,30 @@ _valid_agent() {
     return "$_ret"
 }
 
+# Add the current user in the group given in argument, after confirmation.
+# On success the script restarts itself through 'sg' to apply the group
+# without a re-login, so it only returns on failure or refusal.
+_add_user_in_group() {
+    _grp="$1"
+    _usr="$(id -un)"
+    printf "Add user '%s' in the '%s' group? [Y/n]: " "${_usr}" "${_grp}"
+    read -r _ans || _ans="n"
+    case "${_ans}" in
+        [Nn]*) return "$FAILURE" ;;
+    esac
+    if ! sudo usermod -aG "${_grp}" "${_usr}"; then
+        print_error "Failed to add '${_usr}' in the '${_grp}' group."
+        return "$FAILURE"
+    fi
+    # Restart only once, 'sg' would loop if it does not apply the group.
+    if [ -z "${GLAIPNIR_SG}" ] && command -v sg > /dev/null 2>&1; then
+        print_info "Restarting with the '${_grp}' group applied..."
+        exec sg "${_grp}" -c "GLAIPNIR_SG=1 sh ${SCRIPT_P} ${CMD_LINE}"
+    fi
+    print_warning "Log out and log back in to apply the '${_grp}' group."
+    return "$FAILURE"
+}
+
 _check_microvm() {
     _ret="$SUCCESS"
     if [ ! -x "/usr/bin/krun" ]; then
@@ -270,13 +299,14 @@ _check_microvm() {
         print_warning "     -> Enable it by loading the kvm_amd or kvm_intel"
         print_warning "        kernel module."
         _ret="$FAILURE"
-    fi
-
-    if ! id -Gn | tr ' ' '\n' | grep -qx kvm; then
+    elif ! id -Gn | tr ' ' '\n' | grep -qx kvm; then
+        # Refusing to be added just falls back to the container mode.
         print_warning "User \"$(id -un)\" is not in the kvm group."
-        print_warning "     -> Run 'sudo usermod -aG kvm $(id -un)'"
-        print_warning "        (then relogin)."
-        _ret="$FAILURE"
+        if ! _add_user_in_group "kvm"; then
+            print_warning "     -> Run 'sudo usermod -aG kvm $(id -un)'"
+            print_warning "        (then relogin)."
+            _ret="$FAILURE"
+        fi
     fi
 
     # Nested-virtualisation check — warn only, does not abort
@@ -953,6 +983,9 @@ status() {
 # ===========
 # Entry point
 # -----------
+
+# Keep the arguments to be able to restart after a group change.
+CMD_LINE="$*"
 
 _check_tools_needed || {
     print_error "Please install the missing tools and try again. Aborting."

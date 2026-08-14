@@ -83,7 +83,12 @@ sudo zypper install podman passt crun libkrun1 libkrunfw5
 sudo usermod -aG kvm $USER
 ```
 
-> After running the above command, log out and log back in to apply the group
+> `run` checks the group and offers to add you (`[Y/n]`) when it is missing,
+> then restarts itself with the group applied, so no re-login is needed.
+> Declining falls back to the standard container mode.
+
+> If the group cannot be applied to the running session, log out and log back
+> in to apply it.
 
 ---
 
