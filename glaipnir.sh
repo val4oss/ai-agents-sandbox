@@ -413,14 +413,27 @@ _verify_workspace_d() {
     _ret="$SUCCESS"
     SANDBOX_D="$(echo "${SANDBOX_D}" | sed "s|~|${HOME}|g")"
     _verify_mount_point "$SANDBOX_D" || {
+        _ret="$SUCCESS"
         # Default could be overriding.
         if [ "$SANDBOX_D_DEFAULT" = "$HOME" ]; then
-            print_error "Default sandbox workspace points to HOME. Consider the"
-            print_error "use of '--workspace' to choose the workspace volume to"
-            print_error "mount."
-            _ret="$FAILURE"
+            print_warning "Default sandbox workspace points to HOME. Consider"
+            print_warning "the use of '--workspace' to choose the workspace"
+            print_warning "volume to mount."
+            _cache_workspace="${CACHE_D}/workspace"
+            if  [ ! -d "${_cache_workspace}" ]; then
+                if ! mkdir -p "${_cache_workspace}"; then
+                    print_error "Failed to create cached workspace. Aborting"
+                    _ret="${FAILED}"
+                fi
+            fi
+            if [ "${_ret}" = "${SUCCESS}" ]; then
+                print_warning \
+                    "Falling back to cache workspace: '${_cache_workspace}'"
+                SANDBOX_D="${_cache_workspace}"
+            fi
         else
-            print_warning "Falling back to default workspace: '$SANDBOX_D_DEFAULT'."
+            print_warning \
+                    "Falling back to default workspace: '$SANDBOX_D_DEFAULT'."
             SANDBOX_D="$SANDBOX_D_DEFAULT"
         fi
     }
