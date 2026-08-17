@@ -86,7 +86,7 @@ opencode_auth_check() {
 # Print the banner header
 banner_header() {
     _mode="$(get_mode)"
-    toilet -t -f pagga  -F metal:border "$BANNER_HEADLINE"
+    toilet -t -f pagga  -F border "$BANNER_HEADLINE"
     toilet -t -f smbraille "$_mode"
 }
 
@@ -128,7 +128,7 @@ if [ "$(id -u)" = "0" ] && id aiuser >/dev/null 2>&1; then
     export HOME="$_home"
     export USER="aiuser"
     export LOGNAME="aiuser"
-    export TERM="xterm-256color"
+    export TERM="${TERM:-xterm-256color}"
     cd "$HOME" 2>/dev/null || true
     exec setpriv --reuid="$_uid" --regid="$_guid" --init-groups \
         --inh-caps=-all "$0" "$@"
