@@ -51,6 +51,7 @@ UNTRUSTED_AGENTS_SENSITIVE_ACTIONS="build run"
 AI_USER_NAME="aiuser"
 AI_USER_UID=1000
 AI_USER_GID=1000
+AI_USER_WORKSPACE="/home/${AI_USER_NAME}/workspace"
 PKGS=""
 
 # argument variables
@@ -809,13 +810,24 @@ run() {
         done
     }
 
+    # Determine the destination workspace path in sandbox
+    _ai_workspace_d="$(realpath "${SANDBOX_D}")"
+    if echo "${_ai_workspace_d}" | grep -q "${HOME}"; then
+        _ai_workspace_d="$(
+            echo "${_ai_workspace_d}" | sed "s|^${HOME}/||;s|^${HOME}$||"
+        )"
+        if [ -n "${_ai_workspace_d}" ]; then
+            AI_USER_WORKSPACE="/home/${AI_USER_NAME}/${_ai_workspace_d}"
+        fi
+    fi
+
     set --
     [ "$USE_MICROVM" = "1" ] && set -- --runtime krun
     set -- "$@" \
         --name "$CTN_NAME" \
         "${_agent_mounts}" \
         --volume "${_hooks_mount_d}:/usr/local/bin/${SANDBOX_ID}-run-hooks/:z" \
-        --volume "$SANDBOX_D:/home/aiuser/workspace:z" \
+        --volume "${SANDBOX_D}:${AI_USER_WORKSPACE}:z" \
         --tmpfs "/tmp:rw,nosuid,noexec,size=1g" \
         --cap-drop ALL \
         --security-opt no-new-privileges \
@@ -825,6 +837,7 @@ run() {
         --env "AI_USER=${AI_USER_NAME}" \
         --env "AI_UID=${AI_USER_UID}" \
         --env "AI_GID=${AI_USER_GID}" \
+        --env "AI_WORKSPACE=${AI_USER_WORKSPACE}" \
         --env "AI_SANDBOX_VERSION=${IMG_TAG}"
 
     # Forward terminal color capabilities

@@ -21,6 +21,8 @@
 PRJ_ID="ai-agents-sandbox"
 
 SHARE_SKEL_D="/usr/share/$PRJ_ID/skel"
+WORKSPACE_D="${AI_WORKSPACE:-$HOME/workspace}"
+
 # Default agent list (contains both trusted and untrusted agents)
 # filtering happens in glaipnir.sh script
 AGENT="${AGENT:-claude copilot gemini opencode antigravity hermes-agent}"
@@ -135,8 +137,7 @@ if [ "$(id -u)" = "0" ] && id aiuser >/dev/null 2>&1; then
 fi
 
 # Initial setup (one-time)
-_work_d="$HOME/workspace"
-[ -d "$_work_d" ] && mkdir -p "$_work_d"
+[ -d "$WORKSPACE_D" ] && mkdir -p "$WORKSPACE_D"
 [ -d "$SHARE_SKEL_D" ] && {
     cp -r "$SHARE_SKEL_D"/* "$HOME"/
     rm -rf "$SHARE_SKEL_D"
@@ -222,6 +223,6 @@ agent_enabled "hermes-agent" &&\
 
 echo ""
 
-cd "$HOME/workspace" 2>/dev/null || true
+cd "${WORKSPACE_D}" 2>/dev/null || true
 
 exec "$@"
