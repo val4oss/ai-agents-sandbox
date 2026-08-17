@@ -2,6 +2,20 @@
 
 > All notable changes to this project will be documented in this file.
 
+## [1.0.0] - 2026-08-DD
+
+* Added
+  * **Path-Preserving Mounts**: The sandbox now mirrors the host's directory
+    structure inside `/home/aiuser/` when the workspace is within the user's
+    home. This prevents session conflicts for agents like Claude and Gemini.
+  * Forward COLOR env var and remove metal aspect of the title banner
+* Changed
+  * If worskpace even for the default points to HOME, the default become a
+    directory into the cache.
+* Fixed
+  * Moves tools checking after checking arguments, to be able to run the helper
+    and version action anytime
+
 ## [1.0.0-rc2] - 2026-08-14
 
 * Added
