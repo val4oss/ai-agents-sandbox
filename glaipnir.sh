@@ -1019,11 +1019,6 @@ status() {
 # Keep the arguments to be able to restart after a group change.
 CMD_LINE="$*"
 
-_check_tools_needed || {
-    print_error "Please install the missing tools and try again. Aborting."
-    exit $FAILURE
-}
-
 # Get arguments
 if [ $# -lt 1 ]; then
     print_error "Missing command"
@@ -1070,6 +1065,11 @@ while [ $# -gt 0 ]; do
             ;;
     esac
 done
+
+_check_tools_needed || {
+    print_error "Please install the missing tools and try again. Aborting."
+    exit $FAILURE
+}
 
 if ! _parse_conf; then
     print_error "Failed to parse configuration file: $CONF_P"
