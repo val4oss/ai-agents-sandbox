@@ -940,12 +940,10 @@ clean() {
     # agent has been specified, the listing will show only related agent image.
     if [ ${CLEAN_IMG} -eq 1 ] || [ ${ALL} -eq 1 ]; then
         _images=$(_podman_list_img)
-        echo "images=${_images}"
         # Protect from "all" not given, IMG_NAME whould list all.
         if [ ${ALL} -eq 0 ]; then
-            _images=$(echo "${_images}" | tr ' ' '\n' | grep "${IMG_NAME}")
+            _images=$(echo "${_images}" | tr ' ' '\n' | grep "${IMG_NAME}:")
         fi
-        echo "parsed images=${_images}"
         for _img in ${_images}; do
             podman image rm "${_img}"
         done
