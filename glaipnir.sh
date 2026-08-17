@@ -827,6 +827,14 @@ run() {
         --env "AI_GID=${AI_USER_GID}" \
         --env "AI_SANDBOX_VERSION=${IMG_TAG}"
 
+    # Forward terminal color capabilities
+    if [ -n "${TERM:-}" ]; then
+        set -- "$@" --env "TERM=$TERM"
+    fi
+    if [ -n "${COLORTERM:-}" ]; then
+        set -- "$@" --env "COLORTERM=$COLORTERM"
+    fi
+
     # Forward cloud/relay settings needed by Vertex-backed OpenCode sessions.
     if [ -n "$GOOGLE_CLOUD_PROJECT" ]; then
         set -- "$@" --env "GOOGLE_CLOUD_PROJECT=$GOOGLE_CLOUD_PROJECT"
