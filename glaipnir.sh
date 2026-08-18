@@ -1016,6 +1016,14 @@ if [ $# -lt 1 ]; then
     print_error "Missing command"
     usage & exit 1
 fi
+
+if [ -f "${CONF_P}" ]; then
+    if ! _parse_conf; then
+        print_error "Failed to parse configuration file: $CONF_P"
+        exit $FAILURE
+    fi
+fi
+
 while [ $# -gt 0 ]; do
     case "$1" in
         help|--help|-h)          usage;                     exit 0  ;;
@@ -1025,7 +1033,14 @@ while [ $# -gt 0 ]; do
         version|--version)       print_version;             exit 0  ;;
         run|build|clean|status)  ACTION="$1";               shift 1 ;;
         --no-microvm|no-microvm) USE_MICROVM=0;             shift 1 ;;
-        --conf)                  CONF_P="$2";               shift 2 ;;
+        --conf)
+            CONF_P="$2"
+            if ! _parse_conf; then
+                print_error "Failed to parse configuration file: $CONF_P"
+                exit $FAILURE
+            fi
+            shift 2
+            ;;
         --cache)                 CACHE_D="$2";              shift 2 ;;
         --build-hook)            BUILD_HOOK_ARG="$2";       shift 2 ;;
         --run-hook)              RUN_HOOK_ARG="$2";         shift 2 ;;
@@ -1062,11 +1077,6 @@ _check_tools_needed || {
     print_error "Please install the missing tools and try again. Aborting."
     exit $FAILURE
 }
-
-if ! _parse_conf; then
-    print_error "Failed to parse configuration file: $CONF_P"
-    exit $FAILURE
-fi
 
 if [ "$CACHE_D" != "${CACHE_D_DEFAULT}" ]; then
     _verify_cache_d
