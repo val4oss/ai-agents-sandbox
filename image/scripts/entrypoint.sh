@@ -27,7 +27,7 @@ WORKSPACE_D="${AI_WORKSPACE:-$HOME/workspace}"
 # filtering happens in glaipnir.sh script
 AGENT="${AGENT:-claude copilot gemini opencode antigravity hermes-agent}"
 VERSION="${AI_SANDBOX_VERSION:-0.0.0}"
-BANNER_HEADLINE="AI AGENTS SANDBOX - $VERSION"
+BANNER_HEADLINE="AI AGENTS SANDBOX"
 
 # ==================
 # Internal functions
@@ -44,9 +44,9 @@ agent_enabled() {
 # Detect isolation mode based on mount points
 get_mode() {
     if mount | grep 'on / type' | grep "virtiofs" > /dev/null 2>&1; then
-        echo "MICROVM ISOLATION"
+        echo "MICROVM"
     else
-        echo "CONTAINER ISOLATION"
+        echo "CONTAINER"
     fi
 }
 
@@ -88,8 +88,9 @@ opencode_auth_check() {
 # Print the banner header
 banner_header() {
     _mode="$(get_mode)"
-    toilet -t -f pagga  -F border "$BANNER_HEADLINE"
-    toilet -t -f smbraille "$_mode"
+    toilet -t -f pagga -F border "$BANNER_HEADLINE"
+    printf "Isolation:  %s\n" "${_mode}"
+    printf "Version:    %s\n" "${VERSION}"
 }
 
 # Print the banner for an agent with authentication status

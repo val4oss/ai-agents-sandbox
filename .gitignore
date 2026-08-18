@@ -11,3 +11,6 @@ ai-agents-sandbox.conf
 # Keep the directory tracked
 !sandbox/.gitkeep
 !workspace/.gitkeep
+
+# ignore claude folder
+.claude/
