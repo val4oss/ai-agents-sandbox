@@ -12,6 +12,7 @@
 * Changed
   * If worskpace even for the default points to HOME, the default become a
     directory into the cache.
+  * Rewrite the Makefile with GNU convention
 * Fixed
   * Moves tools checking after checking arguments, to be able to run the helper
     and version action anytime
