@@ -42,7 +42,6 @@ with **libkrun**.
 
 ## Requirements
 
-
 ### Dependency installation
 
 ```bash
@@ -94,7 +93,33 @@ sudo usermod -aG kvm $USER
 
 ## Usage
 
-### Get the tool
+### Install
+
+#### From openSUSE distribution
+
+* Add home repository
+
+```bash
+# For Leap 15.5/15.6/16.0
+zypper -ar https://download.opensuse.org/repositories/home:/vlefebvre/16.0/home:vlefebvre.repo
+# For TW
+zypper -ar https://download.opensuse.org/repositories/home:/vlefebvre/openSUSE_Tumbleweed/home:vlefebvre.repo
+```
+
+* Add key
+
+```bash
+sudo rpm --import https://download.opensuse.org/repositories/home:/vlefebvre/16.0/repodata/repomd.xml.key
+```
+
+* Refresh and install
+
+```bash
+sudo zypper refresh
+sudo zypper install glaipnir
+```
+
+#### Build from sources
 
 ```bash
 # Clone this repository
@@ -102,27 +127,28 @@ git clone https://github.com/val4oss/ai-agents-sandbox.git
 cd ai-agents-sandbox
 ```
 
-### Install (optional)
-
 Use `make` to install the tool system-wide so it can be run from any directory
 as `glaipnir` instead of `sh glaipnir.sh`.
 
 ```bash
 # System install (needs sudo) — installs to /usr/local/bin and /usr/local/share
-make build
-sudo make install
+make
+make install
 
 # User-local install (no sudo) — ~/.local/bin must be on PATH
-make install PREFIX="${HOME}/.local"
+make install prefix="${HOME}/.local"
 
 # System install under /usr
-sudo make install PREFIX=/usr
+make install prefix=/usr
 
 # Packager / DESTDIR staging
-make install PREFIX=/usr DESTDIR=/tmp/pkg-root
+make install prefix=/usr DESTDIR=/tmp/pkg-root
+
+# Controle the version
+make install VERSION=1.0.1
 
 # Uninstall
-sudo make uninstall
+make uninstall
 ```
 
 > After a system install, use `glaipnir` in place of

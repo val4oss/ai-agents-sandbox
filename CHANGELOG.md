@@ -9,6 +9,7 @@
     structure inside `/home/aiuser/` when the workspace is within the user's
     home. This prevents session conflicts for agents like Claude and Gemini.
   * Forward COLOR env var and remove metal aspect of the title banner
+  * docs: Installation from RPM package.
 * Changed
   * If worskpace even for the default points to HOME, the default become a
     directory into the cache.
