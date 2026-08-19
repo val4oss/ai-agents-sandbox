@@ -677,7 +677,7 @@ run() {
 
     [ "$(uname -s)" = "Darwin" ] && _macos_adjust_microvm
     if [ "$USE_MICROVM" -eq 1 ]; then
-        if [ "$AGENT" = "copilot" ] || [ "$AGENT" = "opencode" ]; then
+        if [ "$AGENT" = "copilot" ]; then
             print_warning "${AGENT} CLI sends large HTTP/2 frames that trigger a krun vsock"
             print_warning "BufDescTooSmall bug. Falling back to no-microvm for ${AGENT}."
             print_warning "Tracking: https://github.com/containers/libkrun/issues/674"
