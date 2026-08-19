@@ -101,9 +101,9 @@ sudo usermod -aG kvm $USER
 
 ```bash
 # For Leap 15.5/15.6/16.0
-zypper -ar https://download.opensuse.org/repositories/home:/vlefebvre/16.0/home:vlefebvre.repo
+zypper ar https://download.opensuse.org/repositories/home:/vlefebvre/16.0/home:vlefebvre.repo
 # For TW
-zypper -ar https://download.opensuse.org/repositories/home:/vlefebvre/openSUSE_Tumbleweed/home:vlefebvre.repo
+zypper ar https://download.opensuse.org/repositories/home:/vlefebvre/openSUSE_Tumbleweed/home:vlefebvre.repo
 ```
 
 * Add key
