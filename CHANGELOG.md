@@ -15,6 +15,8 @@
     directory into the cache.
   * Rewrite the Makefile with GNU convention
 * Fixed
+  * run: Add executable /run/agent-tmp tmpfs, opencode failed to start on the
+    noexec /tmp tmpfs (openTUI render library).
   * Moves tools checking after checking arguments, to be able to run the helper
     and version action anytime
 

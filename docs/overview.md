@@ -131,6 +131,7 @@ ai-agents-sandbox/
 | Dedicated home volume | The real `$HOME` is never mounted |
 | Explicit volume whitelist | Only `sandbox/` is mounted as `/home/aiuser` |
 | `--tmpfs /tmp:noexec,nosuid` | `/tmp` is in RAM, non-executable, non-setuid |
+| `--tmpfs /run/agent-tmp:nosuid,nodev` | executable scratch, `opencode` only |
 | No Docker / Podman socket | Container cannot spawn other containers |
 
 ### 🔑 Credentials

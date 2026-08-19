@@ -466,6 +466,48 @@ podman state — a leftover pause process still holding an old ID mapping. Be
 sure to remove all artefacts previously created by podman, `podman system
 prune` may help, then log out and log back in.
 
+### opencode: OpenTUI render library fails to load
+
+```bash
+Failed to initialize OpenTUI render library: Failed to open library
+"/tmp/.9adf7bf9fafaef9f-00000001.so": /tmp/.9adf7bf9fafaef9f-00000001.so:
+failed to map segment from shared object
+```
+
+#### Why ?
+
+opencode is a Bun single-file executable. At startup it unpacks its OpenTUI
+native library into the Bun temporary directory and loads it with `dlopen()`,
+which requires an executable mapping. The sandbox mounts `/tmp` with `noexec`,
+so the kernel refuses that mapping and the TUI never comes up.
+
+Upstream: <https://github.com/sst/opencode/issues/5175>
+
+#### Solution
+
+`run` mounts a dedicated executable tmpfs on `/run/agent-tmp` and points Bun at
+it with `BUN_TMPDIR`, whenever the agent list contains `opencode`. `/tmp` keeps
+its `noexec` for every other process.
+
+Volumes are set when the container is **created**, so a container started
+before this fix does not have the mount. Recreate it:
+
+```bash
+sh glaipnir.sh clean opencode
+sh glaipnir.sh run opencode
+```
+
+Then, inside the sandbox:
+
+```bash
+echo "$BUN_TMPDIR"          # /run/agent-tmp
+findmnt -no OPTIONS /tmp    # still lists noexec
+ls /run/agent-tmp           # holds the unpacked libopentui.so
+```
+
+> Running the image directly with `podman run`, without `glaipnir`, is not
+> affected: `/tmp` is executable there and Bun uses it by default.
+
 ---
 
 ## Additional docs

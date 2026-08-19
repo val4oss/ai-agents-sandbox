@@ -828,7 +828,7 @@ run() {
         "${_agent_mounts}" \
         --volume "${_hooks_mount_d}:/usr/local/bin/${SANDBOX_ID}-run-hooks/:z" \
         --volume "${SANDBOX_D}:${AI_USER_WORKSPACE}:z" \
-        --tmpfs "/tmp:rw,nosuid,noexec,size=1g" \
+        --tmpfs "/tmp:rw,nosuid,nodev,noexec,size=1g" \
         --cap-drop ALL \
         --security-opt no-new-privileges \
         --userns keep-id \
@@ -839,6 +839,16 @@ run() {
         --env "AI_GID=${AI_USER_GID}" \
         --env "AI_WORKSPACE=${AI_USER_WORKSPACE}" \
         --env "AI_SANDBOX_VERSION=${IMG_TAG}"
+
+    # opencode unpacks its OpenTUI native library into the Bun temporary
+    # directory and loads it with dlopen(), which needs an executable
+    # mapping: /tmp stays noexec, so point Bun at a dedicated tmpfs.
+    # Upstream: https://github.com/sst/opencode/issues/5175
+    case " $AGENT " in *" opencode "*)
+        set -- "$@" \
+            --tmpfs "/run/agent-tmp:rw,nosuid,nodev,mode=1777,size=512m" \
+            --env "BUN_TMPDIR=/run/agent-tmp"
+    ;; esac
 
     # Forward cloud/relay settings needed by Vertex-backed OpenCode sessions.
     if [ -n "$GOOGLE_CLOUD_PROJECT" ]; then
