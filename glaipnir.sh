@@ -670,8 +670,6 @@ build() {
 run() {
     _ret="$SUCCESS"
 
-    _verify_workspace_d || return "$FAILURE"
-    
     _podman_cmd="podman"
     [ ${DEBUG} -eq 1 ] && _podman_cmd="podman --log-level=debug"
 
@@ -773,6 +771,8 @@ run() {
         esac
     fi
 
+    _verify_workspace_d || return "$FAILURE"
+
     # Check if image is built locally
     _default_repo="${DEFAULT_IMG_REPO}/${IMG_NAME}"
     if ! _podman_img_exists ||\
@@ -802,7 +802,7 @@ run() {
             _ret="$FAILURE"
         fi
     done
-    [ "${_ret}" = "$FAILURE" ] && return $_ret
+    [ "${_ret}" = "$FAILURE" ] && return "$_ret"
     [ -n "$_run_hook" ] && {
         print_debug "Copying run hook(s): $_run_hook"
         for _h in $_run_hook; do
