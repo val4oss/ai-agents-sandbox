@@ -53,6 +53,7 @@ AI_USER_UID=1000
 AI_USER_GID=1000
 AI_USER_WORKSPACE="/home/${AI_USER_NAME}/workspace"
 PKGS=""
+REPOS=""
 
 # argument variables
 AGENT=""
@@ -138,7 +139,8 @@ _parse_conf() {
                             | sed 's/^["'"'"']//;s/["'"'"']$//')
                         # Assigning to block keys
                         case "$_block_key" in
-                            PACKAGES) PKGS="$PKGS $_item" ;;
+                            PACKAGES) PKGS="$PKGS $_item"   ;;
+                            REPOS)    REPOS="$REPOS $_item" ;;
                         esac
                         ;;
                 esac
@@ -656,6 +658,7 @@ build() {
         --build-arg "AGENT=\"${AGENT}\"" \
         --build-arg "IMG_TAG=${IMG_TAG}" \
         --build-arg "PKGS=\"${PKGS}\"" \
+        --build-arg "REPOS=\"${REPOS}\"" \
         --tag "${IMG_NAME}:${IMG_TAG}" \
         --tag "${IMG_NAME}:latest" \
         --file "${_container_f}" \

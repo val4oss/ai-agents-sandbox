@@ -8,6 +8,7 @@ FROM registry.opensuse.org/home/vlefebvre/container-images/containers/opensuse/a
 
 ARG IMG_TAG="0.0.0"
 ARG PKGS=""
+ARG REPOS=""
 ARG AI_USER=aiuser
 ARG HOOKS_BUILD="hooks/build"
 
@@ -19,6 +20,16 @@ LABEL maintainer="val4oss" \
       security.credentials="runtime-only"
 
 USER root
+
+# ===================
+# System Repositories
+# -------------------
+RUN if [ -n "$REPOS" ]; then \
+        for _repo in ${REPOS}; do \
+            zypper --non-interactive ar "${_repo}"; \
+        done && \
+        zypper --non-interactive --gpg-auto-import-keys refresh; \
+    fi
 
 # ==============
 # System Package

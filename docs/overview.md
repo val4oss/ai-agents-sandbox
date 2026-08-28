@@ -346,6 +346,16 @@ PACKAGES=(
 sh glaipnir.sh build claude --conf /tmp/glaipnir.conf
 ```
 
+* To add `custome` packages comming from your owned repository, you can add the
+  repo in the image using the `REPOS` configuration key:
+
+  ```conf
+  REPOS=(
+    https://path/to/repo/file.repo
+  )
+  ```
+  /!\ The repo link should be the path to the filen `file.repo`!
+
 ### Adding packages from a custom repository (build hook)
 
 When a package lives outside the default Tumbleweed repos, use a build hook

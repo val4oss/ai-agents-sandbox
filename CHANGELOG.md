@@ -10,6 +10,7 @@
     home. This prevents session conflicts for agents like Claude and Gemini.
   * Forward COLOR env var and remove metal aspect of the title banner
   * docs: Installation from RPM package.
+  * repos configuration for adding custom packages into the building image.
 * Changed
   * If worskpace even for the default points to HOME, the default become a
     directory into the cache.

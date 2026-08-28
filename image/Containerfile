@@ -11,6 +11,7 @@ ARG IMG_TAG="0.0.0"
 ARG AI_USER=aiuser
 ARG AI_UID=1000
 ARG AI_GID=1000
+ARG REPOS=""
 ARG PKGS=""
 ARG HOOKS_BUILD="hooks/build"
 
@@ -20,6 +21,16 @@ LABEL maintainer="val4oss" \
       security.caps="none" \
       security.network="pasta" \
       security.credentials="runtime-only"
+
+# ===================
+# System Repositories
+# -------------------
+RUN if [ -n "$REPOS" ]; then \
+        for _repo in ${REPOS}; do \
+            zypper --non-interactive ar "${_repo}"; \
+        done && \
+        zypper --non-interactive --gpg-auto-import-keys refresh; \
+    fi
 
 # ==============
 # System Package
