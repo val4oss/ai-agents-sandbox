@@ -32,11 +32,11 @@ SANDBOX_ID="ai-agents-sandbox"
 ROOT_D="$(cd "$(dirname "$0")" && pwd)"
 SCRIPT_P="${ROOT_D}/$(basename "$0")"
 IMG_D="${ROOT_D}/image"
-SANDBOX_D_DEFAULT="$ROOT_D/workspace"
-SANDBOX_D="${SANDBOX_D_DEFAULT}"
-CONF_P="${ROOT_D}/${PRJ_ID}.conf"
-CACHE_D_DEFAULT="${HOME}/.cache/${PRJ_ID}"
+CONF_P="${XDG_CONFIG_HOME:-${HOME}/.config}/${PRJ_ID}.conf"
+CACHE_D_DEFAULT="${XDG_CACHE_HOME:-${HOME}/.cache}/${PRJ_ID}"
 CACHE_D="${CACHE_D_DEFAULT}"
+SANDBOX_D_DEFAULT="${CACHE_D_DEFAULT}/workspace"
+SANDBOX_D="${PWD}"
 BUILD_HOOK_ARG=""
 RUN_HOOK_ARG=""
 
@@ -396,15 +396,22 @@ _podman_list_ctn() {
     printf "%s" "$_list"
 }
 
-# Verify that the directory exists and is a directorynot set to HOME
-_verify_mount_point() {
+# Verify that the directory exists and is a directory not set to HOME
+_verify_mount_point_d() {
     _ret="$FAILURE"
     if [ -z "$1" ]; then
-        print_warning "Workspace directory is not set."
-    elif [ ! -e "$1" ] || [ ! -d "$1" ]; then
-        print_warning "Workspace directory '$1' not found or not a directory."
+        print_warning "Mount point is not set."
     elif [ "$1" = "${HOME}" ]; then
         print_warning "Directory is set to the home directory, not recommended."
+    elif [ ! -e "$1" ]; then
+        print_debug "Mount point '$1' not found. Creating it..."
+        if mkdir -p "$1"; then
+            _ret="$SUCCESS"
+        else
+            print_warning "Failed to create it"
+        fi
+    elif [ ! -d "$1" ]; then
+        print_warning "Mount point '$1' not a directory."
     else
         _ret="$SUCCESS"
     fi
@@ -413,7 +420,7 @@ _verify_mount_point() {
 _verify_workspace_d() {
     _ret="$SUCCESS"
     SANDBOX_D="$(echo "${SANDBOX_D}" | sed "s|~|${HOME}|g")"
-    _verify_mount_point "$SANDBOX_D" || {
+    _verify_mount_point_d "$SANDBOX_D" || {
         _ret="$SUCCESS"
         # Default could be overriding.
         if [ "$SANDBOX_D_DEFAULT" = "$HOME" ]; then
@@ -442,7 +449,7 @@ _verify_workspace_d() {
 }
 _verify_cache_d() {
     CACHE_D="$(echo "${CACHE_D}" | sed "s|~|${HOME}|g")"
-    _verify_mount_point "$CACHE_D" || {
+    _verify_mount_point_d "$CACHE_D" || {
         print_warning "Falling back to default cache: '$CACHE_D_DEFAULT'."
         CACHE_D="$CACHE_D_DEFAULT"
     }
@@ -463,6 +470,10 @@ _copy_agent_files() {
 # Bind and fill agent mounts for the auth, config, skills..., if applicable
 _bind_agent_mounts() {
     _mount_d="${CACHE_D}/agents-mount"
+    _verify_mount_point_d "$_mount_d" || {
+        #TODO log errors
+        return
+    }
     _home="/home/aiuser"
     _mounts=""
     _gemini_mounted=0
@@ -1090,12 +1101,19 @@ _check_tools_needed || {
 
 if [ "$CACHE_D" != "${CACHE_D_DEFAULT}" ]; then
     _verify_cache_d
+    SANDBOX_D_DEFAULT="${CACHE_D}/workspace"
 else
     # Previous CACHE DIR was with "ai-agents-sandbox" name
     _old_conf_d="${HOME}/.cache/${SANDBOX_ID}"
     if [ -d "${_old_conf_d}" ] && [ ! -d "${CACHE_D_DEFAULT}" ]; then
         mv "${_old_conf_d}" "${CACHE_D_DEFAULT}"
     fi
+    [ -d "${CACHE_D}" ] || {
+        mkdir -p "${CACHE_D}" || {
+            print_error "Failed to create the cache directory at ${CACHE_D}"
+            exit "${FAILED}"
+        }
+    }
 fi
 
 if [ "$AGENT" != "" ]; then

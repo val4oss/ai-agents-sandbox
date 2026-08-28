@@ -84,8 +84,7 @@ conf_p = $${XDG_CONFIG_HOME:-$${HOME}/.config}/$(PACKAGE)/$(PACKAGE).conf
 
 $(builddir)/$(PACKAGE).sh: $(PACKAGE).sh $(builddir)/config.stamp \
 		| $(builddir)
-	sed -e 's|^SANDBOX_D_DEFAULT=.*|SANDBOX_D_DEFAULT="$${PWD}"|' \
-		-e 's|^CONF_P=.*|CONF_P="$(conf_p)"|' \
+	sed -e 's|^CONF_P=.*|CONF_P="$(conf_p)"|' \
 		-e 's|^IMG_TAG=.*|IMG_TAG="$(IMGVERSION)"|' \
 		$< > $@
 	chmod 755 $@
