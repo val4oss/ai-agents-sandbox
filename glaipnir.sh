@@ -429,23 +429,13 @@ _verify_workspace_d() {
             print_warning "Default sandbox workspace points to HOME. Consider"
             print_warning "the use of '--workspace' to choose the workspace"
             print_warning "volume to mount."
-            _cache_workspace="${CACHE_D}/workspace"
-            if  [ ! -d "${_cache_workspace}" ]; then
-                if ! mkdir -p "${_cache_workspace}"; then
-                    print_error "Failed to create cached workspace. Aborting"
-                    _ret="${FAILED}"
-                fi
-            fi
-            if [ "${_ret}" = "${SUCCESS}" ]; then
-                print_warning \
-                    "Falling back to cache workspace: '${_cache_workspace}'"
-                SANDBOX_D="${_cache_workspace}"
-            fi
+            SANDBOX_D="${CACHE_D}/workspace"
         else
-            print_warning \
-                    "Falling back to default workspace: '$SANDBOX_D_DEFAULT'."
             SANDBOX_D="$SANDBOX_D_DEFAULT"
         fi
+        print_warning \
+            "Falling back to default workspace: '$SANDBOX_D'."
+        _verify_mount_point_d "${SANDBOX_D}" || _ret="${FAILURE}"
     }
     return "$_ret"
 }
