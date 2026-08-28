@@ -2,7 +2,13 @@
 
 > All notable changes to this project will be documented in this file.
 
-## [1.0.0] - 2026-08-DD
+## [1.0.0] - 2026-09-DD
+
+* Added
+* Changed
+* Fixed
+
+## [1.0.0-rc3] - 2026-08-28
 
 * Added
   * **Path-Preserving Mounts**: The sandbox now mirrors the host's directory
@@ -16,6 +22,8 @@
   * If worskpace even for the default points to HOME, the default become a
     directory into the cache.
   * Rewrite the Makefile with GNU convention
+  * default cache and workspace mount dir created if not exists.
+  * clean --all remove the entire CACHE_D
   * printer.sh: Improve the printer source to deal with a fd 3.
 * Fixed
   * run: Add executable /run/agent-tmp tmpfs, opencode failed to start on the
