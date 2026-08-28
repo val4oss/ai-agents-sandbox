@@ -959,19 +959,11 @@ clean() {
             fi
         fi
         # ---
-        _agent_volume="$CACHE_D/agents-mount"
-        if [ -d "$_agent_volume" ]; then
-            print_info "Removing agent mount directory '$_agent_volume'..."
-            rm -rf "$_agent_volume"
-            print_info "Config agents cleaned."
-        fi
-        _hooks_volume="$CACHE_D/run-hooks"
-        if [ -d "$_hooks_volume" ]; then
-            print_info "Removing hooks mount directory '$_hooks_volume'..."
-            rm -rf "$_hooks_volume"
-            print_info "Hooks volume cleaned."
-        fi
-
+        print_info "Removing cache dir ${CACHE_D}..."
+        rm -rf "${CACHE_D}" || {
+            print_error "Faield to clean cache dir."
+            _ret="${FAILURE}"
+        }
         if [ "$(uname -s)" = "Darwin" ]; then
             print_info "Removing macOS VPN enforcer artifacts..."
             if ! _macos_remove_enforcer; then
@@ -980,7 +972,9 @@ clean() {
             fi
         fi
 
-        print_info "Auth tokens and workspace cleaned."
+        [ "${_ret}" != "${SUCCESS}" ] || {
+            print_info "podman volumes and Cache has been cleaned."
+        }
     fi
 
     # Clean images, if all has been given all images will be removed. If an
@@ -1108,12 +1102,6 @@ else
     if [ -d "${_old_conf_d}" ] && [ ! -d "${CACHE_D_DEFAULT}" ]; then
         mv "${_old_conf_d}" "${CACHE_D_DEFAULT}"
     fi
-    [ -d "${CACHE_D}" ] || {
-        mkdir -p "${CACHE_D}" || {
-            print_error "Failed to create the cache directory at ${CACHE_D}"
-            exit "${FAILED}"
-        }
-    }
 fi
 
 if [ "$AGENT" != "" ]; then
