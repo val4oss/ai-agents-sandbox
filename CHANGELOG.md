@@ -11,6 +11,7 @@
   * Forward COLOR env var and remove metal aspect of the title banner
   * docs: Installation from RPM package.
   * repos configuration for adding custom packages into the building image.
+  * mount directory ".agents"
 * Changed
   * If worskpace even for the default points to HOME, the default become a
     directory into the cache.

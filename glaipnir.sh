@@ -481,6 +481,11 @@ _bind_agent_mounts() {
     _gemini_mounted=0
     _gcloud_mounted=0
 
+    # ~/.agents for all agents
+    mkdir -p "${_mount_d}/.agents"
+    _mounts="$_mounts --volume $_mount_d/.agents:$_home/.agents:z"
+
+    # copilot
     case " $AGENT " in *" copilot "*)
         mkdir -p "${_mount_d}/.config/gh" "${_mount_d}/.copilot"
         _mounts="$_mounts --volume $_mount_d/.config/gh:$_home/.config/gh:z"
