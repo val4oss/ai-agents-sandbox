@@ -6,7 +6,9 @@
 
 * Added
 * Changed
+  * remove stopped container in microvm with `--rm` from `podman run` 
 * Fixed
+  * verifying cached workapce to mount
 
 ## [1.0.0-rc3] - 2026-08-28
 

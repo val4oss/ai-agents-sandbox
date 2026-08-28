@@ -831,7 +831,7 @@ run() {
     fi
 
     set --
-    [ "$USE_MICROVM" = "1" ] && set -- --runtime krun
+    [ "$USE_MICROVM" = "1" ] && set -- --runtime krun --rm
     set -- "$@" \
         --name "$CTN_NAME" \
         "${_agent_mounts}" \
