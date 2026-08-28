@@ -15,6 +15,7 @@
   * If worskpace even for the default points to HOME, the default become a
     directory into the cache.
   * Rewrite the Makefile with GNU convention
+  * printer.sh: Improve the printer source to deal with a fd 3.
 * Fixed
   * run: Add executable /run/agent-tmp tmpfs, opencode failed to start on the
     noexec /tmp tmpfs (openTUI render library).
