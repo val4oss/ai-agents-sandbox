@@ -635,7 +635,7 @@ build() {
             _ret="$FAILURE"
         fi
     done
-    [ "${_ret}" = "$FAILURE" ] && return $_ret
+    [ "${_ret}" = "$FAILURE" ] && return "${_ret}"
 
     # Populate the build dir
     _build_d="${CACHE_D}/build"
@@ -1024,7 +1024,7 @@ status() {
             printf "      with %s\n" "${_ctn_img}"
         done
     fi
-    exit ${SUCCESS}
+    exit "${SUCCESS}"
 }
 
 # ===========
@@ -1043,7 +1043,7 @@ fi
 if [ -f "${CONF_P}" ]; then
     if ! _parse_conf; then
         print_error "Failed to parse configuration file: $CONF_P"
-        exit $FAILURE
+        exit "${FAILURE}"
     fi
 fi
 
@@ -1060,7 +1060,7 @@ while [ $# -gt 0 ]; do
             CONF_P="$2"
             if ! _parse_conf; then
                 print_error "Failed to parse configuration file: $CONF_P"
-                exit $FAILURE
+                exit "${FAILURE}"
             fi
             shift 2
             ;;
@@ -1098,7 +1098,7 @@ done
 
 _check_tools_needed || {
     print_error "Please install the missing tools and try again. Aborting."
-    exit $FAILURE
+    exit "${FAILURE}"
 }
 
 if [ "$CACHE_D" != "${CACHE_D_DEFAULT}" ]; then
@@ -1116,7 +1116,7 @@ if [ "$AGENT" != "" ]; then
     if ! _valid_agent ; then
         print_error "Unknown agent: '$AGENT'. \
 Valid agents: $TRUSTED_AGENTS (trusted) or $UNTRUSTED_AGENTS (untrusted)"
-        exit $FAILURE
+        exit "${FAILURE}"
     else
         IMG_NAME="${IMG_NAME}-${AGENT}"
         CTN_NAME="${CTN_NAME}-${AGENT}"
@@ -1130,7 +1130,7 @@ fi
 
 if ! eval "$ACTION"; then
     print_error "[✗] Action '$ACTION' failed."
-    exit $FAILURE
+    exit "${FAILURE}"
 else
     print_info "[✓] Done."
 fi
