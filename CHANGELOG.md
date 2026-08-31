@@ -6,7 +6,8 @@
 
 * Added
 * Changed
-  * remove stopped container in microvm with `--rm` from `podman run` 
+  * remove stopped container in microvm with `--rm` from `podman run`
+  * Skills now manage by `sindrai` project
 * Fixed
   * verifying cached workapce to mount
 

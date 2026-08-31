@@ -84,6 +84,21 @@ RUN zypper --non-interactive addrepo \
     rm -rf /var/cache/zypp/*
 
 # ===============
+# sindrai project (home:vlefebvre repo)
+# ---------------
+RUN zypper --non-interactive addrepo \
+        https://download.opensuse.org/repositories/home:/vlefebvre/openSUSE_Tumbleweed/ \
+        home:vlefebvre && \
+    zypper --non-interactive --gpg-auto-import-keys refresh home:vlefebvre && \
+    zypper --non-interactive install --no-recommends \
+        sindrai \
+        sindrai-skills-cve-investigation \
+        sindrai-skills-packaging-patches \
+        sindrai-skills-shell-scripting &&\
+    zypper clean --all && \
+    rm -rf /var/cache/zypp/*
+
+# ===============
 # GitHub CLI (gh) - installed when AGENT contains copilot
 # ---------------
 RUN case " $AGENT " in \
