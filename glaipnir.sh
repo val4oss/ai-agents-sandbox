@@ -647,6 +647,11 @@ build() {
         sed -i "s|%%AGENT%%|$AGENT|g" "${_container_f}"
     fi
     print_info "Building container image ${IMG_NAME}:${IMG_TAG} ..."
+    # Store previous image built
+    _prev_img_id=""
+    if _podman_img_exists; then
+        _prev_img_id="$(podman images -q "${IMG_NAME}:${IMG_TAG}")"
+    fi
     set --
     [ ${DEBUG} -eq 1 ] && set -- --log-level=debug
     set -- "$@" build --no-cache --rm \
@@ -668,6 +673,13 @@ build() {
         _ret="$FAILURE"
     else
         print_info "Image built successfully."
+        if [ -n "${_prev_img_id}" ]; then
+            _new_img_id="$(podman images -q "${IMG_NAME}:${IMG_TAG}")"
+            if [ "${_prev_img_id}" != "${_new_img_id}" ]; then
+                print_info "Removing previous image ${_prev_img_id}..."
+                podman image rm "${_prev_img_id}" > /dev/null 2>&1 || true
+            fi
+        fi
     fi
 
     # clean up temporary hook files from build context

@@ -5,6 +5,7 @@
 ## [1.0.0] - 2026-09-DD
 
 * Added
+  * build: remove previous image built
 * Changed
   * remove stopped container in microvm with `--rm` from `podman run`
   * Skills now manage by `sindrai` project
