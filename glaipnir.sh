@@ -358,9 +358,17 @@ _detect_public_iface() {
     return "$_ret"
 }
 
-# Check if IMG_NAME exists
+###
+# Check if podman image exists
+# ARGUMENTS:
+#   1 - img: Name or ID of the container to check
+# RETURNS:
+#   SUCCESS, FAILURE if image doesn't exists
+###
 _podman_img_exists() {
-    podman image exists "${IMG_NAME}"
+    _img="${1}"
+    [ -n "${_img}" ] || return "${FAILURE}"
+    podman image exists "${_img}"
 }
 
 # Get the repository of IMG_NAME
@@ -384,6 +392,19 @@ _podman_list_img() {
     printf "%s" "$_list"
 }
 
+###
+# Check if podman container exists
+# ARGUMENTS:
+#   1 - ctn: Name or ID of the container to check
+# RETURNS:
+#   SUCCESS, FAILURE if container doesn't exists
+###
+_podman_ctn_exists() {
+    _ctn="${1}"
+    [ -n "${_ctn}" ] || return "${FAILURE}"
+    podman container exists "${_ctn}"
+}
+
 # Get the list of available containers
 _podman_list_ctn() {
     _list=""
@@ -396,6 +417,64 @@ _podman_list_ctn() {
         done
     )
     printf "%s" "$_list"
+}
+
+###
+# Forced removing podman container
+# ARGUMENTS:
+#   1 - ctn: Name or ID of the container to remove
+# OUTPUTS:
+#   fd 3: Log messages
+# RETURNS:
+#   SUCCESS, FAILURE if container removal fails
+###
+_podman_rm_ctn() {
+    _ctn="$1"
+    _ctn_rc="${SUCCESS}"
+    [ -n "${_ctn}" ] || return "${FAILURE}"
+
+    if _podman_ctn_exists "${_ctn}"; then
+        if ! podman rm -f "${_ctn}" > /dev/null 2>&1; then
+            print_error "Failed to remove ${_ctn}"
+            _ctn_rc="${FAILURE}"
+        fi
+    fi
+
+    return "${_ctn_rc}"
+}
+
+###
+# Safely remove a container image by first stopping and removing any
+# containers created from it.
+# ARGUMENTS:
+#   1 - img: Name or ID of the image to remove
+# OUTPUTS:
+#   fd 3: Log messages
+# RETURNS:
+#   SUCCESS, FAILURE if container or image removal fails
+###
+_podman_rm_img() {
+    _img="$1"
+    _img_rc="${SUCCESS}"
+    [ -n "${_img}" ] || return "${FAILURE}"
+
+    _ctns=$(podman ps -a --filter "ancestor=${_img}" --format "{{.ID}}")
+    if [ -n "$_ctns" ]; then
+        for _ctn in $_ctns; do
+            print_info "Removing container ${_ctn} using image ${_img}..."
+            if ! _podman_rm_ctn "${_ctn}"; then _img_rc="$FAILURE"; fi
+        done
+    fi
+
+    if [ "${_img_rc}" = "${SUCCESS}" ]; then
+        print_info "Removing image ${_img}"
+       if ! podman image rm "${_img}" > /dev/null 2>&1; then
+            print_error "Failed to remove image ${_img}"
+            _img_rc="${FAILURE}"
+       fi
+    fi
+
+    return "${_img_rc}"
 }
 
 # Verify that the directory exists and is a directory not set to HOME
@@ -649,7 +728,7 @@ build() {
     print_info "Building container image ${IMG_NAME}:${IMG_TAG} ..."
     # Store previous image built
     _prev_img_id=""
-    if _podman_img_exists; then
+    if _podman_img_exists "${IMG_NAME}"; then
         _prev_img_id="$(podman images -q "${IMG_NAME}:${IMG_TAG}")"
     fi
     set --
@@ -676,8 +755,7 @@ build() {
         if [ -n "${_prev_img_id}" ]; then
             _new_img_id="$(podman images -q "${IMG_NAME}:${IMG_TAG}")"
             if [ "${_prev_img_id}" != "${_new_img_id}" ]; then
-                print_info "Removing previous image ${_prev_img_id}..."
-                podman image rm "${_prev_img_id}" > /dev/null 2>&1 || true
+                _podman_rm_img "${_prev_img_id}" || true
             fi
         fi
     fi
@@ -726,7 +804,7 @@ run() {
     fi
 
     if [ -n "$GOOGLE_CLOUD_PROJECT$VERTEX_LOCATION" ] && \
-        podman container exists "$CTN_NAME"; then
+       _podman_ctn_exists "$CTN_NAME"; then
         print_warning "Vertex env vars are applied only when creating a new container."
         print_warning "     -> Use 'clean ${AGENT}' then 'run ${AGENT}' to apply updates."
     fi
@@ -753,7 +831,7 @@ run() {
     fi
 
     # Resume a stopped container
-    if podman container exists "$CTN_NAME"; then
+    if _podman_ctn_exists "$CTN_NAME"; then
         STATE=$(podman inspect "$CTN_NAME" --format '{{.State.Status}}')
         case "$STATE" in
             running) {
@@ -796,7 +874,7 @@ run() {
 
     # Check if image is built locally
     _default_repo="${DEFAULT_IMG_REPO}/${IMG_NAME}"
-    if ! _podman_img_exists ||\
+    if ! _podman_img_exists "${IMG_NAME}" ||\
        [ "$(_podman_img_repo)" = "${_default_repo}" ]; then
         IMG_NAME="${_default_repo}"
         print_info "Pulling image: ${IMG_NAME}..."
@@ -925,7 +1003,7 @@ clean() {
     if [ $ALL -eq 1 ]; then
         _containers=$(_podman_list_ctn)
         for _ctn in ${_containers}; do
-            if podman rm -f "$_ctn"; then
+            if _podman_rm_ctn "$_ctn"; then
                 print_info "Container ${_ctn} removed."
             else
                 print_error "Failed to remove container '$_ctn'."
@@ -933,13 +1011,13 @@ clean() {
             fi
         done
     else
-        if podman container exists "$CTN_NAME"; then
+        if _podman_ctn_exists "$CTN_NAME"; then
             _ctns="$(podman ps -a --format '{{.Names}}' |\
                 grep -E "$CTN_NAME-[0-9]+")"
             if [ -n "$_ctns" ]; then
                 for _ctn in $_ctns; do
                     print_info "Stopping and removing container '$_ctn'..."
-                    if podman rm -f "$_ctn"; then
+                    if _podman_rm_ctn "$_ctn"; then
                         print_info "Container removed."
                     else
                         print_error "Failed to remove container '$_ctn'."
@@ -948,7 +1026,7 @@ clean() {
                 done
             fi
             print_info "Stopping and removing container '$CTN_NAME'..."
-            if podman rm -f "$CTN_NAME"; then
+            if _podman_rm_ctn "$CTN_NAME"; then
                 print_info "Container removed."
             else
                 print_error "Failed to remove container '$CTN_NAME'."
@@ -996,9 +1074,10 @@ clean() {
             _images=$(echo "${_images}" | tr ' ' '\n' | grep "${IMG_NAME}:")
         fi
         for _img in ${_images}; do
-            podman image rm "${_img}"
+            _podman_rm_img "${_img}" || _ret="${FAILURE}"
         done
-        print_info "All images related to ${IMG_NAME} has been removed."
+        [ "${_ret}" = "${SUCCESS}" ] &&\
+            print_info "All images related to ${IMG_NAME} has been removed."
     fi
     return "${_ret}"
 }

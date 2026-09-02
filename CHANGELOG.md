@@ -6,9 +6,11 @@
 
 * Added
   * build: remove previous image built
+  * Create additional podman function helpers to manage containers and images
 * Changed
   * remove stopped container in microvm with `--rm` from `podman run`
   * Skills now manage by `sindrai` project
+  * Be sure to remove containers before removing images
 * Fixed
   * verifying cached workapce to mount
 
