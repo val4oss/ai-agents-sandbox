@@ -24,7 +24,7 @@ export PATH
 
 # Source macOS VPN route-discovery helpers (same directory).
 _SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-# shellcheck source=scripts/macos-network-policy.sh
+# shellcheck source=macos-network-policy.sh
 . "${_SCRIPT_DIR}/macos-network-policy.sh"
 
 # ================

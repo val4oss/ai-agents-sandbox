@@ -20,7 +20,7 @@
 # Source macOS-specific VPN route-discovery helpers.
 # Provides: _macos_vpn_active, _macos_route_to_cidr,
 #           _macos_discover_vpn_routes.
-. "${ROOT_D}/scripts/macos-network-policy.sh"
+. "${ROOT_D}/src/macos-network-policy.sh"
 
 # ===========================
 # macOS VPN enforcement config

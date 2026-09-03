@@ -9,10 +9,11 @@
   * Create additional podman function helpers to manage containers and images
 * Changed
   * remove stopped container in microvm with `--rm` from `podman run`
-  * Skills now manage by `sindrai` project
+  * Skills now managed by `sindrai` project
   * Be sure to remove containers before removing images
+  * Moving from Makefile to custom buil.sh script, more maintenable. 
 * Fixed
-  * verifying cached workapce to mount
+  * verifying cached workspace to mount
 
 ## [1.0.0-rc3] - 2026-08-28
 

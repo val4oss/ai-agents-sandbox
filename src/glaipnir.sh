@@ -29,9 +29,10 @@ PRJ_ID="glaipnir"
 SANDBOX_ID="ai-agents-sandbox"
 
 # Path variables
-ROOT_D="$(cd "$(dirname "$0")" && pwd)"
-SCRIPT_P="${ROOT_D}/$(basename "$0")"
-IMG_D="${ROOT_D}/image"
+ROOT_D="$(cd "$(dirname "$0")/.." && pwd)"
+DATA_D="${ROOT_D}"
+SCRIPT_P="$(realpath "$0")"
+IMG_D="${DATA_D}/image"
 CONF_P="${XDG_CONFIG_HOME:-${HOME}/.config}/${PRJ_ID}.conf"
 CACHE_D_DEFAULT="${XDG_CACHE_HOME:-${HOME}/.cache}/${PRJ_ID}"
 CACHE_D="${CACHE_D_DEFAULT}"
@@ -77,13 +78,13 @@ CMD_LINE=""
 # Includes
 # --------
 
-. "${ROOT_D}/printer.sh"
+. "${ROOT_D}/src/printer.sh"
 
 # Source macOS-specific helpers (VPN enforcement, enforcer lifecycle).
 # Provides: _macos_run_setup, _macos_run_teardown, _macos_remove_enforcer,
 #           plus _ENFORCER_CONF and all _macos_* internals.
 if [ "$(uname -s)" = "Darwin" ]; then
-    . "${ROOT_D}/scripts/macos-sandbox.sh"
+    . "${ROOT_D}/src/macos-sandbox.sh"
 fi
 
 # ==================

@@ -127,28 +127,28 @@ git clone https://github.com/val4oss/ai-agents-sandbox.git
 cd ai-agents-sandbox
 ```
 
-Use `make` to install the tool system-wide so it can be run from any directory
-as `glaipnir` instead of `sh glaipnir.sh`.
+Use the script `build.sh` to install the tool system-wide so it can be run from
+any directory as `glaipnir` instead of `sh glaipnir.sh`.
 
 ```bash
 # System install (needs sudo) — installs to /usr/local/bin and /usr/local/share
-make
-make install
+./build.sh
+./build.sh install
 
 # User-local install (no sudo) — ~/.local/bin must be on PATH
-make install prefix="${HOME}/.local"
+PREFIX="${HOME}/.local" ./build.sh install
 
 # System install under /usr
-make install prefix=/usr
+PREFIX="/usr" ./build.sh install
 
 # Packager / DESTDIR staging
-make install prefix=/usr DESTDIR=/tmp/pkg-root
+PREFIX="/usr" DESTDIR="/tmp/pkg-root" ./build.sh install
 
 # Controle the version
-make install VERSION=1.0.1
+VERSION="1.2.3" ./build.sh install
 
-# Uninstall
-make uninstall
+# Uninstall set same PREFIX and DESTDIR as install
+./build.sh uninstall
 ```
 
 > After a system install, use `glaipnir` in place of
@@ -157,8 +157,9 @@ make uninstall
 > workspace (equivalent to always passing `-w .`), and looks for the config
 > file at `${XDG_CONFIG_HOME:-~/.config}/glaipnir/glaipnir.conf`.
 
-> /!\ If you installed a pre-rename version, remove it first, `make uninstall`
-> will not: `sudo rm -f /usr/local/bin/ai-agents-sandbox` and
+> /!\ If you installed a pre-rename version, remove it first,
+> `./build.sh uninstall> will not:
+> `sudo rm -f /usr/local/bin/ai-agents-sandbox` and
 > `sudo rm -rf /usr/local/share/ai-agents-sandbox`
 > Same about the configuration file, you may want to mode:
 > `~/.config/ai-agents-sandbox/ai-agents-sandbox.conf` to
