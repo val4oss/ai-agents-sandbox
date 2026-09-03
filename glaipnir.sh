@@ -1103,6 +1103,11 @@ else
 fi
 
 if [ "$AGENT" != "" ]; then
+    # Resolve agy alias to antigravity
+    if [ "$AGENT" = "agy" ]; then
+        AGENT="antigravity"
+    fi
+
     if ! _valid_agent ; then
         print_error "Unknown agent: '$AGENT'. \
 Valid agents: $TRUSTED_AGENTS (trusted) or $UNTRUSTED_AGENTS (untrusted)"
