@@ -93,7 +93,7 @@ ai-agents-sandbox/
 | Gemini CLI | `gemini` | `gemini auth login` | Trusted |
 | Claude Code | `claude` | `claude auth login` | Trusted |
 | OpenCode | `opencode` | configure `opencode.json` | Trusted |
-| antigravity | `agye` | run `agy` | Trusted |
+| antigravity | `agy` | run `agy` | Trusted |
 | Hermes Agent | `hermes` | `hermes setup` | Untrusted |
 
 ---
