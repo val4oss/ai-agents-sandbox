@@ -377,6 +377,28 @@ _podman_img_repo() {
     podman images "${IMG_NAME}" --format '{{.Repository}}'
 }
 
+###
+# Get the unique IDs of the local image given in argument
+# ARGUMENTS:
+#   1 - img: Name of the image, without any tag
+#   2 - tag: Tag to look for, all the tags when omitted
+###
+_podman_img_ids() {
+    _img="${1}"
+    _tag="${2:-*}"
+    [ -n "${_img}" ] || return "${SUCCESS}"
+    podman images \
+        --format "{{.Repository}} {{.ID}}" \
+        --filter "reference=${_img}:${_tag}" \
+        --filter "dangling=false" |\
+    while IFS=" " read -r _repo _id; do
+        # Keep only the local repository, not a remote one sharing its name
+        case "${_repo}" in
+            "${_img}"|"localhost/${_img}") printf "%s\n" "${_id}" ;;
+        esac
+    done | sort -u
+}
+
 # Get the list of available images for the project
 _podman_list_img() {
     _list=""
@@ -727,11 +749,8 @@ build() {
         sed -i "s|%%AGENT%%|$AGENT|g" "${_container_f}"
     fi
     print_info "Building container image ${IMG_NAME}:${IMG_TAG} ..."
-    # Store previous image built
-    _prev_img_id=""
-    if _podman_img_exists "${IMG_NAME}"; then
-        _prev_img_id="$(podman images -q "${IMG_NAME}:${IMG_TAG}")"
-    fi
+    # Store every image previously built, whatever its version tag
+    _prev_img_ids="$(_podman_img_ids "${IMG_NAME}")"
     set --
     [ ${DEBUG} -eq 1 ] && set -- --log-level=debug
     set -- "$@" build --no-cache --rm \
@@ -753,12 +772,11 @@ build() {
         _ret="$FAILURE"
     else
         print_info "Image built successfully."
-        if [ -n "${_prev_img_id}" ]; then
-            _new_img_id="$(podman images -q "${IMG_NAME}:${IMG_TAG}")"
-            if [ "${_prev_img_id}" != "${_new_img_id}" ]; then
-                _podman_rm_img "${_prev_img_id}" || true
-            fi
-        fi
+        _new_img_id="$(_podman_img_ids "${IMG_NAME}" "${IMG_TAG}")"
+        for _prev_img_id in ${_prev_img_ids}; do
+            [ "${_prev_img_id}" = "${_new_img_id}" ] && continue
+            _podman_rm_img "${_prev_img_id}" || true
+        done
     fi
 
     # clean up temporary hook files from build context

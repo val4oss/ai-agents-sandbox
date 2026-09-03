@@ -5,7 +5,7 @@
 ## [1.0.0] - 2026-09-DD
 
 * Added
-  * build: remove previous image built
+  * build: remove previous images built, whatever their version tag
   * Create additional podman function helpers to manage containers and images
 * Changed
   * remove stopped container in microvm with `--rm` from `podman run`
