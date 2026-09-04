@@ -32,6 +32,14 @@ RUN if [ -n "$REPOS" ]; then \
         zypper --non-interactive --gpg-auto-import-keys refresh; \
     fi
 
+# ===============
+# sindrai project (home:vlefebvre repo)
+# ---------------
+RUN zypper --non-interactive addrepo \
+        https://download.opensuse.org/repositories/home:/vlefebvre/openSUSE_Tumbleweed/ \
+        home:vlefebvre && \
+    zypper --non-interactive --gpg-auto-import-keys refresh home:vlefebvre
+
 # ==============
 # System Package
 # --------------
@@ -63,6 +71,10 @@ RUN zypper --non-interactive refresh && \
         sed \
         shadow \
         ShellCheck \
+        sindrai \
+        sindrai-skills-cve-investigation \
+        sindrai-skills-packaging-patches \
+        sindrai-skills-shell-scripting \
         tar \
         toilet \
         unzip \
@@ -80,21 +92,6 @@ RUN zypper --non-interactive addrepo \
         home:val4oss && \
     zypper --non-interactive --gpg-auto-import-keys refresh home:val4oss && \
     zypper --non-interactive install --no-recommends customize-ps1 && \
-    zypper clean --all && \
-    rm -rf /var/cache/zypp/*
-
-# ===============
-# sindrai project (home:vlefebvre repo)
-# ---------------
-RUN zypper --non-interactive addrepo \
-        https://download.opensuse.org/repositories/home:/vlefebvre/openSUSE_Tumbleweed/ \
-        home:vlefebvre && \
-    zypper --non-interactive --gpg-auto-import-keys refresh home:vlefebvre && \
-    zypper --non-interactive install --no-recommends \
-        sindrai \
-        sindrai-skills-cve-investigation \
-        sindrai-skills-packaging-patches \
-        sindrai-skills-shell-scripting &&\
     zypper clean --all && \
     rm -rf /var/cache/zypp/*
 
