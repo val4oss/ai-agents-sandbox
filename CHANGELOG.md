@@ -21,6 +21,7 @@
   * Moving from Makefile to custom buil.sh script, more maintenable. 
 * Fixed
   * verifying cached workspace to mount
+  * guard against missing action
 
 ## [1.0.0-rc3] - 2026-08-28
 

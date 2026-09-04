@@ -1324,6 +1324,9 @@ fi
 if ! eval "$ACTION"; then
     print_error "[✗] Action '$ACTION' failed."
     exit "${FAILURE}"
+elif [ -z "${ACTION}" ]; then
+    print_warning "No action specified. Nothing to do."
+    usage
 else
     print_info "[✓] Done."
 fi
