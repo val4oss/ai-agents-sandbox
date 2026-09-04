@@ -64,6 +64,7 @@ DEBUG=0
 BUILD_FULL=0
 ALL=0
 CLEAN_IMG=0
+RESET_AGENT_CONF=0
 DNS_LIST=""
 TOOLS_NEEDED="podman sed grep"
 
@@ -549,9 +550,15 @@ _verify_cache_d() {
     }
 }
 
+###
 # Copy an agent's skel files from ${IMG_D}/agents/<agent> into a mount dir,
-# preserving their parent directory layout. Existing files are kept (cp -n),
-# while existing folders are reused.
+# preserving their parent directory layout.
+# ARGUMENTS:
+#   1 - agent: Name of the agent to copy
+#   2 - dst: Destination directory to copy into.
+# RETURNS:
+#   SUCCESS, FAILURE if not copying
+###
 _copy_agent_files() {
     _src="${IMG_D}/agents/$1"
     _dst="$2"
@@ -561,33 +568,86 @@ _copy_agent_files() {
     return "$SUCCESS"
 }
 
+###
+# Copy host files into a into a mount dir hold by glaipnir
+# ARGUMENTS:
+#   1 - src: File or directory to copy from, in the host HOME
+#   2 - dst: File or directory to copy to, in the glaipnir managed mount dir
+# RETURNS:
+#   SUCCESS, also when the host holds nothing to copy
+###
+_copy_host_files() {
+    _src="$1"
+    _dst="$2"
+    [ -e "$_src" ] || return "$SUCCESS"
+    print_debug "Copying the host '$_src' into '$_dst'"
+    _cp_rc="$SUCCESS"
+    if [ -d "$_src" ]; then
+        mkdir -p "$_dst"
+        cp -rn "$_src/." "$_dst/" 2>/dev/null || _cp_rc="$FAILURE"
+    else
+        cp -n "$_src" "$_dst" 2>/dev/null || _cp_rc="$FAILURE"
+    fi
+    [ "$_cp_rc" = "$SUCCESS" ] ||
+        print_warning "glaipnir did not copy some files of '$_src'."
+    return "$SUCCESS"
+}
+
+###
+# Remove the agents mount dir. The next bind fills it again from the host.
+# RETURNS:
+#   SUCCESS, FAILURE when glaipnir cannot remove the directory
+###
+_reset_agent_mounts() {
+    [ -n "${CACHE_D}" ] || return "$FAILURE"
+    _reset_d="${CACHE_D}/agents-mount"
+    [ -d "$_reset_d" ] || return "$SUCCESS"
+    print_info "Removing the agents configuration in '$_reset_d'..."
+    rm -rf "$_reset_d" || {
+        print_error "Failed to remove '$_reset_d'."
+        return "$FAILURE"
+    }
+    return "$SUCCESS"
+}
+
+###
 # Bind and fill agent mounts for the auth, config, skills..., if applicable
+# OUTPUTS:
+#   fd 3: log messages
+# RETURNS:
+#   SUCCESS, FAILURE if the mount point is not valid
+###
 _bind_agent_mounts() {
     _mount_d="${CACHE_D}/agents-mount"
     _verify_mount_point_d "$_mount_d" || {
-        #TODO log errors
+        print_error "${_mount_d} is not a valid mount point."
         return
     }
     _home="/home/aiuser"
     _mounts=""
     _gemini_mounted=0
     _gcloud_mounted=0
+    _host_cfg_d="${XDG_CONFIG_HOME:-${HOME}/.config}"
 
     # ~/.agents for all agents
     mkdir -p "${_mount_d}/.agents"
+    _copy_host_files "${HOME}/.agents" "${_mount_d}/.agents"
     _mounts="$_mounts --volume $_mount_d/.agents:$_home/.agents:z"
 
     # copilot
     case " $AGENT " in *" copilot "*)
         mkdir -p "${_mount_d}/.config/gh" "${_mount_d}/.copilot"
+        _copy_host_files "${_host_cfg_d}/gh" "${_mount_d}/.config/gh"
+        _copy_host_files "${HOME}/.copilot" "${_mount_d}/.copilot"
         _mounts="$_mounts --volume $_mount_d/.config/gh:$_home/.config/gh:z"
         _mounts="$_mounts --volume $_mount_d/.copilot:$_home/.copilot:z"
     ;; esac
-    
+
     # gemini + antigravity share ~/.gemini/
     case " $AGENT " in *" gemini "*|*" antigravity "*)
         if [ "$_gemini_mounted" = "0" ]; then
             mkdir -p "$_mount_d/.gemini"
+            _copy_host_files "${HOME}/.gemini" "$_mount_d/.gemini"
             _mounts="$_mounts --volume $_mount_d/.gemini:$_home/.gemini:z"
             _gemini_mounted=1
         fi
@@ -596,12 +656,17 @@ _bind_agent_mounts() {
     # claude
     case " $AGENT " in *" claude "*)
         mkdir -p "$_mount_d/.claude"
-        touch "$_mount_d/.claude.json"          # must exist as file before mount
+        _copy_host_files "${HOME}/.claude" "$_mount_d/.claude"
+        _copy_host_files "${HOME}/.claude.json" "$_mount_d/.claude.json"
+        # must exist as file before mount
+        touch "$_mount_d/.claude.json"
         _mounts="$_mounts --volume $_mount_d/.claude:$_home/.claude:z"
         _mounts="$_mounts --volume $_mount_d/.claude.json:$_home/.claude.json:z"
     ;; esac
 
     # claude (Vertex) + opencode share ~/.config/gcloud/
+    # Never copy the ADC, cloud identity, from the host.
+    # case " $AGENT " in *" claude "*|*" opencode "*)
     case " $AGENT " in *" claude "*|*" opencode "*)
         if [ "$_gcloud_mounted" = "0" ]; then
             mkdir -p "$_mount_d/.config/gcloud"
@@ -614,6 +679,7 @@ _bind_agent_mounts() {
     # opencode
     case " $AGENT " in *" opencode "*)
         mkdir -p "$_mount_d/.config/opencode"
+        _copy_host_files "${_host_cfg_d}/opencode" "$_mount_d/.config/opencode"
         _mounts="$_mounts \
 --volume $_mount_d/.config/opencode:$_home/.config/opencode:z"
     ;; esac
@@ -621,6 +687,7 @@ _bind_agent_mounts() {
     # hermes-agent
     case " $AGENT " in *" hermes-agent "*)
         mkdir -p "$_mount_d/.hermes"
+        _copy_host_files "${HOME}/.hermes" "$_mount_d/.hermes"
         _mounts="$_mounts --volume $_mount_d/.hermes:$_home/.hermes:z"
     ;; esac
 
@@ -680,9 +747,17 @@ Options:
                from registry ${DEFAULT_IMG_REPO}
   --all, -a    For 'clean' action, also remove home volume and auth tokens
   --image      For 'clean' action, Remove built images of an agent
+  --reset-agent-config
+               For 'run' action, remove the agents configuration cached in
+               ${CACHE_D_DEFAULT}/agents-mount before the start. glaipnir
+               fills it again from the configuration of your host HOME.
 
 Notes:
   - The sandbox is designed to run in a secure, isolated environment.
+  - On each 'run', glaipnir copies the agents configuration of your host HOME
+    (~/.claude, ~/.gemini, ~/.config/gh...) into the sandbox one. A user
+    already authenticated keeps the credentials and the history. glaipnir only
+    reads your host, and it never overwrites a file of the sandbox.
   - Untrusted agents may not comply with best practices and could pose security
     risks.
   - To enable microVM isolation, ensure that KVM is available and the user is in
@@ -849,10 +924,24 @@ run() {
         fi
     fi
 
-    # Resume a stopped container
+    _ctn_state=""
     if _podman_ctn_exists "$CTN_NAME"; then
-        STATE=$(podman inspect "$CTN_NAME" --format '{{.State.Status}}')
-        case "$STATE" in
+        _ctn_state=$(podman inspect "$CTN_NAME" --format '{{.State.Status}}')
+    fi
+    if [ "${RESET_AGENT_CONF}" -eq 1 ]; then
+        if [ "$_ctn_state" = "running" ]; then
+            print_warning "Container '$CTN_NAME' runs, glaipnir cannot reset"
+            print_warning "     -> its agents configuration. Exit it, then"
+            print_warning "     -> try again."
+        else
+            _reset_agent_mounts || return "$FAILURE"
+        fi
+    fi
+    _agent_mounts="$(_bind_agent_mounts)"
+
+    # Resume a stopped container
+    if [ -n "$_ctn_state" ]; then
+        case "$_ctn_state" in
             running) {
                 _runtime=$(
                     podman inspect "$CTN_NAME" --format '{{.OCIRuntime}}'
@@ -873,7 +962,7 @@ run() {
                 fi
             };;
             initialized|created|configured|exited) {
-                print_info "Starting container from '$STATE'..."
+                print_info "Starting container from '${_ctn_state}'..."
                 if ! ${_podman_cmd} start -ai "$CTN_NAME"; then
                     _ret="$FAILURE"
                 fi
@@ -881,7 +970,7 @@ run() {
                 return "$_ret"
             };;
             *)       {
-                print_error "Container '$CTN_NAME' is in state '$STATE'"
+                print_error "Container '$CTN_NAME' is in state '${_ctn_state}'"
                 print_error "  -> Cannot attach or resume."
                 print_error "  -> Please use 'clean' before 'run'."
                 return "$FAILURE"
@@ -902,9 +991,6 @@ run() {
             return "$FAILURE"
         fi
     fi
-
-    # Setup agents config
-    _agent_mounts="$(_bind_agent_mounts)"
 
     # Setup run hooks
     # TODO: Get the hooks from vendordir `/usr/etc/${PRJ_ID}/*`
@@ -1169,6 +1255,7 @@ while [ $# -gt 0 ]; do
         --run-hook)              RUN_HOOK_ARG="$2";         shift 2 ;;
         --dns)                   DNS_LIST="$2 $DNS_LIST";   shift 2 ;;
         full|--full)             BUILD_FULL=1;              shift 1 ;;
+        --reset-agent-config)    RESET_AGENT_CONF=1;        shift 1 ;;
         all|--all|-a)            ALL=1;                     shift 1 ;;
         --image)
             if [ "$ACTION" =  "clean" ]; then

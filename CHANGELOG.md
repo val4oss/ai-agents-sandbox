@@ -6,6 +6,12 @@
 
 * Added
   * build: remove previous images built, whatever their version tag
+  * run: copy the agents configuration of the host HOME into the sandbox, so a
+    user already authenticated keeps the credentials and the history.
+    glaipnir only reads the host, and it never overwrites a sandbox file.
+    glaipnir excludes the gcloud ADC, because their reach goes beyond coding
+  * run: `--reset-agent-config` copies the agents configuration of the host
+    again
   * Create additional podman function helpers to manage containers and images
 * Changed
   * remove stopped container in microvm with `--rm` from `podman run`

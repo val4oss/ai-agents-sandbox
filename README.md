@@ -207,9 +207,35 @@ sh glaipnir.sh run <?agent>
 sh glaipnir.sh run <?agent> no-microvm
 # Define a custom workdir to mount as /home/aiuser/workspace.
 sh glaipnir.sh run <?agent> -w <dir_path>
+# Remove the cached agents configuration and copy your host HOME one again
+sh glaipnir.sh run <?agent> --reset-agent-config
 ```
 
 > `<?agent>` can be empty to use the all-in-one image.
+
+#### Reuse of the agents configuration of your host
+
+At first use of the sandbox, agents configuration are copied into the 
+`agents-mount` mount point directory so a user already authenticated outside of
+the sandbox stays authenticated inside it, and keeps the history.
+
+Exeption for `~/.config/gcloud` that is never copied. Unlike an agent token, the
+gcloud ADC are a cloud identity, and their reach goes far beyond coding.
+
+Two rules keep the sandbox secure:
+
+* **glaipnir only reads your host.** No action of the agent inside the sandbox
+  can reach your host.
+* **The copy only adds files, the sandbox always wins.** The host never
+  overwrites a file that the cache already holds.
+
+To start again from the current state of your host, use
+`--reset-agent-config`. It is useful after you authenticate again on the host,
+or after you change account on it. The option removes only `agents-mount`, and
+glaipnir refuses it while the container still runs.
+
+> The first copy takes all the listed directories. If your `~/.claude/projects`
+> is large, the first `run` takes more time and the cache grows.
 
 ### Clean the environment
 
