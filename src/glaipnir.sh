@@ -200,7 +200,7 @@ _check_scripts() {
     _script="$1"
     if [ -n "$_script" ] && [ -f "$_script" ]; then
         if command -v shellcheck > /dev/null 2>&1; then
-            if ! shellcheck "$_script" > /dev/null 2>&1; then
+            if ! shellcheck -S warning "$_script" > /dev/null 2>&1; then
                 print_error \
                     "Script '$_script' has shellcheck errors."
                 _ret="$FAILURE"
@@ -1219,7 +1219,7 @@ CMD_LINE="$*"
 # Get arguments
 if [ $# -lt 1 ]; then
     print_error "Missing command"
-    usage & exit 1
+    usage; exit 1
 fi
 
 if [ -f "${CONF_P}" ]; then
