@@ -138,9 +138,9 @@ if [ "$(id -u)" = "0" ] && id aiuser >/dev/null 2>&1; then
 fi
 
 # Initial setup (one-time)
-[ -d "$WORKSPACE_D" ] && mkdir -p "$WORKSPACE_D"
+[ -d "$WORKSPACE_D" ] || mkdir -p "$WORKSPACE_D"
 [ -d "$SHARE_SKEL_D" ] && {
-    cp -r "$SHARE_SKEL_D"/* "$HOME"/
+    cp -r "$SHARE_SKEL_D"/. "$HOME"/
     rm -rf "$SHARE_SKEL_D"
 }
 

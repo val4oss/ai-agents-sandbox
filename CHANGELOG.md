@@ -22,6 +22,7 @@
 * Fixed
   * verifying cached workspace to mount
   * guard against missing action
+  * image: entrypoint create workspace when not exists
 
 ## [1.0.0-rc3] - 2026-08-28
 
