@@ -160,16 +160,18 @@ EOF
     fi
 fi
 
-# Run all run hooks
+_hooks_p="$(mktemp)" || exit 1
+trap 'rm -f "$_hooks_p"' EXIT HUP INT TERM
 find "/usr/local/bin/$PRJ_ID-run-hooks/" !\
     -name "$(printf "*\n*")"\
     -name "*.sh" \
-    | sort > tmp
+    | sort > "$_hooks_p"
 while IFS= read -r _h;
 do
     sh "$_h" || exit 1;
-done < tmp
-rm -f tmp
+done < "$_hooks_p"
+rm -f "$_hooks_p"
+trap - EXIT HUP INT TERM
 
 # Print the banner with agent status and authentication hints
 banner_header
