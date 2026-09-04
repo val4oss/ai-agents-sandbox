@@ -13,6 +13,7 @@
   * run: `--reset-agent-config` copies the agents configuration of the host
     again
   * Create additional podman function helpers to manage containers and images
+  * build: always pull published image from registry
 * Changed
   * remove stopped container in microvm with `--rm` from `podman run`
   * Skills now managed by `sindrai` project

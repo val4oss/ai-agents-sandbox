@@ -829,6 +829,7 @@ build() {
     set --
     [ ${DEBUG} -eq 1 ] && set -- --log-level=debug
     set -- "$@" build --no-cache --rm \
+        --pull=always \
         --build-arg "AGENT=\"${AGENT}\"" \
         --build-arg "IMG_TAG=${IMG_TAG}" \
         --build-arg "PKGS=\"${PKGS}\"" \
