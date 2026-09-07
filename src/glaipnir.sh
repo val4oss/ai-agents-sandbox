@@ -570,9 +570,13 @@ _copy_agent_files() {
 
 ###
 # Copy host files into a into a mount dir hold by glaipnir
+# if the dst already exists but the src is newer, warn the user to reset the
+# agent configuration in the debug log.
 # ARGUMENTS:
 #   1 - src: File or directory to copy from, in the host HOME
 #   2 - dst: File or directory to copy to, in the glaipnir managed mount dir
+# OUTPUTS:
+#   fd 3: log messages
 # RETURNS:
 #   SUCCESS, also when the host holds nothing to copy
 ###
@@ -580,6 +584,18 @@ _copy_host_files() {
     _src="$1"
     _dst="$2"
     [ -e "$_src" ] || return "$SUCCESS"
+    if [ -e "${_dst}" ]; then
+        _src_last_modified="$(stat -c %Y "${_src}" 2>/dev/null)"
+        _dst_created="$(stat -c %W "${_dst}" 2>/dev/null)"
+        if [ -n "${_src_last_modified}" ] && [ -n "${_dst_created}" ]; then
+            if [ "${_src_last_modified}" -gt "${_dst_created}" ]; then
+                print_debug "'${_src} is newer than '${_dst}', to update the"
+                print_debug "sandbox configuration use '--reset-agent-config'"
+                print_debug "option."
+            fi
+        fi
+        return "${SUCCESS}"
+    fi
     print_debug "Copying the host '$_src' into '$_dst'"
     _cp_rc="$SUCCESS"
     if [ -d "$_src" ]; then
