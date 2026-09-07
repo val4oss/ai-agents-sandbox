@@ -14,6 +14,7 @@
     again
   * Create additional podman function helpers to manage containers and images
   * build: always pull published image from registry
+  * image: Add version in agent banner
 * Changed
   * remove stopped container in microvm with `--rm` from `podman run`
   * Skills now managed by `sindrai` project

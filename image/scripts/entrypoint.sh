@@ -96,6 +96,7 @@ banner_header() {
 # Print the banner for an agent with authentication status
 # Parameters:
 # 1: agent name
+# 2: version command
 # 2: authentication check command
 # 3: authentication hint command
 banner_agent() {
@@ -103,12 +104,18 @@ banner_agent() {
         return
     fi
     _green=$(tput setaf 2)
+    _grey=$(tput setaf 15)
     _reset=$(tput sgr0)
     _agent_name="$1"
-    _auth_cmd="$2"
-    _auth_hint="$3"
+    _ver_cmd="$2"
+    _auth_cmd="$3"
+    _auth_hint="$4"
     _auth_status="$(check_auth   "$_auth_cmd" "$_auth_hint")"
-    printf "\t%b• Agent:%b %s\n" "$_green" "$_reset" "$_agent_name"
+    _ver="$(
+        eval "$_ver_cmd" 2> /dev/null | grep -oE '[0-9]+(\.[0-9]+)*' | head -n 1
+    )"
+    printf "\t%b• Agent:%b %s %b%s%b\n" "$_green" "$_reset" "$_agent_name" \
+        "$_grey" "$_ver" "$_reset"
     printf "\t         %s\n"     "$_auth_status"
 }
 
@@ -178,11 +185,11 @@ banner_header
 
 # For each agent, check authentication status and print
 agent_enabled "copilot" &&\
-    banner_agent "GitHub Copilot CLI" "gh auth status" \
+    banner_agent "GitHub Copilot CLI" "copilot --version" "gh auth status" \
         "gh auth login --scopes 'copilot'"
 
 agent_enabled "gemini" &&\
-    banner_agent "Gemini CLI" "gemini_auth_check" \
+    banner_agent "Gemini CLI" "gemini --version" "gemini_auth_check" \
         "gemini auth login" &&\
     banner_notes \
         "If you used a company plan linked to a google project, you would" \
@@ -190,7 +197,7 @@ agent_enabled "gemini" &&\
         "GOOGLE_CLOUD_PROJECT=company-gemini-code-assist"
 
 agent_enabled "claude" &&\
-    banner_agent "Claude Code" \
+    banner_agent "Claude Code" "claude --version"\
         "claude_auth_check" \
         "claude auth login  (or: export ANTHROPIC_API_KEY=sk-...)" &&\
     banner_notes \
@@ -198,7 +205,7 @@ agent_enabled "claude" &&\
         "gcloud auth application-default login"
 
 agent_enabled "opencode" &&\
-    banner_agent "Open Code" \
+    banner_agent "Open Code" "opencode --version" \
         "opencode_auth_check" \
         "gcloud auth application-default login" &&\
     banner_notes \
@@ -208,7 +215,7 @@ agent_enabled "opencode" &&\
         "Keep GOOGLE_APPLICATION_CREDENTIALS unset for ADC default path." \
         "Set GOOGLE_CLOUD_PROJECT to enable Vertex AI provider."
 agent_enabled "antigravity" &&\
-    banner_agent "Antigravity" \
+    banner_agent "Antigravity" "agy --version"\
         "test -f $HOME/.gemini/antigravity-cli/antigravity-oauth-token" \
         "agy" &&\
     banner_notes \
@@ -217,7 +224,7 @@ agent_enabled "antigravity" &&\
         "integrate some spaces, be careful when you copy-paste the URL."
 # Print disclaimer note for untrusted Hermes Agent
 agent_enabled "hermes-agent" &&\
-    banner_agent "Hermes Agent (untrusted)" \
+    banner_agent "Hermes Agent (untrusted)" "hermes --version" \
         "test -f \$HOME/.hermes/config.yaml" \
         "hermes setup" &&\
     banner_notes \
