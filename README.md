@@ -240,8 +240,9 @@ glaipnir refuses it while the container still runs.
 ### Clean the environment
 
 ```bash
-sh glaipnir.sh clean     # Remove the container (auth and workspace preserved)
-sh glaipnir.sh clean all # Remove a specific agent container + its auth tokens
+sh glaipnir.sh clean       # Remove the container (auth and workspace preserved)
+sh glaipnir.sh clean all   # Remove a specific agent container + its auth tokens
+sh glaipnir.sh clean-cache # Remove the entire cahce
 ```
 
 ### Use a config file to customized your image

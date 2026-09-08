@@ -19,7 +19,9 @@
   * remove stopped container in microvm with `--rm` from `podman run`
   * Skills now managed by `sindrai` project
   * Be sure to remove containers before removing images
-  * Moving from Makefile to custom buil.sh script, more maintenable. 
+  * Moving from Makefile to custom buil.sh script, more maintenable.
+  * clean the cache is done via a new command `clean-cache`. The `clean --all` 
+    now clean only images and containers.
 * Fixed
   * verifying cached workspace to mount
   * guard against missing action

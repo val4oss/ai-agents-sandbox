@@ -739,6 +739,7 @@ Actions:
   build         Build the container image for the specified agent
                 By default it bases from the registry: ${DEFAULT_IMG_REPO}
   clean         Remove generated container for the specified agent
+  clean-cache   Remove glaipnir cache
   status        Show the current status, built images, running containers...
 
 Agents:
@@ -761,7 +762,7 @@ Options:
                /home/aiuser/workspace.
   --full       Build fully the container image instead of refering to the one
                from registry ${DEFAULT_IMG_REPO}
-  --all, -a    For 'clean' action, also remove home volume and auth tokens
+  --all, -a    For 'clean' action, Remove all containers and images
   --image      For 'clean' action, Remove built images of an agent
   --reset-agent-config
                For 'run' action, remove the agents configuration cached in
@@ -1152,7 +1153,6 @@ clean() {
         fi
     fi
 
-    # Clean Cache
     if [ $ALL -eq 1 ]; then
         # Keep care of old volumes
         # ---
@@ -1164,11 +1164,6 @@ clean() {
             fi
         fi
         # ---
-        print_info "Removing cache dir ${CACHE_D}..."
-        rm -rf "${CACHE_D}" || {
-            print_error "Faield to clean cache dir."
-            _ret="${FAILURE}"
-        }
         if [ "$(uname -s)" = "Darwin" ]; then
             print_info "Removing macOS VPN enforcer artifacts..."
             if ! _macos_remove_enforcer; then
@@ -1176,10 +1171,6 @@ clean() {
                 _ret="$FAILURE"
             fi
         fi
-
-        [ "${_ret}" != "${SUCCESS}" ] || {
-            print_info "podman volumes and Cache has been cleaned."
-        }
     fi
 
     # Clean images, if all has been given all images will be removed. If an
@@ -1197,6 +1188,27 @@ clean() {
             print_info "All images related to ${IMG_NAME} has been removed."
     fi
     return "${_ret}"
+}
+
+###
+# clean_cache action callback - Removes the cache directory
+# OUTPUTS:
+#   fd 3: Log messages
+# RETURNS:
+#   SUCCESS, FAILURE if container doesn't exists
+###
+clean_cache() {
+    _cc_rc="${SUCCESS}"
+    print_info "Removing cache dir ${CACHE_D}..."
+    rm -rf "${CACHE_D}" || {
+        print_error "Faield to clean cache dir."
+        _cc_rc="${FAILURE}"
+    }
+
+    [ "${_cc_rc}" != "${SUCCESS}" ] || {
+        print_info "podman volumes and Cache has been cleaned."
+    }
+
 }
 
 # callback for status action
@@ -1253,6 +1265,7 @@ while [ $# -gt 0 ]; do
         quiet|--quiet|-q)        QUIET=1;                   shift 1 ;;
         version|--version)       print_version;             exit 0  ;;
         run|build|clean|status)  ACTION="$1";               shift 1 ;;
+        clean-cache)             ACTION="clean_cache";      shift 1 ;;
         --no-microvm|no-microvm) USE_MICROVM=0;             shift 1 ;;
         --conf)
             CONF_P="$2"
