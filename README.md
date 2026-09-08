@@ -379,6 +379,15 @@ sh glaipnir.sh run copilot
 # → ✅ GitHub (gh) : authenticated
 ```
 
+### tips: running multiple agents
+
+```bash
+sh src/glaipnir.sh run gemini claude
+```
+
+* It will sort the agents, create the needed image by suffixing with the agent
+  names sorted, and run the container with all the agents available.
+
 ---
 
 ## Customisation

@@ -70,7 +70,7 @@ CLEAN_IMG=0
 RESET_AGENT_CONF=0
 FORCE=0
 DNS_LIST=""
-TOOLS_NEEDED="podman sed grep tar"
+TOOLS_NEEDED="podman sed grep tar xargs"
 
 # useful vars
 MIN_LIBKRUN_VER="1.18.0"
@@ -113,67 +113,6 @@ _check_tools_needed() {
         _ret="$FAILURE"
     fi
     return "$_ret"
-}
-
-# parse configuration file if it exists
-_parse_conf() {
-    if [ "$(basename "${CONF_P}")" = "${PRJ_ID}.conf" ] &&\
-       [ ! -f "${CONF_P}" ]; then
-        _c_dir="$(dirname "${CONF_P}")"
-        _old_conf="${_c_dir}/${SANDBOX_ID}.conf"
-        if [ -f "${_old_conf}" ]; then
-            print_warning "Using legacy config $(basename "${_old_conf}"),"
-            print_warning "Rename it to $(basename "${CONF_P}")."
-            CONF_P="${_old_conf}"
-        fi
-    fi
-    if [ -f "$CONF_P" ]; then
-        _in_block=0
-        _block_key=""
-        while IFS= read -r _line; do
-            # strip leading whitespace
-            _line="${_line#"${_line%%[! ]*}"}"
-            case "$_line" in
-                "" | \#*) continue ;;
-            esac
-            if [ "$_in_block" -eq 1 ]; then
-                case "$_line" in
-                    *")"*) _in_block=0; _block_key="" ;;
-                    *)
-                        # strip quotes
-                        _item=$(printf '%s' "$_line" \
-                            | sed 's/^["'"'"']//;s/["'"'"']$//')
-                        # Assigning to block keys
-                        case "$_block_key" in
-                            PACKAGES) PKGS="$PKGS $_item"   ;;
-                            REPOS)    REPOS="$REPOS $_item" ;;
-                        esac
-                        ;;
-                esac
-            else
-                _key="$(printf '%s' "$_line" | cut -d '=' -f 1)"
-                _value="$(printf '%s' "$_line" | cut -d '=' -f 2-)"
-                # strip quotes
-                _value=$(printf '%s' "$_value" \
-                    | sed 's/^["'"'"']//;s/["'"'"']$//')
-                case "$_value" in
-                    *"("*) _in_block=1; _block_key="$_key" ;;
-                    *)
-                        # Assigning to keys
-                        case "$_key" in
-                            AGENT)       AGENT="$_value" ;;
-                            USE_MICROVM) USE_MICROVM="$_value" ;;
-                            WORKSPACE)   SANDBOX_D="$_value" ;;
-                            CACHE)       CACHE_D="$_value" ;;
-                            DATA_DIR|DATA_D) HOME_DATA_D="$_value" ;;
-                            IMG_TAG)     IMG_TAG="$_value" ;;
-                            DNS)         DNS_LIST="$_value $DNS_LIST" ;;
-                        esac
-                esac
-            fi
-        done < "$CONF_P"
-    fi
-    return "$SUCCESS"
 }
 
 # Get hooks according type of the argument, directory or single file.
@@ -228,28 +167,138 @@ _check_untrusted_disclaimer() {
     esac
 }
 
+###
 # check if agent is valid
+# ARGUMENTS:
+#   1 - agent: agent name
+# RETURNS:
+#   SUCCESS, FAILURE if directory cannot be created or is not valid
+###
 _valid_agent() {
-    _ret="$FAILURE"
+    _va_rc="$FAILURE"
+    _agent="$1"
     for _agt_v in $TRUSTED_AGENTS; do
-        if [ "$AGENT" = "$_agt_v" ]; then
-            _ret="$SUCCESS"
-            return "$_ret"
+        if [ "${_agent}" = "$_agt_v" ]; then
+            _va_rc="$SUCCESS"
+            break
         fi
     done
-    for _agt_v in $UNTRUSTED_AGENTS; do
-        if [ "$AGENT" = "$_agt_v" ]; then
-            for _act_v in $UNTRUSTED_AGENTS_SENSITIVE_ACTIONS; do
-                if [ "$ACTION" = "$_act_v" ]; then
-                    _check_untrusted_disclaimer "$AGENT"
-                    break
-                fi
-            done
-            _ret="$SUCCESS"
-            return "$_ret"
+    if [ "${_va_rc}" = "${FAILURE}" ]; then
+        for _agt_v in $UNTRUSTED_AGENTS; do
+            if [ "$_agent" = "$_agt_v" ]; then
+                for _act_v in $UNTRUSTED_AGENTS_SENSITIVE_ACTIONS; do
+                    if [ "$ACTION" = "$_act_v" ]; then
+                        _check_untrusted_disclaimer "$_agent"
+                        break
+                    fi
+                done
+                _va_rc="$SUCCESS"
+                break
+            fi
+        done
+    fi
+    return "$_va_rc"
+}
+
+###
+# Add an agent to the list of agents to run, after validating
+# ARGUMENTS:
+#   1 - agent: agent name
+# RETURNS:
+#   SUCCESS, FAILURE if not valid agent
+###
+_add_agent() {
+    _aa_rc="${SUCCESS}"
+    _agt="$1"
+    if [ "$1" = "agy" ]; then
+        _agt="antigravity"
+    fi
+    if ! _valid_agent "${_agt}"; then
+        print_error "Unknown agent: '$1'. Valid agents:"
+        print_error "  -Trusted: ${TRUSTED_AGENTS}"
+        print_error "  -Untrusted: ${UNTRUSTED_AGENTS}"
+        _aa_rc="${FAILURE}"
+    else
+        if [ "${AGENT}" = "" ]; then
+            AGENT="$_agt"
+        else
+            BUILD_FULL=1
+            AGENT="$_agt $AGENT"
+            AGENT="$( printf "%s" "${AGENT}" | xargs -n1 |  sort -u | xargs)"
+        fi 
+    fi
+    return "${_aa_rc}"
+}
+
+###
+# parse configuration file if it exists
+# RETURNS:
+#   SUCCESS, FAILURE if conf not valid
+###
+_parse_conf() {
+    _pc_rc="${SUCCESS}"
+    if [ "$(basename "${CONF_P}")" = "${PRJ_ID}.conf" ] &&\
+       [ ! -f "${CONF_P}" ]; then
+        _c_dir="$(dirname "${CONF_P}")"
+        _old_conf="${_c_dir}/${SANDBOX_ID}.conf"
+        if [ -f "${_old_conf}" ]; then
+            print_warning "Using legacy config $(basename "${_old_conf}"),"
+            print_warning "Rename it to $(basename "${CONF_P}")."
+            CONF_P="${_old_conf}"
         fi
-    done
-    return "$_ret"
+    fi
+    if [ -f "$CONF_P" ]; then
+        _in_block=0
+        _block_key=""
+        while IFS= read -r _line; do
+            # strip leading whitespace
+            _line="${_line#"${_line%%[! ]*}"}"
+            case "$_line" in
+                "" | \#*) continue ;;
+            esac
+            if [ "$_in_block" -eq 1 ]; then
+                case "$_line" in
+                    *")"*) _in_block=0; _block_key="" ;;
+                    *)
+                        # strip quotes
+                        _item=$(printf '%s' "$_line" \
+                            | sed 's/^["'"'"']//;s/["'"'"']$//')
+                        # Assigning to block keys
+                        case "$_block_key" in
+                            PACKAGES) PKGS="$PKGS $_item"   ;;
+                            REPOS)    REPOS="$REPOS $_item" ;;
+                            AGENTS)
+                                _add_agent "$_item" || _pc_rc="${FAILURE}"
+                                ;;
+                        esac
+                        ;;
+                esac
+            else
+                _key="$(printf '%s' "$_line" | cut -d '=' -f 1)"
+                _value="$(printf '%s' "$_line" | cut -d '=' -f 2-)"
+                # strip quotes
+                _value=$(printf '%s' "$_value" \
+                    | sed 's/^["'"'"']//;s/["'"'"']$//')
+                case "$_value" in
+                    *"("*) _in_block=1; _block_key="$_key" ;;
+                    *)
+                        # Assigning to keys
+                        case "$_key" in
+                            AGENT)       
+                                _add_agent "$_value" || _pc_rc="${FAILURE}"
+                                ;;
+                            USE_MICROVM) USE_MICROVM="$_value" ;;
+                            WORKSPACE)   SANDBOX_D="$_value" ;;
+                            CACHE)       CACHE_D="$_value" ;;
+                            DATA_DIR|DATA_D) HOME_DATA_D="$_value" ;;
+                            IMG_TAG)     IMG_TAG="$_value" ;;
+                            DNS)         DNS_LIST="$_value $DNS_LIST" ;;
+                        esac
+                esac
+            fi
+        done < "$CONF_P"
+    fi
+    return "${_pc_rc}"
 }
 
 # Add the current user in the group given in argument, after confirmation.
@@ -1041,11 +1090,13 @@ run() {
     _default_repo="${DEFAULT_IMG_REPO}/${IMG_NAME}"
     if ! _podman_img_exists "${IMG_NAME}" ||\
        [ "$(_podman_img_repo)" = "${_default_repo}" ]; then
-        IMG_NAME="${_default_repo}"
-        print_info "Pulling image: ${IMG_NAME}..."
-        if ! podman pull -q "${IMG_NAME}" > /dev/null 2>&1; then
-            print_error "No Image built and cannot pull ${IMG_NAME}"
-            return "$FAILURE"
+        print_info "Pulling image: ${_default_repo}..."
+        if ! podman pull -q "${_default_repo}" > /dev/null 2>&1; then
+            print_warning "No Image built and cannot pull ${_default_repo}"
+            if ! build; then
+                print_error "Failed to build image ${IMG_NAME}"
+                return "${FAILURE}"
+            fi
         fi
     fi
 
@@ -1471,7 +1522,7 @@ while [ $# -gt 0 ]; do
             exit 1
             ;;
         *)
-            AGENT="$1"
+            _add_agent "$1" || exit 1
             shift 1
             ;;
     esac
@@ -1508,19 +1559,9 @@ if [ "${SANDBOX_D}" != "${SANDBOX_D_DEFAULT}" ] &&\
 fi
 
 if [ "$AGENT" != "" ]; then
-    # Resolve agy alias to antigravity
-    if [ "$AGENT" = "agy" ]; then
-        AGENT="antigravity"
-    fi
-
-    if ! _valid_agent ; then
-        print_error "Unknown agent: '$AGENT'. \
-Valid agents: $TRUSTED_AGENTS (trusted) or $UNTRUSTED_AGENTS (untrusted)"
-        exit "${FAILURE}"
-    else
-        IMG_NAME="${IMG_NAME}-${AGENT}"
-        CTN_NAME="${CTN_NAME}-${AGENT}"
-    fi
+    _agents="$(printf "%s" "${AGENT}" | tr ' ' '-')"
+    IMG_NAME="${IMG_NAME}-${_agents}"
+    CTN_NAME="${CTN_NAME}-${_agents}"
 else
     # IF build is invoked, it should act like full argument.
     # Todo: Create the all image to export the full build for all agents

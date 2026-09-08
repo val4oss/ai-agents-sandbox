@@ -21,6 +21,7 @@
     - `clean-data`: remove glaipnir home data dir
     Each commands can override the data dir. And force can be used to
     force the restore.
+  * running with custom list of agents.
 * Changed
   * remove stopped container in microvm with `--rm` from `podman run`
   * Skills now managed by `sindrai` project
