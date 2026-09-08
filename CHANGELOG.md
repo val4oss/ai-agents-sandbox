@@ -15,6 +15,12 @@
   * Create additional podman function helpers to manage containers and images
   * build: always pull published image from registry
   * image: Add version in agent banner
+  * Add new commands:
+    - `save-data` to save cached agent data into home data dir
+    - `restore-data`: restore last saved data from home data dir
+    - `clean-data`: remove glaipnir home data dir
+    Each commands can override the data dir. And force can be used to
+    force the restore.
 * Changed
   * remove stopped container in microvm with `--rm` from `podman run`
   * Skills now managed by `sindrai` project

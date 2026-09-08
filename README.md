@@ -242,7 +242,8 @@ glaipnir refuses it while the container still runs.
 ```bash
 sh glaipnir.sh clean       # Remove the container (auth and workspace preserved)
 sh glaipnir.sh clean all   # Remove a specific agent container + its auth tokens
-sh glaipnir.sh clean-cache # Remove the entire cahce
+sh glaipnir.sh clean-cache # Remove the entire cache
+sh glaipnir.sh clean-data  # Remove the saved data directory
 ```
 
 ### Use a config file to customized your image
@@ -260,6 +261,23 @@ PACKAGES=(
     osc
     quilt
 )
+```
+
+### Backup and restore agents data
+
+```bash
+# Backup agent configurations from cache to ~/.local/share/glaipnir/
+sh glaipnir.sh save-data
+
+# Restore the last saved backup into the cache (failsafe: avoids overwriting)
+sh glaipnir.sh restore-data
+
+# Overwrite existing cache data with the last backup
+sh glaipnir.sh restore-data --force
+
+# Use a custom data archive folder
+sh glaipnir.sh save-data --data-dir /backup/glaipnir
+sh glaipnir.sh restore-data --data-dir /backup/glaipnir --force
 ```
 
 ---

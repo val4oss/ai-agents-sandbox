@@ -25,6 +25,10 @@ Shell project to:
 * `sh glaipnir.sh build <agent_name>`: Build the image
 * `sh glaipnir.sh run <agent_name>`: Run the agent environment
 * `sh glaipnir.sh clean`: Clean container state
+* `sh glaipnir.sh clean-cache`: Clean cache state
+* `sh glaipnir.sh clean-data`: Clean saved data directory
+* `sh glaipnir.sh save-data`: Save agent config cache to data dir
+* `sh glaipnir.sh restore-data`: Restore last saved data from data dir
 
 ## Architecture
 

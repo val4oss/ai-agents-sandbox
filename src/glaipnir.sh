@@ -36,6 +36,8 @@ IMG_D="${DATA_D}/image"
 CONF_P="${XDG_CONFIG_HOME:-${HOME}/.config}/${PRJ_ID}/${PRJ_ID}.conf"
 CACHE_D_DEFAULT="${XDG_CACHE_HOME:-${HOME}/.cache}/${PRJ_ID}"
 CACHE_D="${CACHE_D_DEFAULT}"
+HOME_DATA_D_DEFAULT="${XDG_DATA_HOME:-${HOME}/.local/share}/${PRJ_ID}"
+HOME_DATA_D="${HOME_DATA_D_DEFAULT}"
 SANDBOX_D_DEFAULT="${CACHE_D_DEFAULT}/workspace"
 SANDBOX_D="${PWD}"
 BUILD_HOOK_ARG=""
@@ -65,8 +67,9 @@ BUILD_FULL=0
 ALL=0
 CLEAN_IMG=0
 RESET_AGENT_CONF=0
+FORCE=0
 DNS_LIST=""
-TOOLS_NEEDED="podman sed grep"
+TOOLS_NEEDED="podman sed grep tar"
 
 # useful vars
 MIN_LIBKRUN_VER="1.18.0"
@@ -161,6 +164,7 @@ _parse_conf() {
                             USE_MICROVM) USE_MICROVM="$_value" ;;
                             WORKSPACE)   SANDBOX_D="$_value" ;;
                             CACHE)       CACHE_D="$_value" ;;
+                            DATA_DIR|DATA_D) HOME_DATA_D="$_value" ;;
                             IMG_TAG)     IMG_TAG="$_value" ;;
                             DNS)         DNS_LIST="$_value $DNS_LIST" ;;
                         esac
@@ -501,7 +505,13 @@ _podman_rm_img() {
     return "${_img_rc}"
 }
 
+###
 # Verify that the directory exists and is a directory not set to HOME
+# ARGUMENTS:
+#   1 - dir: Path to the dir to verify
+# RETURNS:
+#   SUCCESS, FAILURE if directory cannot be created or is not valid
+###
 _verify_mount_point_d() {
     _ret="$FAILURE"
     if [ -z "$1" ]; then
@@ -522,6 +532,12 @@ _verify_mount_point_d() {
     fi
     return "$_ret"
 }
+
+###
+# Verify that workspace directory exists or can be created
+# RETURNS:
+#   SUCCESS, FAILURE if directory cannot be created or is not valid
+###
 _verify_workspace_d() {
     _ret="$SUCCESS"
     SANDBOX_D="$(echo "${SANDBOX_D}" | sed "s|~|${HOME}|g")"
@@ -542,11 +558,31 @@ _verify_workspace_d() {
     }
     return "$_ret"
 }
+
+###
+# Verify that cache directory exists or can be created
+# RETURNS:
+#   SUCCESS, FAILURE if directory cannot be created or is not valid
+###
 _verify_cache_d() {
     CACHE_D="$(echo "${CACHE_D}" | sed "s|~|${HOME}|g")"
     _verify_mount_point_d "$CACHE_D" || {
         print_warning "Falling back to default cache: '$CACHE_D_DEFAULT'."
         CACHE_D="$CACHE_D_DEFAULT"
+    }
+}
+
+###
+# Verify that home data directory exists or can be created
+# RETURNS:
+#   SUCCESS, FAILURE if directory cannot be created or is not valid
+###
+_verify_home_data_dir() {
+    HOME_DATA_D="$(echo "${HOME_DATA_D}" | sed "s|~|${HOME}|g")"
+    _verify_mount_point_d "${HOME_DATA_D}" || {
+        print_warning \
+            "Falling back to default data dir: '${HOME_DATA_D_DEFAULT}'."
+        HOME_DATA_D="${HOME_DATA_D_DEFAULT}"
     }
 }
 
@@ -740,6 +776,9 @@ Actions:
                 By default it bases from the registry: ${DEFAULT_IMG_REPO}
   clean         Remove generated container for the specified agent
   clean-cache   Remove glaipnir cache
+  clean-data    Remove glaipnir saved data directory
+  save-data     Archive agent config cache to XDG_DATA_HOME
+  restore-data  Restore last data archive from XDG_DATA_HOME to cache
   status        Show the current status, built images, running containers...
 
 Agents:
@@ -768,6 +807,10 @@ Options:
                For 'run' action, remove the agents configuration cached in
                ${CACHE_D_DEFAULT}/agents-mount before the start. glaipnir
                fills it again from the configuration of your host HOME.
+  --data-dir <dir>
+               Specify custom directory for saved data archives
+               (default: ${HOME_DATA_D_DEFAULT})
+  --force      Force overwriting existing cache data on restore
 
 Notes:
   - The sandbox is designed to run in a secure, isolated environment.
@@ -1211,6 +1254,119 @@ clean_cache() {
 
 }
 
+###
+# clean_data action callback - Removes the data directory
+# OUTPUTS:
+#   fd 3: Log messages
+# RETURNS:
+#   SUCCESS, FAILURE if removing data dir fails
+###
+clean_data() {
+    _cd_rc="${SUCCESS}"
+    _verify_home_data_dir
+    print_info "Removing data dir ${HOME_DATA_D}..."
+    rm -rf "${HOME_DATA_D}" || {
+        print_error "Failed to clean data dir."
+        _cd_rc="${FAILURE}"
+    }
+
+    [ "${_cd_rc}" != "${SUCCESS}" ] || {
+        print_info "Data directory has been cleaned."
+    }
+    return "${_cd_rc}"
+}
+
+###
+# save_data action callback - Archives agents-mount cache to data dir
+# OUTPUTS:
+#   fd 3: Log messages
+# RETURNS:
+#   SUCCESS, FAILURE if saving fails
+###
+save_data() {
+    _sd_rc="${SUCCESS}"
+    _src_d="${CACHE_D}/agents-mount"
+    if [ ! -d "${_src_d}" ]; then
+        print_error "No agents configuration found in '${_src_d}' to save."
+        return "${FAILURE}"
+    fi
+
+    _verify_home_data_dir
+    if [ ! -d "${HOME_DATA_D}" ]; then
+        mkdir -p "${HOME_DATA_D}" || {
+            print_error "Failed to create data directory '${HOME_DATA_D}'."
+            return "${FAILURE}"
+        }
+    fi
+
+    _archive_name="${PRJ_ID}-data-$(date +%Y%m%d_%H%M%S).tar.gz"
+    _archive_path="${HOME_DATA_D}/${_archive_name}"
+
+    print_info "Saving data from '${_src_d}' to '${_archive_path}'..."
+    if tar -czf "${_archive_path}" -C "${CACHE_D}" "agents-mount"; then
+        print_info "Data archive successfully saved: ${_archive_path}"
+    else
+        print_error "Failed to create archive '${_archive_path}'."
+        _sd_rc="${FAILURE}"
+    fi
+    return "${_sd_rc}"
+}
+
+###
+# restore_data action callback - Restores latest archive to cache
+# OUTPUTS:
+#   fd 3: Log messages
+# RETURNS:
+#   SUCCESS, FAILURE if restore fails
+###
+restore_data() {
+    _rd_rc="${SUCCESS}"
+    _verify_home_data_dir
+    if [ ! -d "${HOME_DATA_D}" ]; then
+        print_error "Data directory '${HOME_DATA_D}' does not exist."
+        return "${FAILURE}"
+    fi
+
+    _last_archive=""
+    for _f in "${HOME_DATA_D}/${PRJ_ID}-data-"*.tar.gz; do
+        [ -f "${_f}" ] || continue
+        _last_archive="${_f}"
+    done
+
+    if [ -z "${_last_archive}" ]; then
+        print_error "No saved data archive found in '${HOME_DATA_D}'."
+        return "${FAILURE}"
+    fi
+
+    _target_d="${CACHE_D}/agents-mount"
+    if [ -e "${_target_d}" ]; then
+        if [ "${FORCE}" -eq 0 ]; then
+            print_warning "Cache data already exists in '${_target_d}'."
+            print_warning "Avoided restoring. Use '--force' to override."
+            return "${SUCCESS}"
+        fi
+        print_info "Force flag set: removing existing '${_target_d}'..."
+        rm -rf "${_target_d}" || {
+            print_error "Failed to remove '${_target_d}'."
+            return "${FAILURE}"
+        }
+    fi
+
+    [ -d "${CACHE_D}" ] || mkdir -p "${CACHE_D}" || {
+        print_error "Failed to create cache directory '${CACHE_D}'."
+        return "${FAILURE}"
+    }
+
+    print_info "Restoring data from '${_last_archive}' to '${CACHE_D}'..."
+    if tar -xzf "${_last_archive}" -C "${CACHE_D}"; then
+        print_info "Data successfully restored to '${CACHE_D}'."
+    else
+        print_error "Failed to restore data from '${_last_archive}'."
+        _rd_rc="${FAILURE}"
+    fi
+    return "${_rd_rc}"
+}
+
 # callback for status action
 status() {
     printf "Images :\n"
@@ -1266,6 +1422,9 @@ while [ $# -gt 0 ]; do
         version|--version)       print_version;             exit 0  ;;
         run|build|clean|status)  ACTION="$1";               shift 1 ;;
         clean-cache)             ACTION="clean_cache";      shift 1 ;;
+        clean-data)              ACTION="clean_data";       shift 1 ;;
+        save-data)               ACTION="save_data";        shift 1 ;;
+        restore-data)            ACTION="restore_data";     shift 1 ;;
         --no-microvm|no-microvm) USE_MICROVM=0;             shift 1 ;;
         --conf)
             CONF_P="$2"
@@ -1296,6 +1455,15 @@ while [ $# -gt 0 ]; do
             SANDBOX_D="$2"
             shift 2
             ;;
+        --data-dir)
+            if [ -z "$2" ]; then
+                print_error "Error: $1 requires an argument."
+                exit 1
+            fi
+            HOME_DATA_D="$2"
+            shift 2
+            ;;
+        --force)                 FORCE=1;                   shift 1 ;;
         -*)
             print_error "Unknown option: $1"
             usage
