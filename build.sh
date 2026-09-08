@@ -103,7 +103,7 @@ build_check() {
 build_usage() {
     _usage_str="USAGE: $0 [options]
 options:
-    check:      Use SchellCheck to verify all sources
+    check:      Use ShellCheck to verify all sources
     install     Install the artefacts built
     uninstall   Uninstall the project
     clean:      Clean build env

@@ -45,7 +45,7 @@ with **libkrun**.
 ### Dependency installation
 
 ```bash
-sudo zypper install podman passt crun libkrun1 libkrunfw5
+sudo zypper install podman passt crun libkrun1 libkrunfw5 ShellCheck
 ```
 
 * Minimum required versions: `crun ≥ 1.22`, `libkrun ≥ 1.18`, `libkrunfw ≥ 5`.
@@ -158,10 +158,10 @@ VERSION="1.2.3" ./build.sh install
 > file at `${XDG_CONFIG_HOME:-~/.config}/glaipnir/glaipnir.conf`.
 
 > /!\ If you installed a pre-rename version, remove it first,
-> `./build.sh uninstall> will not:
+> `./build.sh uninstall` will not:
 > `sudo rm -f /usr/local/bin/ai-agents-sandbox` and
 > `sudo rm -rf /usr/local/share/ai-agents-sandbox`
-> Same about the configuration file, you may want to mode:
+> Same about the configuration file, you may want to move:
 > `~/.config/ai-agents-sandbox/ai-agents-sandbox.conf` to
 > `~/.config/glaipnir/glaipnir.conf`
 
@@ -248,8 +248,11 @@ sh glaipnir.sh clean-data  # Remove the saved data directory
 
 ### Use a config file to customized your image
 
-The project will look at ${ROOT_D}/glaipnir.conf for a config file.
-You can use it to customize the image build, for example to add extra
+* The project will first look in the current workspace directory for a config file
+name `.glaipnir.conf`. If not found, it keeps the default location
+${ROOT_D}/glaipnir.conf for a config file. Conf path can be overriding through
+`--conf` argument.
+* You can use it to customize the image build, for example to add extra
 packages or change the base image.
 
 ```conf
