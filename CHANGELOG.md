@@ -28,6 +28,7 @@
   * Moving from Makefile to custom buil.sh script, more maintenable.
   * clean the cache is done via a new command `clean-cache`. The `clean --all` 
     now clean only images and containers.
+  * conf: look into workspace directory for .glaipnir.conf file.
 * Fixed
   * verifying cached workspace to mount
   * guard against missing action

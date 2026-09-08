@@ -33,7 +33,8 @@ ROOT_D="$(cd "$(dirname "$0")/.." && pwd)"
 DATA_D="${ROOT_D}"
 SCRIPT_P="$(realpath "$0")"
 IMG_D="${DATA_D}/image"
-CONF_P="${XDG_CONFIG_HOME:-${HOME}/.config}/${PRJ_ID}/${PRJ_ID}.conf"
+CONF_P_DEFAULT="${XDG_CONFIG_HOME:-${HOME}/.config}/${PRJ_ID}/${PRJ_ID}.conf"
+CONF_P="${CONF_P_DEFAULT}"
 CACHE_D_DEFAULT="${XDG_CACHE_HOME:-${HOME}/.cache}/${PRJ_ID}"
 CACHE_D="${CACHE_D_DEFAULT}"
 HOME_DATA_D_DEFAULT="${XDG_DATA_HOME:-${HOME}/.local/share}/${PRJ_ID}"
@@ -1489,6 +1490,20 @@ else
     _old_conf_d="${HOME}/.cache/${SANDBOX_ID}"
     if [ -d "${_old_conf_d}" ] && [ ! -d "${CACHE_D_DEFAULT}" ]; then
         mv "${_old_conf_d}" "${CACHE_D_DEFAULT}"
+    fi
+fi
+
+# Per-workspace configuration file.
+if [ "${SANDBOX_D}" != "${SANDBOX_D_DEFAULT}" ] &&\
+   [ "${CONF_P}" = "${CONF_P_DEFAULT}" ]; then
+    _conf_p="${SANDBOX_D}/.${PRJ_ID}.conf"
+    if [ -f "${_conf_p}" ]; then
+        print_info "Using workspace configuration file: ${_conf_p}"
+        CONF_P="${_conf_p}"
+        if ! _parse_conf; then
+            print_error "Failed to parse configuration file: $CONF_P"
+            exit "${FAILURE}"
+        fi
     fi
 fi
 
