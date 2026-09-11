@@ -2,7 +2,13 @@
 
 > All notable changes to this project will be documented in this file.
 
-## [1.0.0] - 2026-09-DD
+## [1.Y.Z] - 2026-MM-DD
+
+* Added
+* Changed
+* Fixed
+
+## [1.0.0] - 2026-09-11
 
 * Added
   * build: remove previous images built, whatever their version tag
