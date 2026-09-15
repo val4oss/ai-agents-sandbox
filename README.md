@@ -207,11 +207,21 @@ sh glaipnir.sh run <?agent>
 sh glaipnir.sh run <?agent> no-microvm
 # Define a custom workdir to mount as /home/aiuser/workspace.
 sh glaipnir.sh run <?agent> -w <dir_path>
+# Mount an extra host path read-only (repeatable), at
+# /home/aiuser/<basename> by default, or a chosen destination with 'src:dst'
+sh glaipnir.sh run <?agent> --ro-mount <dir_path>
+sh glaipnir.sh run <?agent> --ro-mount <dir_path>:<dst_path>
 # Remove the cached agents configuration and copy your host HOME one again
 sh glaipnir.sh run <?agent> --reset-agent-config
 ```
 
 > `<?agent>` can be empty to use the all-in-one image.
+
+> `--ro-mount` mounts stay read-only in the sandbox regardless of what the
+> agent does, but the path is still exposed to it. Avoid pointing it at
+> credentials or secrets glaipnir warns (without blocking) when the target
+> looks like a sensitive path (`~/.ssh`, `~/.aws`, `~/.gnupg`,
+> `~/.config/gcloud`, `/etc`, `/root`, `/boot`, `/`).
 
 #### Reuse of the agents configuration of your host
 
@@ -263,6 +273,10 @@ WORKSPACE=/home/valentin/workspace
 PACKAGES=(
     osc
     quilt
+)
+READONLY_MOUNTS=(
+    /opt/shared-libs
+    /home/valentin/reference-repo:/home/aiuser/reference-repo
 )
 ```
 
