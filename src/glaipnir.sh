@@ -77,6 +77,7 @@ RESET_AGENT_CONF=0
 FORCE=0
 DNS_LIST=""
 RO_MOUNTS=""
+NETWORK_NO_OUTBOUND_BIND=0
 TOOLS_NEEDED="podman sed grep tar xargs"
 
 # useful vars
@@ -302,6 +303,8 @@ $_item"
                                 _add_agent "$_value" || _pc_rc="${FAILURE}"
                                 ;;
                             USE_MICROVM) USE_MICROVM="$_value" ;;
+                            NETWORK_NO_OUTBOUND_BIND)
+				    NETWORK_NO_OUTBOUND_BIND="$_value";;
                             WORKSPACE)   SANDBOX_D="$_value" ;;
                             CACHE)       CACHE_D="$_value" ;;
                             DATA_DIR|DATA_D) HOME_DATA_D="$_value" ;;
@@ -946,6 +949,8 @@ Agents:
 
 Options:
   --no-microvm Run the sandbox without microVM isolation (not recommended)
+  --network-no-outbound-bind, NETWORK_NO_OUTBOUND_BIND
+               For 'run' action, skip pasta outbound interface binding
   --cache      Defined path for caching agent's data
   --conf       Defined conf file path for building the image. See Notes.
   --build-hook Defined hook(s) path for building the image. See Notes.
@@ -987,6 +992,7 @@ Notes:
     1. create a configuration file at ${CONF_P} with the following format:
     AGENT=<agent_name>
     USE_MICROVM=1
+    NETWORK_NO_OUTBOUND_BIND=1
     WORKSPACE=<workspace_directory>
     IMG_TAG=<image_tag>
     PACKAGES=(
@@ -1135,6 +1141,8 @@ run() {
         if ! _macos_run_setup; then
             return "$FAILURE"
         fi
+    elif [ "$NETWORK_NO_OUTBOUND_BIND" = "1" ]; then
+        :
     else
         _iface="$(_detect_public_iface)" || true
         if [ -z "$_iface" ]; then
@@ -1296,9 +1304,15 @@ run() {
     if [ "$(uname -s)" = "Darwin" ]; then
         print_info "VM-layer nftables enforcement active."
         set -- "$@" --network pasta
+    elif [ "$NETWORK_NO_OUTBOUND_BIND" = "1" ]; then
+        print_info "Outbound interface binding disabled."
+        set -- "$@" --network pasta
     else
         print_info "Binding outbound to interface: $_iface"
         set -- "$@" --network "pasta:--outbound-if4,${_iface}"
+    fi
+
+    if [ "$(uname -s)" != "Darwin" ]; then
         [ "$DNS_LIST" = "" ] && DNS_LIST="1.1.1.1 8.8.8.8"
         for _dns in $DNS_LIST; do
             set -- "$@" --dns "$_dns"
@@ -1596,6 +1610,10 @@ while [ $# -gt 0 ]; do
         save-data)               ACTION="save_data";        shift 1 ;;
         restore-data)            ACTION="restore_data";     shift 1 ;;
         --no-microvm|no-microvm) USE_MICROVM=0;             shift 1 ;;
+	--network-no-outbound-bind)
+            NETWORK_NO_OUTBOUND_BIND=1
+            shift 1
+            ;;
         --conf)
             CONF_P="$2"
             if ! _parse_conf; then

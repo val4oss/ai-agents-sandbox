@@ -148,7 +148,7 @@ ai-agents-sandbox/
 | Measure | Effect |
 |---|---|
 | `--network=pasta` | User-space network stack, fully isolated from the host |
-| `outbound_addr=${_iface}` | Outbound to a public interface prevents requests from passing through internal company VPN |
+| `outbound_addr=${_iface}` | Outbound to a public interface prevents requests from passing through internal company VPN (can be skipped via `NETWORK_NO_OUTBOUND_BIND` config or `--network-no-outbound-bind` CLI option) |
 | Internet access preserved | OAuth flows, API calls, package downloads work normally |
 
 #### macOS

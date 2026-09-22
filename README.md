@@ -205,6 +205,8 @@ podman image inspect ai-agents-sandbox:latest | grep -E "User|Size"
 sh glaipnir.sh run <?agent>
 # Start without microVM isolation
 sh glaipnir.sh run <?agent> no-microvm
+# Start without restricting pasta outbound network interface binding
+sh glaipnir.sh run <?agent> --network-no-outbound-bind
 # Define a custom workdir to mount as /home/aiuser/workspace.
 sh glaipnir.sh run <?agent> -w <dir_path>
 # Mount an extra host path read-only (repeatable), at
@@ -267,6 +269,7 @@ packages or change the base image.
 
 ```conf
 USE_MICROVM=0
+NETWORK_NO_OUTBOUND_BIND=1
 AGENT=claude
 WORKSPACE=/home/valentin/workspace
 #IMG_TAG=1.0.0
