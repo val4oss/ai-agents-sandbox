@@ -15,12 +15,6 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-if [ "$(uname -s)" = "Darwin" ]; then
-    echo "Build not yet supported on MacOS"
-    echo "TBD: Add support to MacOS"
-    exit 1
-fi
-
 # ================
 # Global variables
 # ----------------
@@ -232,10 +226,12 @@ build_install() {
                 exit 1
             }
             find . -type f -exec sh -c '
+                _dest_f="$2/$1"
+                mkdir -p "$(dirname "$_dest_f")" || exit 1
                 if [ -x "$1" ]; then
-                    install -Dm 755 "$1" "$2/$1"
+                    install -m 755 "$1" "$_dest_f"
                 else
-                    install -Dm 644 "$1" "$2/$1"
+                    install -m 644 "$1" "$_dest_f"
                 fi
             ' _ {} "${DESTDIR}${PKGDATADIR}" \;
         ) || {
