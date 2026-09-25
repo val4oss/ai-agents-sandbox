@@ -8,6 +8,7 @@
   * verify_mount_dir takes a list of allowed path for mounting directories.
   * no-vpn-protection: Allow, with warnings, to run glaipnir without VPN
     protection.
+  * Adapt the build for macos.
 * Changed
   * build.sh include recursively all files to include.
 * Fixed

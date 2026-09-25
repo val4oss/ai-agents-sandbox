@@ -15,11 +15,8 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-if [ "$(uname -s)" = "Darwin" ]; then
-    echo "Build not yet supported on MacOS"
-    echo "TBD: Add support to MacOS"
-    exit 1
-fi
+MACOS_BUILD=${MACOS_BUILD:-0}
+[ "${MACOS_BUILD}" = "0" ] && [ "$(uname -s)" = "Darwin" ] && MACOS_BUILD=1
 
 # ================
 # Global variables
@@ -37,6 +34,8 @@ SRC_D="${ROOT_D}/src"
 SRC_FILES="
 ${SRC_D}/glaipnir.sh
 ${SRC_D}/printer.sh
+${SRC_D}/macos-sandbox.sh
+${SRC_D}/macos-network-policy.sh
 "
 
 BUILD_D="${ROOT_D}/build"
@@ -89,6 +88,8 @@ build_check() {
             if ! shellcheck -x "${_src_f}"; then
                 echo "Shellcheck return somes errors/warning for ${_src_f}"
                 _rc=${FAILURE}
+            else
+                echo "Shellcheck passed for ${_src_f}"
             fi
         done
     fi
@@ -149,11 +150,11 @@ build_main() {
         IMGVERSION="$(echo "${VERSION}" | tr '~' '-')"
 
         _build_bin_p="${BUILD_D}${BINDIR}/${PRJ_ID}"
+        echo "Building ${_build_bin_p} ..."
         cp src/glaipnir.sh "${_build_bin_p}" || {
             echo "Failed to copy src/glaipnir.sh to ${_build_bin_p}"
             _rc="${FAILURE}"; break
         }
-        echo "Building ${_build_bin_p} ..."
         # Replacing include 
         while true; do
             _match="$(grep -n "^[[:blank:]]*\. " "${_build_bin_p}" | head -n 1)"
@@ -170,6 +171,20 @@ build_main() {
             if [ ! -f "${_inc_p}" ]; then
                 echo "Missing include file ${_inc_p}"
                 _rc="${FAILURE}"; break 2
+            elif [ "${MACOS_BUILD}" = "0" ]; then
+                _inc_n="$(basename "${_inc_p}")"
+                case "${_inc_n}" in
+                    macos-*)
+                        echo "Warning: ${_inc_n} is MacOS specific, skipping include"
+                        sed -e "${_lineno}s|.*|:# Skipping include ${_inc_n}|"\
+                            "${_build_bin_p}" > "${_build_bin_p}.tmp" || {
+                            echo "Failed to skip include ${_inc_n}"
+                            _rc="${FAILURE}"; break 2
+                        }
+                        mv "${_build_bin_p}.tmp" "${_build_bin_p}"
+                        continue
+                        ;;
+                esac
             fi
             echo "Include ${_inc_p}..."
             sed -e "${_lineno} {
@@ -179,10 +194,7 @@ build_main() {
                 echo "Failed to include ${_inc_p}"
                 _rc="${FAILURE}"; break 2
             }
-            mv "${_build_bin_p}.tmp" "${_build_bin_p}" || {
-                echo "Failed to move ${_build_bin_p}.tmp to ${_build_bin_p}"
-                _rc="${FAILURE}"; break 2
-            }
+            mv "${_build_bin_p}.tmp" "${_build_bin_p}"
         done
         # Adapting variabes 
         sed \
@@ -193,18 +205,25 @@ build_main() {
                 echo "Failed to update variables from ${_build_bin_p}"
                 _rc="${FAILURE}"; break
             }
-        mv "${_build_bin_p}.tmp" "${_build_bin_p}" || {
-            echo "Failed to move ${_build_bin_p}.tmp to ${_build_bin_p}"
-            _rc="${FAILURE}"; break
-        }
-
+        mv "${_build_bin_p}.tmp" "${_build_bin_p}"
         chmod 755 "${_build_bin_p}" || {
             echo "chmod failed"
             _rc="${FAILURE}"; break
         }
-        echo "Building data ${BUILD_D}${PKGDATADIR}/"
-        cp -r image "${BUILD_D}${PKGDATADIR}/image"
 
+        echo "Building data ${BUILD_D}${PKGDATADIR}/ ..."
+        cp -r image "${BUILD_D}${PKGDATADIR}/image"
+        if [ "${MACOS_BUILD}" = "1" ]; then
+            mkdir -p "${BUILD_D}${PKGDATADIR}/src/launchd" || {
+                echo "build: Failed to create macOS enforcer asset dirs"
+                _rc="${FAILURE}"; break
+            }
+            # TODO: Include macos-network-policy in the enforcer to install one
+            # file only. Need to create a gloabl function _include_deps $1
+            cp src/macos-vpn-enforcer.sh src/macos-network-policy.sh \
+                "${BUILD_D}${PKGDATADIR}/src/"
+            cp src/launchd/*.template "${BUILD_D}${PKGDATADIR}/src/launchd/"
+        fi
         break
     done
 
@@ -268,10 +287,12 @@ build_install() {
                 exit 1
             }
             find . -type f -exec sh -c '
+                _dest_f="$2/$1"
+                mkdir -p "$(dirname "$_dest_f")" || exit 1
                 if [ -x "$1" ]; then
-                    install -Dm 755 "$1" "$2/$1"
+                    install -m 755 "$1" "$_dest_f"
                 else
-                    install -Dm 644 "$1" "$2/$1"
+                    install -m 644 "$1" "$_dest_f"
                 fi
             ' _ {} "${DESTDIR}${PKGDATADIR}" \;
         ) || {

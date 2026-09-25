@@ -193,11 +193,18 @@ The relevant scripts are:
 
 | Script | Role |
 |---|---|
-| `scripts/macos-sandbox.sh` | Enforcer lifecycle: install, start, stop, teardown |
-| `scripts/macos-network-policy.sh` | VPN detection and route discovery (shared by daemon and main script) |
-| `scripts/macos-vpn-enforcer.sh` | Daemon: applies/removes nftables rules inside Podman Machine VM |
+| `src/macos-sandbox.sh` | Enforcer lifecycle: install, start, stop, teardown |
+| `src/macos-network-policy.sh` | VPN detection and route discovery (shared by daemon and main script) |
+| `src/macos-vpn-enforcer.sh` | Daemon: applies/removes nftables rules inside Podman Machine VM |
 | `launchd/com.ai-agents-sandbox.macos-vpn-enforcer.plist.template` | LaunchAgent plist template |
 
+
+* To build glaipnir for macos from a linux environment, use the MACOS_BUILD=1
+  env variable:
+
+```bash
+MACOS_BUILD=1 sh build.sh
+```
 
 ### 🧊 MicroVM isolation (krun)
 
