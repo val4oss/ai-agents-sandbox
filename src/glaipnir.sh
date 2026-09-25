@@ -56,6 +56,12 @@ AI_USER_NAME="aiuser"
 AI_USER_UID=1000
 AI_USER_GID=1000
 AI_USER_WORKSPACE="/home/${AI_USER_NAME}/workspace"
+# Host paths --ro-mount warns about, resolved once, not blocked.
+RO_SENSITIVE_PATHS="$(realpath "${HOME}/.ssh" 2>/dev/null) \
+$(realpath "${HOME}/.aws" 2>/dev/null) \
+$(realpath "${HOME}/.gnupg" 2>/dev/null) \
+$(realpath "${HOME}/.config/gcloud" 2>/dev/null) \
+/etc /root /boot /"
 PKGS=""
 REPOS=""
 
@@ -70,6 +76,8 @@ CLEAN_IMG=0
 RESET_AGENT_CONF=0
 FORCE=0
 DNS_LIST=""
+RO_MOUNTS=""
+NETWORK_NO_OUTBOUND_BIND=0
 TOOLS_NEEDED="podman sed grep tar xargs"
 
 # useful vars
@@ -78,6 +86,9 @@ MIN_LIBKRUN_VER="1.18.0"
 GLAIPNIR_SG="${GLAIPNIR_SG:-}"
 # Arguments of the current run, used to restart after a group change.
 CMD_LINE=""
+# Newline separator, used to join RO_MOUNTS entries that may contain spaces.
+NL='
+'
 
 # ========
 # Includes
@@ -270,6 +281,10 @@ _parse_conf() {
                             AGENTS)
                                 _add_agent "$_item" || _pc_rc="${FAILURE}"
                                 ;;
+                            READONLY_MOUNTS)
+                                RO_MOUNTS="${RO_MOUNTS}${RO_MOUNTS:+${NL}}\
+$_item"
+                                ;;
                         esac
                         ;;
                 esac
@@ -288,6 +303,8 @@ _parse_conf() {
                                 _add_agent "$_value" || _pc_rc="${FAILURE}"
                                 ;;
                             USE_MICROVM) USE_MICROVM="$_value" ;;
+                            NETWORK_NO_OUTBOUND_BIND)
+				    NETWORK_NO_OUTBOUND_BIND="$_value";;
                             WORKSPACE)   SANDBOX_D="$_value" ;;
                             CACHE)       CACHE_D="$_value" ;;
                             DATA_DIR|DATA_D) HOME_DATA_D="$_value" ;;
@@ -807,6 +824,99 @@ _bind_agent_mounts() {
     printf '%s' "$_mounts"
 }
 
+###
+# Verify a read-only mount source exists, without creating it: an unknown
+# path is always a user mistake and must fail, never silently mount an
+# empty directory.
+# ARGUMENTS:
+#   1 - src: Path to the file or directory to verify
+# RETURNS:
+#   SUCCESS, FAILURE if the path does not exist
+###
+_verify_ro_mount_src() {
+    if [ ! -e "$1" ]; then
+        print_error "Read-only mount source '$1' does not exist."
+        return "$FAILURE"
+    fi
+    return "$SUCCESS"
+}
+
+###
+# Warn, without blocking, when a read-only mount source resolves to a
+# known sensitive host path.
+# ARGUMENTS:
+#   1 - src: Path to check
+###
+_warn_if_sensitive_ro_mount() {
+    _wsm_rp="$(realpath "$1" 2>/dev/null)"
+    [ -n "$_wsm_rp" ] || return
+    for _wsm_s in $RO_SENSITIVE_PATHS; do
+        [ -n "$_wsm_s" ] || continue
+        case "$_wsm_rp" in
+            "$_wsm_s"|"$_wsm_s"/*)
+                print_warning "Read-only mount '$1' exposes a sensitive host"
+                print_warning "     -> path to the sandbox. Continuing anyway."
+                return
+                ;;
+        esac
+    done
+}
+
+###
+# Bind read-only mounts requested through --ro-mount / READONLY_MOUNTS.
+# Entries are 'src' or 'src:dst'; 'dst' defaults to
+# /home/aiuser/<basename(src)>.
+# OUTPUTS:
+#   fd 3: log messages
+# RETURNS:
+#   SUCCESS, FAILURE if a source is missing or destinations collide
+###
+_bind_ro_mounts() {
+    [ -n "$RO_MOUNTS" ] || return "$SUCCESS"
+    _brm_rc="$SUCCESS"
+    _brm_mounts=""
+    _brm_dsts=""
+
+    _brm_ifs="$IFS"
+    set -f
+    IFS="$NL"
+    # Intentional word splitting: turns the newline-separated RO_MOUNTS
+    # list into positional parameters.
+    # shellcheck disable=SC2086
+    set -- $RO_MOUNTS
+    IFS="$_brm_ifs"
+    set +f
+
+    for _brm_entry in "$@"; do
+        _brm_src="${_brm_entry%%:*}"
+        _brm_dst="${_brm_entry#*:}"
+        [ "$_brm_dst" = "$_brm_entry" ] && \
+            _brm_dst="/home/${AI_USER_NAME}/$(basename "$_brm_src")"
+
+        if ! _verify_ro_mount_src "$_brm_src"; then
+            _brm_rc="$FAILURE"
+            continue
+        fi
+        case " $_brm_dsts " in
+            *" $_brm_dst "*)
+                print_error "Read-only mounts collide on destination \
+'$_brm_dst'."
+                print_error "  -> Use 'src:dst' to give each mount a \
+distinct destination."
+                _brm_rc="$FAILURE"
+                continue
+                ;;
+        esac
+        _brm_dsts="$_brm_dsts $_brm_dst"
+
+        _warn_if_sensitive_ro_mount "$_brm_src"
+        _brm_mounts="$_brm_mounts --volume $_brm_src:$_brm_dst:ro,z"
+    done
+
+    printf '%s' "$_brm_mounts"
+    return "$_brm_rc"
+}
+
 # ================
 # Action functions
 # ----------------
@@ -839,6 +949,8 @@ Agents:
 
 Options:
   --no-microvm Run the sandbox without microVM isolation (not recommended)
+  --network-no-outbound-bind, NETWORK_NO_OUTBOUND_BIND
+               For 'run' action, skip pasta outbound interface binding
   --cache      Defined path for caching agent's data
   --conf       Defined conf file path for building the image. See Notes.
   --build-hook Defined hook(s) path for building the image. See Notes.
@@ -849,6 +961,10 @@ Options:
                For 'run' action, Specify a custom workspace directory
                (default: ${SANDBOX_D_DEFAULT}) to mount in the sandbox at
                /home/aiuser/workspace.
+  --ro-mount <src>[:<dst>]
+               For 'run' action, bind-mount a host path read-only into the
+               sandbox. Can be set multiple times. Defaults 'dst' to
+               /home/aiuser/<basename(src)> when omitted.
   --full       Build fully the container image instead of refering to the one
                from registry ${DEFAULT_IMG_REPO}
   --all, -a    For 'clean' action, Remove all containers and images
@@ -876,11 +992,17 @@ Notes:
     1. create a configuration file at ${CONF_P} with the following format:
     AGENT=<agent_name>
     USE_MICROVM=1
+    NETWORK_NO_OUTBOUND_BIND=1
     WORKSPACE=<workspace_directory>
     IMG_TAG=<image_tag>
     PACKAGES=(
         <package1>
         <package2>
+        ...
+    )
+    READONLY_MOUNTS=(
+        <src1>
+        <src2>:<dst2>
         ...
     )
     2. Create hooks to customize the image build. Gives the path to a script or
@@ -1020,6 +1142,8 @@ run() {
         if ! _macos_run_setup; then
             return "$FAILURE"
         fi
+    elif [ "$NETWORK_NO_OUTBOUND_BIND" = "1" ]; then
+        :
     else
         _iface="$(_detect_public_iface)" || true
         if [ -z "$_iface" ]; then
@@ -1045,6 +1169,7 @@ run() {
         fi
     fi
     _agent_mounts="$(_bind_agent_mounts)"
+    _ro_mounts="$(_bind_ro_mounts)" || return "$FAILURE"
 
     # Resume a stopped container
     if [ -n "$_ctn_state" ]; then
@@ -1139,6 +1264,7 @@ run() {
     set -- "$@" \
         --name "$CTN_NAME" \
         "${_agent_mounts}" \
+        "${_ro_mounts}" \
         --volume "${_hooks_mount_d}:/usr/local/bin/${SANDBOX_ID}-run-hooks/:z" \
         --volume "${SANDBOX_D}:${AI_USER_WORKSPACE}:z" \
         --tmpfs "/tmp:rw,nosuid,nodev,noexec,size=1g" \
@@ -1179,9 +1305,15 @@ run() {
     if [ "$(uname -s)" = "Darwin" ]; then
         print_info "VM-layer nftables enforcement active."
         set -- "$@" --network pasta
+    elif [ "$NETWORK_NO_OUTBOUND_BIND" = "1" ]; then
+        print_info "Outbound interface binding disabled."
+        set -- "$@" --network pasta
     else
         print_info "Binding outbound to interface: $_iface"
         set -- "$@" --network "pasta:--outbound-if4,${_iface}"
+    fi
+
+    if [ "$(uname -s)" != "Darwin" ]; then
         [ "$DNS_LIST" = "" ] && DNS_LIST="1.1.1.1 8.8.8.8"
         for _dns in $DNS_LIST; do
             set -- "$@" --dns "$_dns"
@@ -1479,6 +1611,10 @@ while [ $# -gt 0 ]; do
         save-data)               ACTION="save_data";        shift 1 ;;
         restore-data)            ACTION="restore_data";     shift 1 ;;
         --no-microvm|no-microvm) USE_MICROVM=0;             shift 1 ;;
+	--network-no-outbound-bind)
+            NETWORK_NO_OUTBOUND_BIND=1
+            shift 1
+            ;;
         --conf)
             CONF_P="$2"
             if ! _parse_conf; then
@@ -1506,6 +1642,14 @@ while [ $# -gt 0 ]; do
                 exit 1
             fi
             SANDBOX_D="$2"
+            shift 2
+            ;;
+        --ro-mount)
+            if [ -z "$2" ]; then
+                print_error "Error: $1 requires an argument."
+                exit 1
+            fi
+            RO_MOUNTS="${RO_MOUNTS}${RO_MOUNTS:+${NL}}$2"
             shift 2
             ;;
         --data-dir)

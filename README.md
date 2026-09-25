@@ -205,13 +205,25 @@ podman image inspect ai-agents-sandbox:latest | grep -E "User|Size"
 sh glaipnir.sh run <?agent>
 # Start without microVM isolation
 sh glaipnir.sh run <?agent> no-microvm
+# Start without restricting pasta outbound network interface binding
+sh glaipnir.sh run <?agent> --network-no-outbound-bind
 # Define a custom workdir to mount as /home/aiuser/workspace.
 sh glaipnir.sh run <?agent> -w <dir_path>
+# Mount an extra host path read-only (repeatable), at
+# /home/aiuser/<basename> by default, or a chosen destination with 'src:dst'
+sh glaipnir.sh run <?agent> --ro-mount <dir_path>
+sh glaipnir.sh run <?agent> --ro-mount <dir_path>:<dst_path>
 # Remove the cached agents configuration and copy your host HOME one again
 sh glaipnir.sh run <?agent> --reset-agent-config
 ```
 
 > `<?agent>` can be empty to use the all-in-one image.
+
+> `--ro-mount` mounts stay read-only in the sandbox regardless of what the
+> agent does, but the path is still exposed to it. Avoid pointing it at
+> credentials or secrets glaipnir warns (without blocking) when the target
+> looks like a sensitive path (`~/.ssh`, `~/.aws`, `~/.gnupg`,
+> `~/.config/gcloud`, `/etc`, `/root`, `/boot`, `/`).
 
 #### Reuse of the agents configuration of your host
 
@@ -257,12 +269,17 @@ packages or change the base image.
 
 ```conf
 USE_MICROVM=0
+NETWORK_NO_OUTBOUND_BIND=1
 AGENT=claude
 WORKSPACE=/home/valentin/workspace
 #IMG_TAG=1.0.0
 PACKAGES=(
     osc
     quilt
+)
+READONLY_MOUNTS=(
+    /opt/shared-libs
+    /home/valentin/reference-repo:/home/aiuser/reference-repo
 )
 ```
 
