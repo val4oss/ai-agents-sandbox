@@ -62,6 +62,7 @@ REPOS=""
 # argument variables
 AGENT=""
 USE_MICROVM=1
+VPN_PROTECTION=1
 ACTION=""
 DEBUG=0
 BUILD_FULL=0
@@ -295,12 +296,13 @@ _parse_conf() {
                             AGENT)       
                                 _add_agent "$_value" || _pc_rc="${FAILURE}"
                                 ;;
-                            USE_MICROVM) USE_MICROVM="$_value" ;;
-                            WORKSPACE)   SANDBOX_D="$_value" ;;
-                            CACHE)       CACHE_D="$_value" ;;
-                            DATA_DIR|DATA_D) HOME_DATA_D="$_value" ;;
-                            IMG_TAG)     IMG_TAG="$_value" ;;
-                            DNS)         DNS_LIST="$_value $DNS_LIST" ;;
+                            USE_MICROVM)        USE_MICROVM="$_value" ;;
+                            VPN_PROTECTION)     VPN_PROTECTION="$_value" ;;
+                            WORKSPACE)          SANDBOX_D="$_value" ;;
+                            CACHE)              CACHE_D="$_value" ;;
+                            DATA_DIR|DATA_D)    HOME_DATA_D="$_value" ;;
+                            IMG_TAG)            IMG_TAG="$_value" ;;
+                            DNS)                DNS_LIST="$_value $DNS_LIST" ;;
                         esac
                 esac
             fi
@@ -938,6 +940,9 @@ Options:
                For 'run' action, bind-mount a host path read-only into the
                sandbox. Can be set multiple times. Defaults 'dst' to
                /home/aiuser/<basename(src)> when omitted.
+  --no-vpn-protection
+               For 'run' action, disable the microVM protection against VPN
+               leaks. This is not recommended.
   --full       Build fully the container image instead of refering to the one
                from registry ${DEFAULT_IMG_REPO}
   --all, -a    For 'clean' action, Remove all containers and images
@@ -1075,7 +1080,7 @@ run() {
     if [ "$USE_MICROVM" -eq 1 ]; then
         if ! _check_microvm; then
             print_warning "MicroVM isolation is not available."
-            print_warning "     -> Running without it for agent '${AGENT}' \
+            print_warning "    -> Running without it for agent '${AGENT}' \
 (not recommended)..."
             USE_MICROVM=0
         else
@@ -1109,20 +1114,39 @@ run() {
         return "$FAILURE"
     fi
 
-    if [ "$(uname -s)" = "Darwin" ]; then
+    _network_arg="--network pasta"
+    _dns_args=""
+    if [ "${VPN_PROTECTION}" = "0" ]; then
+        print_warning "VPN leak protection is disabled."
+        print_warning "    -> The sandbox will have unrestricted egress."
+    elif [ "$(uname -s)" = "Darwin" ]; then
+        # On macOS, pasta:outbound_addr cannot bind at the host
+        # level because containers run inside Podman Machine (Linux
+        # VM) and all traffic is proxied through gvproxy on the macOS
+        # host. VM-layer nftables enforcement is handled by
+        # macos-vpn-enforcer.sh (started above via launchctl).
         if ! _macos_run_setup; then
             return "$FAILURE"
         fi
     else
         _iface="$(_detect_public_iface)" || true
         if [ -z "$_iface" ]; then
-            print_error \
-                "Could not detect a non-VPN interface."
-            print_error \
-                "Aborting to avoid unrestricted egress."
+            print_error "Could not detect a non-VPN interface."
+            print_error "    -> Aborting to avoid unrestricted egress."
             return "$FAILURE"
+        else
+            print_info "Binding outbound to interface: ${_iface}"
+            _network_arg="--network \"pasta:--outbound-if4,${_iface}\""
+            [ "$DNS_LIST" = "" ] && DNS_LIST="1.1.1.1 8.8.8.8"
+            for _dns in $DNS_LIST; do
+                _dns_args="$_dns_args --dns \"$_dns\""
+            done
         fi
+        [ "$DNS_LIST" = "" ] && DNS_LIST="1.1.1.1 8.8.8.8"
     fi
+    for _dns in $DNS_LIST; do
+        _dns_args="$_dns_args --dns \"$_dns\""
+    done
 
     _ctn_state=""
     if _podman_ctn_exists "$CTN_NAME"; then
@@ -1131,8 +1155,8 @@ run() {
     if [ "${RESET_AGENT_CONF}" -eq 1 ]; then
         if [ "$_ctn_state" = "running" ]; then
             print_warning "Container '$CTN_NAME' runs, glaipnir cannot reset"
-            print_warning "     -> its agents configuration. Exit it, then"
-            print_warning "     -> try again."
+            print_warning "    -> its agents configuration. Exit it, then"
+            print_warning "    -> try again."
         else
             _reset_agent_mounts || return "$FAILURE"
         fi
@@ -1158,7 +1182,9 @@ run() {
                     if ! ${_podman_cmd} exec -it "$CTN_NAME" bash; then
                         _ret="$FAILURE"
                     fi
-                    [ "$(uname -s)" = "Darwin" ] && _macos_run_teardown
+                    [ "$(uname -s)" = "Darwin" ] \
+                        && [ "${VPN_PROTECTION}" = "1" ] \
+                        && _macos_run_teardown
                     return "$_ret"
                 fi
             };;
@@ -1167,13 +1193,15 @@ run() {
                 if ! ${_podman_cmd} start -ai "$CTN_NAME"; then
                     _ret="$FAILURE"
                 fi
-                [ "$(uname -s)" = "Darwin" ] && _macos_run_teardown
+                [ "$(uname -s)" = "Darwin" ] \
+                    && [ "${VPN_PROTECTION}" = 1 ] \
+                    && _macos_run_teardown
                 return "$_ret"
             };;
             *)       {
                 print_error "Container '$CTN_NAME' is in state '${_ctn_state}'"
-                print_error "  -> Cannot attach or resume."
-                print_error "  -> Please use 'clean' before 'run'."
+                print_error "    -> Cannot attach or resume."
+                print_error "    -> Please use 'clean' before 'run'."
                 return "$FAILURE"
             };;
         esac
@@ -1234,6 +1262,8 @@ run() {
         --name "$CTN_NAME" \
         "${_agent_mounts}" \
         "${_ro_mounts}" \
+        "${_network_arg}" \
+        "${_dns_args}" \
         --volume "${_hooks_mount_d}:/usr/local/bin/${SANDBOX_ID}-run-hooks/:z" \
         --volume "${SANDBOX_D}:${AI_USER_WORKSPACE}:z" \
         --tmpfs "/tmp:rw,nosuid,nodev,noexec,size=1g" \
@@ -1265,23 +1295,6 @@ run() {
     if [ -n "$VERTEX_LOCATION" ]; then
         set -- "$@" --env "VERTEX_LOCATION=$VERTEX_LOCATION"
     fi
-    
-    # On macOS, pasta:outbound_addr cannot bind at the host
-    # level because containers run inside Podman Machine (Linux
-    # VM) and all traffic is proxied through gvproxy on the macOS
-    # host. VM-layer nftables enforcement is handled by
-    # macos-vpn-enforcer.sh (started above via launchctl).
-    if [ "$(uname -s)" = "Darwin" ]; then
-        print_info "VM-layer nftables enforcement active."
-        set -- "$@" --network pasta
-    else
-        print_info "Binding outbound to interface: $_iface"
-        set -- "$@" --network "pasta:--outbound-if4,${_iface}"
-        [ "$DNS_LIST" = "" ] && DNS_LIST="1.1.1.1 8.8.8.8"
-        for _dns in $DNS_LIST; do
-            set -- "$@" --dns "$_dns"
-        done
-    fi
 
     if [ "$USE_MICROVM" = "1" ]; then
         # Available on crun > 1.27, below /.krun_config.json in the image is
@@ -1297,7 +1310,9 @@ run() {
         print_error "Failed to start container ${CTN_NAME}."
         _ret="$FAILURE"
     fi
-    [ "$(uname -s)" = "Darwin" ] && _macos_run_teardown
+    [ "$(uname -s)" = "Darwin" ] \
+        && [ "${VPN_PROTECTION}" -eq 1 ] \
+        && _macos_run_teardown
     return "$_ret"
 }
 
@@ -1574,6 +1589,8 @@ while [ $# -gt 0 ]; do
         save-data)               ACTION="save_data";        shift 1 ;;
         restore-data)            ACTION="restore_data";     shift 1 ;;
         --no-microvm|no-microvm) USE_MICROVM=0;             shift 1 ;;
+        --no-vpn-protection|no-vpn-protection)
+                                 VPN_PROTECTION=0;          shift 1 ;;
         --conf)
             CONF_P="$2"
             if ! _parse_conf; then
