@@ -1096,9 +1096,10 @@ run() {
         TOOLS_NEEDED="$TOOLS_NEEDED krun"
         CTN_NAME="${CTN_NAME}-microvm"
     else
-        TOOLS_NEEDED="$TOOLS_NEEDED passt"
+        # passt/pasta and ip run inside the Podman Machine's Linux VM on
+        # macOS, not on the host, so only check for them on Linux.
         if [ "$(uname -s)" != "Darwin" ]; then
-            TOOLS_NEEDED="$TOOLS_NEEDED ip"
+            TOOLS_NEEDED="$TOOLS_NEEDED passt ip"
         fi
     fi
 
