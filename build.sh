@@ -148,25 +148,61 @@ build_main() {
         # forbid '~'. Hence two spellings of the same version.
         IMGVERSION="$(echo "${VERSION}" | tr '~' '-')"
 
-        # Replacing include and store the file with good variables
-        echo "Building ${BUILD_D}${BINDIR}/${PRJ_ID}"
-        _printer_include="\\. \"\\\${ROOT_D}\\/src\\/printer\\.sh\""
+        _build_bin_p="${BUILD_D}${BINDIR}/${PRJ_ID}"
+        cp src/glaipnir.sh "${_build_bin_p}" || {
+            echo "Failed to copy src/glaipnir.sh to ${_build_bin_p}"
+            _rc="${FAILURE}"; break
+        }
+        echo "Building ${_build_bin_p} ..."
+        # Replacing include 
+        while true; do
+            _match="$(grep -n "^[[:blank:]]*\. " "${_build_bin_p}" | head -n 1)"
+            [ -z "${_match}" ] && break
+
+            _lineno="$(printf "%s" "${_match}" | cut -d: -f1)"
+            _inc="$(printf "%s" "${_match}" | cut -d: -f2-)"
+
+            _inc_p="$(printf "%s" "${_inc}" | sed -e "s/^[[:blank:]]*\. //" \
+                                                -e "s/\"//g" \
+                                                -e "s/^\${ROOT_D}//" \
+                                                -e "s/^\$ROOT_D//" \
+                                                -e "s/^\///")"
+            if [ ! -f "${_inc_p}" ]; then
+                echo "Missing include file ${_inc_p}"
+                _rc="${FAILURE}"; break 2
+            fi
+            echo "Include ${_inc_p}..."
+            sed -e "${_lineno} {
+                r ${_inc_p}
+                d
+            }" "${_build_bin_p}" > "${_build_bin_p}.tmp" || {
+                echo "Failed to include ${_inc_p}"
+                _rc="${FAILURE}"; break 2
+            }
+            mv "${_build_bin_p}.tmp" "${_build_bin_p}" || {
+                echo "Failed to move ${_build_bin_p}.tmp to ${_build_bin_p}"
+                _rc="${FAILURE}"; break 2
+            }
+        done
+        # Adapting variabes 
         sed \
-            -e "/${_printer_include}/r src/printer.sh"              \
-            -e "/${_printer_include}/d"                             \
             -e "s|^DATA_D=.*|DATA_D=\"${BUILD_D}${PKGDATADIR}\"|"   \
             -e "/^ROOT_D=.*/d"                                      \
             -e "s|^IMG_TAG=.*|IMG_TAG=\"${IMGVERSION}\"|"           \
-            src/glaipnir.sh                                         \
-            > "${BUILD_D}${BINDIR}/${PRJ_ID}" || {
-                echo "Failed to build ${BINDIR}/${PRJ_ID}"
+            "${_build_bin_p}" > "${_build_bin_p}.tmp" || {
+                echo "Failed to update variables from ${_build_bin_p}"
                 _rc="${FAILURE}"; break
             }
-        chmod 755 "${BUILD_D}${BINDIR}/${PRJ_ID}" || {
+        mv "${_build_bin_p}.tmp" "${_build_bin_p}" || {
+            echo "Failed to move ${_build_bin_p}.tmp to ${_build_bin_p}"
+            _rc="${FAILURE}"; break
+        }
+
+        chmod 755 "${_build_bin_p}" || {
             echo "chmod failed"
             _rc="${FAILURE}"; break
         }
-        echo "Building datas ${BUILD_D}${PKGDATADIR}/"
+        echo "Building data ${BUILD_D}${PKGDATADIR}/"
         cp -r image "${BUILD_D}${PKGDATADIR}/image"
 
         break

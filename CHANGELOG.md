@@ -9,6 +9,7 @@
   * no-vpn-protection: Allow, with warnings, to run glaipnir without VPN
     protection.
 * Changed
+  * build.sh include recursively all files to include.
 * Fixed
 
 ## [1.0.0] - 2026-09-11
