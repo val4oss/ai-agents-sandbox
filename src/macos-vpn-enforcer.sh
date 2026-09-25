@@ -46,17 +46,20 @@ _ext_nic=""
 
 # print an informational log line
 _log_info() {
-    printf '[macos-vpn-enforcer] INFO: %s\n' "$1"
+    printf '[%s] [macos-vpn-enforcer] INFO: %s\n' \
+        "$(date '+%Y-%m-%dT%H:%M:%S')" "$1"
 }
 
 # print a warning log line
 _log_warn() {
-    printf '[macos-vpn-enforcer] WARN: %s\n' "$1"
+    printf '[%s] [macos-vpn-enforcer] WARN: %s\n' \
+        "$(date '+%Y-%m-%dT%H:%M:%S')" "$1"
 }
 
 # print an error log line
 _log_error() {
-    printf '[macos-vpn-enforcer] ERROR: %s\n' "$1" >&2
+    printf '[%s] [macos-vpn-enforcer] ERROR: %s\n' \
+        "$(date '+%Y-%m-%dT%H:%M:%S')" "$1" >&2
 }
 
 # apply blanket egress block — used only as fallback when no
@@ -185,7 +188,8 @@ _cleanup() {
     _log_info "Shutting down..."
     _remove_rules
     rm -f "$_READY_FILE" \
-        "/tmp/ai-sandbox-enforcer.state"
+        "/tmp/ai-sandbox-enforcer.state" \
+        "$_DEBOUNCE_FILE"
     exit 0
 }
 
@@ -293,26 +297,43 @@ else
     printf 'inactive' > "$_state_file"
 fi
 
+# Debounce file: its presence means a pending apply is already scheduled.
+_DEBOUNCE_FILE="/tmp/ai-sandbox-enforcer.debounce"
+
 # react to a single routing change event
 _handle_event() {
     _prev="$(cat "$_state_file" 2>/dev/null)"
     if _macos_vpn_active; then _cur="active"; else _cur="inactive"; fi
     printf '%s' "$_cur" > "$_state_file"
     if [ "$_cur" = "active" ]; then
-        # Re-discover and re-apply on every routing event while
-        # VPN is active — routes added/removed by VPN reconnects
-        # are picked up automatically.
         if [ "$_prev" != "active" ]; then
             _log_warn \
-"VPN detected — applying route-specific rules."
+"VPN detected — scheduling rule apply after route table settles."
         else
             _log_info \
-"Routing change — refreshing VPN block rules."
+"Routing change — scheduling VPN block rule refresh."
         fi
-        _apply_rules
+        # Debounce: record the request time and defer the actual apply
+        # so that all routes are in the table before nftables is rebuilt.
+        date '+%s' > "$_DEBOUNCE_FILE"
     elif [ "$_prev" = "active" ]; then
+        rm -f "$_DEBOUNCE_FILE"
         _log_info "VPN gone — removing rules."
         _remove_rules
+    fi
+}
+
+# Flush any pending debounced apply when all route events have settled.
+# Waits until no new events have arrived for 3 seconds, then applies once.
+_flush_debounce() {
+    [ -f "$_DEBOUNCE_FILE" ] || return
+    _recorded="$(cat "$_DEBOUNCE_FILE" 2>/dev/null)"
+    _now="$(date '+%s')"
+    _age=$(( _now - ${_recorded:-0} ))
+    if [ "$_age" -ge 3 ]; then
+        rm -f "$_DEBOUNCE_FILE"
+        _log_info "Route table settled — applying VPN block rules."
+        _apply_rules
     fi
 }
 
@@ -320,6 +341,7 @@ while :; do
     route -n monitor 2>/dev/null \
         | while IFS= read -r _line; do
             _handle_event
+            _flush_debounce
             sleep 1
         done
     _log_warn "route monitor exited; restarting in 2s..."

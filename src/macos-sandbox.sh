@@ -49,6 +49,65 @@ _sed_inplace() {
     return "$_ret"
 }
 
+# print launchd + daemon log diagnostics for VPN enforcer failures
+_macos_print_enforcer_diagnostics() {
+    _label="com.ai-agents-sandbox.macos-vpn-enforcer"
+    _service="gui/$(id -u)/${_label}"
+    _log_dir="$HOME/Library/Logs/ai-agents-sandbox"
+    _log_out="${_log_dir}/macos-vpn-enforcer.log"
+    _log_err="${_log_dir}/macos-vpn-enforcer.err"
+
+    print_error "LaunchAgent diagnostics for ${_service}:"
+    _diag="$(launchctl print "$_service" 2>&1 | tail -n 40)"
+    if [ -n "$_diag" ]; then
+        printf '%s\n' "$_diag" | while IFS= read -r _line; do
+            print_error "  $_line"
+        done
+    else
+        print_error "  launchctl produced no output."
+    fi
+
+    if [ -f "$_log_err" ]; then
+        print_error "Recent daemon stderr (${_log_err}):"
+        tail -n 40 "$_log_err" 2>/dev/null \
+            | while IFS= read -r _line; do
+                print_error "  $_line"
+            done
+    else
+        print_error "Daemon stderr log not found: ${_log_err}"
+    fi
+
+    if [ -f "$_log_out" ]; then
+        print_error "Recent daemon stdout (${_log_out}):"
+        tail -n 20 "$_log_out" 2>/dev/null \
+            | while IFS= read -r _line; do
+                print_error "  $_line"
+            done
+    fi
+}
+
+# return success when the VPN enforcer service has an active process
+_macos_enforcer_is_running() {
+    _service="$1"
+    _info="$(launchctl print "$_service" 2>/dev/null)" || return 1
+    _state="$(printf '%s\n' "$_info" \
+        | awk '/^[[:space:]]state = /{print $3; exit}')"
+    if [ "$_state" = "running" ]; then
+        return 0
+    fi
+
+    _pid="$(printf '%s\n' "$_info" \
+        | awk '/^[[:space:]]pid = /{print $3; exit}')"
+    case "$_pid" in
+        ''|0|*[!0-9]*)
+            return 1
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+}
+
 # Evaluate macOS VPN state and write the enforcer config file.
 # Handles three cases interactively before the enforcer starts:
 #  - Split-tunnel VPN: discovers routes, writes them to config.
@@ -264,10 +323,10 @@ _macos_start_enforcer() {
     _attempt=0
     _max_attempts=15
 
+    launchctl stop "$_service" 2>/dev/null || true
     launchctl stop "$_label" 2>/dev/null || true
     while [ "$_attempt" -lt "$_max_attempts" ]; do
-        if ! launchctl print "$_service" 2>/dev/null \
-            | grep -q 'state = running'; then
+        if ! _macos_enforcer_is_running "$_service"; then
             break
         fi
         _attempt=$(( _attempt + 1 ))
@@ -284,6 +343,7 @@ _macos_start_enforcer() {
     if ! launchctl print "$_service" >/dev/null 2>&1; then
         print_error \
             "VPN enforcer LaunchAgent is not loaded: $_service"
+        _macos_print_enforcer_diagnostics
         print_error \
             "Run action will not continue without VPN enforcement."
         return "$FAILURE"
@@ -294,15 +354,14 @@ _macos_start_enforcer() {
     _attempt=0
     while [ "$_attempt" -lt "$_max_attempts" ]; do
         launchctl start "$_label" 2>/dev/null || true
-        _st="$(launchctl print "$_service" 2>/dev/null \
-            | awk '/state =/{print $3}')"
-        if [ "$_st" = "running" ]; then
+        if _macos_enforcer_is_running "$_service"; then
             return "$SUCCESS"
         fi
         _attempt=$(( _attempt + 1 ))
         sleep 1
     done
     print_error "VPN enforcer failed to start (launchd throttle)."
+    _macos_print_enforcer_diagnostics
     return "$FAILURE"
 }
 
