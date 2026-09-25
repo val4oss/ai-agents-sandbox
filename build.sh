@@ -15,12 +15,6 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-if [ "$(uname -s)" = "Darwin" ]; then
-    echo "Build not yet supported on MacOS"
-    echo "TBD: Add support to MacOS"
-    exit 1
-fi
-
 # ================
 # Global variables
 # ----------------
@@ -37,6 +31,7 @@ SRC_D="${ROOT_D}/src"
 SRC_FILES="
 ${SRC_D}/glaipnir.sh
 ${SRC_D}/printer.sh
+${SRC_D}/macos-sandbox.sh
 "
 
 BUILD_D="${ROOT_D}/build"
@@ -151,9 +146,25 @@ build_main() {
         # Replacing include and store the file with good variables
         echo "Building ${BUILD_D}${BINDIR}/${PRJ_ID}"
         _printer_include="\\. \"\\\${ROOT_D}\\/src\\/printer\\.sh\""
+        _macos_sandbox_include="\\. \"\\\${ROOT_D}\\/src\\/macos-sandbox\\.sh\""
+        _macos_policy_include="\\. \"\\\${ROOT_D}\\/src\\/macos-network-policy\\.sh\""
+
+        # macos-sandbox.sh sources macos-network-policy.sh itself; inline
+        # that nested include first since 'r' output isn't re-scanned.
+        _macos_sandbox_tmp="${BUILD_D}/macos-sandbox.inlined.sh"
+        sed \
+            -e "/${_macos_policy_include}/r src/macos-network-policy.sh" \
+            -e "/${_macos_policy_include}/d"                            \
+            src/macos-sandbox.sh > "${_macos_sandbox_tmp}" || {
+                echo "Failed to inline macos-network-policy.sh"
+                _rc="${FAILURE}"; break
+            }
+
         sed \
             -e "/${_printer_include}/r src/printer.sh"              \
             -e "/${_printer_include}/d"                             \
+            -e "/${_macos_sandbox_include}/r ${_macos_sandbox_tmp}" \
+            -e "/${_macos_sandbox_include}/d"                       \
             -e "s|^DATA_D=.*|DATA_D=\"${BUILD_D}${PKGDATADIR}\"|"   \
             -e "/^ROOT_D=.*/d"                                      \
             -e "s|^IMG_TAG=.*|IMG_TAG=\"${IMGVERSION}\"|"           \
@@ -162,12 +173,23 @@ build_main() {
                 echo "Failed to build ${BINDIR}/${PRJ_ID}"
                 _rc="${FAILURE}"; break
             }
+        rm -f "${_macos_sandbox_tmp}"
         chmod 755 "${BUILD_D}${BINDIR}/${PRJ_ID}" || {
             echo "chmod failed"
             _rc="${FAILURE}"; break
         }
         echo "Building datas ${BUILD_D}${PKGDATADIR}/"
         cp -r image "${BUILD_D}${PKGDATADIR}/image"
+
+        # Ship the macOS VPN-enforcer daemon assets as plain files: they
+        # run standalone via launchd, outside of the glaipnir binary.
+        mkdir -p "${BUILD_D}${PKGDATADIR}/src/launchd" || {
+            echo "build: Failed to create macOS enforcer asset dirs"
+            _rc="${FAILURE}"; break
+        }
+        cp src/macos-vpn-enforcer.sh src/macos-network-policy.sh \
+            "${BUILD_D}${PKGDATADIR}/src/"
+        cp src/launchd/*.template "${BUILD_D}${PKGDATADIR}/src/launchd/"
 
         break
     done
@@ -232,10 +254,12 @@ build_install() {
                 exit 1
             }
             find . -type f -exec sh -c '
+                _dest_f="$2/$1"
+                mkdir -p "$(dirname "$_dest_f")" || exit 1
                 if [ -x "$1" ]; then
-                    install -Dm 755 "$1" "$2/$1"
+                    install -m 755 "$1" "$_dest_f"
                 else
-                    install -Dm 644 "$1" "$2/$1"
+                    install -m 644 "$1" "$_dest_f"
                 fi
             ' _ {} "${DESTDIR}${PKGDATADIR}" \;
         ) || {
