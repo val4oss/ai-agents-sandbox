@@ -145,9 +145,9 @@ _macos_ensure_enforcer() {
     _plist_dst="${_plist_dst}com.ai-agents-sandbox.macos-vpn-enforcer.plist"
     _log_dir="$HOME/Library/Logs/ai-agents-sandbox"
     _bin_dir="$HOME/.local/bin"
-    _script_src="$ROOT_D/scripts/macos-vpn-enforcer.sh"
+    _script_src="$ROOT_D/src/macos-vpn-enforcer.sh"
     _script_dst="$_bin_dir/ai-sandbox-macos-vpn-enforcer"
-    _plist_tmpl="$ROOT_D/launchd/"
+    _plist_tmpl="$ROOT_D/src/launchd/"
     _plist_tmpl="${_plist_tmpl}com.ai-agents-sandbox."
     _plist_tmpl="${_plist_tmpl}macos-vpn-enforcer.plist.template"
 
@@ -160,7 +160,7 @@ _macos_ensure_enforcer() {
         return "$FAILURE"
     fi
 
-    _policy_src="$ROOT_D/scripts/macos-network-policy.sh"
+    _policy_src="$ROOT_D/src/macos-network-policy.sh"
     _policy_dst="$_bin_dir/macos-network-policy.sh"
     if [ ! -f "$_policy_src" ]; then
         print_error \
