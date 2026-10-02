@@ -5,6 +5,12 @@
 ## [1.Y.Z] - 2026-MM-DD
 
 * Added
+* Changed
+* Fixed
+
+## [1.1.0] - 2026-10-02
+
+* Added
   * verify_mount_dir takes a list of allowed path for mounting directories.
   * no-vpn-protection: Allow, with warnings, to run glaipnir without VPN
     protection.

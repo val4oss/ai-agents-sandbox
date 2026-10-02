@@ -27,7 +27,7 @@ SUCCESS=0
 FAILURE=1
 
 PRJ_ID="${PRJ_ID:-glaipnir}"
-VERSION="${VERSION:-1.0.0}"
+VERSION="${VERSION:-1.1.0}"
 
 ROOT_D="$(cd "$(dirname "$0")" && pwd)"
 SRC_D="${ROOT_D}/src"
