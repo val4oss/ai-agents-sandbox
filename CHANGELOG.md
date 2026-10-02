@@ -11,6 +11,7 @@
   * Adapt the build for macos.
 * Changed
   * build.sh include recursively all files to include.
+  * Documentation re-structuration, added a Troubleshooting and usage files. 
 * Fixed
 
 ## [1.0.0] - 2026-09-11

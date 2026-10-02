@@ -168,7 +168,8 @@ handles three cases:
 | VPN active, no routes | `utun`/`ppp` present but no specific routes | User prompted: allow or block-all |
 
 The **enforcer daemon** (`macos-vpn-enforcer.sh`) is installed as a
-LaunchAgent (`~/Library/LaunchAgents/com.ai-agents-sandbox.macos-vpn-enforcer.plist`)
+LaunchAgent
+(`~/Library/LaunchAgents/com.ai-agents-sandbox.macos-vpn-enforcer.plist`)
 and runs for the lifetime of the container:
 
 1. Connects to the Podman Machine VM via `podman machine ssh`.
