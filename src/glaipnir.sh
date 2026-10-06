@@ -582,8 +582,8 @@ _verify_mount_point_d() {
         _ret="$FAILURE"
     fi
 
-    if [ "${_ret}" != "${FAILURE}" ] && [ -e "${_path}" ] &&\
-       [ ! -d "${_path}" ]; then
+    if [ "${_ret}" != "${FAILURE}" ] && \
+        { [ ! -e "${_path}" ] || [ ! -d "${_path}" ]; }; then
         print_warning "Mount point '${_path}' not a directory."
         _ret="$FAILURE"
     fi
@@ -599,7 +599,7 @@ _verify_mount_point_d() {
            esac
        done
        if [ "${_ret}" = "${FAILURE}" ]; then
-           print_warning "Mounting from ${_path} is forbidden"
+           print_warning "Mounting from ${_path} is not allowed"
        else
            for _rdir in ${_restricted_dirs}; do
                if [ "${_path}" = "${_rdir}" ]; then
@@ -631,6 +631,9 @@ _verify_mount_point_d() {
 _verify_workspace_d() {
     _ret="$SUCCESS"
     SANDBOX_D="$(echo "${SANDBOX_D}" | sed "s|~|${HOME}|g")"
+    SANDBOX_D="$(
+        realpath "${SANDBOX_D}" 2>/dev/null || echo "${SANDBOX_D}"
+    )"
     _verify_mount_point_d "$SANDBOX_D" || {
         _ret="$SUCCESS"
         # Default could be overriding.
@@ -656,6 +659,9 @@ _verify_workspace_d() {
 ###
 _verify_cache_d() {
     CACHE_D="$(echo "${CACHE_D}" | sed "s|~|${HOME}|g")"
+    CACHE_D="$(
+        realpath "${CACHE_D}" 2>/dev/null || echo "${CACHE_D}"
+    )"
     _verify_mount_point_d "$CACHE_D" || {
         print_warning "Falling back to default cache: '$CACHE_D_DEFAULT'."
         CACHE_D="$CACHE_D_DEFAULT"
@@ -669,6 +675,9 @@ _verify_cache_d() {
 ###
 _verify_home_data_dir() {
     HOME_DATA_D="$(echo "${HOME_DATA_D}" | sed "s|~|${HOME}|g")"
+    HOME_DATA_D="$(
+        realpath "${HOME_DATA_D}" 2>/dev/null || echo "${HOME_DATA_D}"
+    )"
     _verify_mount_point_d "${HOME_DATA_D}" || {
         print_warning \
             "Falling back to default data dir: '${HOME_DATA_D_DEFAULT}'."
@@ -1248,10 +1257,9 @@ run() {
     }
 
     # Determine the destination workspace path in sandbox
-    _ai_workspace_d="$(realpath "${SANDBOX_D}")"
-    if echo "${_ai_workspace_d}" | grep -q "${HOME}"; then
+    if echo "${SANDBOX_D}" | grep -q "${HOME}"; then
         _ai_workspace_d="$(
-            echo "${_ai_workspace_d}" | sed "s|^${HOME}/||;s|^${HOME}$||"
+            echo "${SANDBOX_D}" | sed "s|^${HOME}/||;s|^${HOME}$||"
         )"
         if [ -n "${_ai_workspace_d}" ]; then
             AI_USER_WORKSPACE="/home/${AI_USER_NAME}/${_ai_workspace_d}"
