@@ -6,6 +6,10 @@
 * Script lines should not exceed 80 characters in length.
 * Use consistent indentation (4 spaces) and avoid tabs.
 
+## Pull Request
+
+* Target your Pull Request to the  `develop` branch to always get the last feat.
+
 ## Commit Message Guidelines
 
 Follow the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)

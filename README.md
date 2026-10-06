@@ -43,8 +43,8 @@ A secure, isolated environment for running AI coding agents:
 ## Table of Contents
 
 - [Source Tree](#source-tree)
-- [Building, Installing, and Checking with build.sh](#building-installing-and-checking-with-buildsh)
 - [Official Installation via Packaging](#official-installation-via-packaging)
+- [Building, Installing, and Checking with build.sh](#building-installing-and-checking-with-buildsh)
 - [Requirements & System Setup](#requirements--system-setup)
 - [Documentation](#documentation)
 - [License](#license)
@@ -82,6 +82,38 @@ ai-agents-sandbox/
   [Usage Guide](docs/usage.md),
   [Troubleshooting Guide](docs/troubleshooting.md), and
   [Architecture Overview](docs/overview.md).
+
+---
+
+## Official Installation via Packaging
+
+For openSUSE distributions, official packages are maintained in the Open Build
+Service (OBS) repository `home:vlefebvre`.
+
+### 1. Add the repository
+
+* **For openSUSE Tumbleweed:**
+  ```bash
+  sudo zypper ar https://download.opensuse.org/repositories/home:/vlefebvre/openSUSE_Tumbleweed/home:vlefebvre.repo
+  ```
+
+* **For openSUSE Leap 15.5 / 15.6 / 16.0:**
+  ```bash
+  sudo zypper ar https://download.opensuse.org/repositories/home:/vlefebvre/16.0/home:vlefebvre.repo
+  ```
+
+### 2. Import the GPG signing key
+
+```bash
+sudo rpm --import https://download.opensuse.org/repositories/home:/vlefebvre/16.0/repodata/repomd.xml.key
+```
+
+### 3. Refresh and install
+
+```bash
+sudo zypper refresh
+sudo zypper install glaipnir
+```
 
 ---
 
@@ -171,38 +203,6 @@ PREFIX="${HOME}/.local" ./build.sh uninstall
 > `sudo rm -rf /usr/local/share/ai-agents-sandbox`, then migrate 
 > `~/.config/ai-agents-sandbox/ai-agents-sandbox.conf` to 
 > `~/.config/glaipnir/glaipnir.conf`.
-
----
-
-## Official Installation via Packaging
-
-For openSUSE distributions, official packages are maintained in the Open Build
-Service (OBS) repository `home:vlefebvre`.
-
-### 1. Add the repository
-
-* **For openSUSE Tumbleweed:**
-  ```bash
-  sudo zypper ar https://download.opensuse.org/repositories/home:/vlefebvre/openSUSE_Tumbleweed/home:vlefebvre.repo
-  ```
-
-* **For openSUSE Leap 15.5 / 15.6 / 16.0:**
-  ```bash
-  sudo zypper ar https://download.opensuse.org/repositories/home:/vlefebvre/16.0/home:vlefebvre.repo
-  ```
-
-### 2. Import the GPG signing key
-
-```bash
-sudo rpm --import https://download.opensuse.org/repositories/home:/vlefebvre/16.0/repodata/repomd.xml.key
-```
-
-### 3. Refresh and install
-
-```bash
-sudo zypper refresh
-sudo zypper install glaipnir
-```
 
 ---
 
