@@ -994,7 +994,7 @@ Notes:
 
 # Print version information
 print_version() {
-    printf "%s version: %s\n" "${PRJ_ID}" "$IMG_TAG"
+    printf "%s\n" "$IMG_TAG"
 }
 
 # callback for build action
