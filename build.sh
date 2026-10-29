@@ -45,6 +45,7 @@ BUILD_D="${ROOT_D}/build"
 PREFIX="${PREFIX:-/usr/local}"
 case "$PREFIX" in
     /*) ;;
+    ~*) PREFIX="${HOME}${PREFIX#\~}" ;;
     *)  PREFIX="/$PREFIX" ;;
 esac
 
@@ -337,8 +338,8 @@ build_uninstall() {
                 _rc="${FAILURE}"; break
             }
         fi
-            echo "Uninstalling ${_data_d}/ ..."
         if [ -d "${_data_d}" ]; then
+            echo "Uninstalling ${_data_d}/ ..."
             rm -r "${_data_d}" || {
                 echo "Failed to uninstall ${_data_d}"
                 _rc="${FAILURE}"; break
