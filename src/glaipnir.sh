@@ -923,6 +923,7 @@ _bind_ro_mounts() {
     for _brm_entry in $RO_MOUNTS; do
         _brm_src="$(printf '%s' "$_brm_entry" | cut -d ':' -f 1)"
         _brm_dst="$(printf '%s' "$_brm_entry" | cut -d ':' -f 2)"
+        _brm_src="$(realpath "$_brm_src" 2>/dev/null || echo "$_brm_src")"
         if [ "$_brm_dst" = "$_brm_entry" ]; then
             _brm_dst="/home/${AI_USER_NAME}/$(basename "$_brm_src")"
         else
