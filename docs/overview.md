@@ -62,7 +62,6 @@ ai-agents-sandbox/
     agents-mount/
       .config/
         gh/        copilot
-        gcloud/    claude (Vertex) + opencode
         opencode/  opencode
       .claude/     claude
       .claude.json claude (file — pre-touched)
@@ -72,7 +71,9 @@ ai-agents-sandbox/
       .hermes/     hermes-agent
   ```
 
-  According the agent used, the cached auth will be mounted into the container.
+  According to the agent used, cached authentication will be mounted into the
+  container. When using `--gcloud`, the host's
+  `application_default_credentials.json` is mounted read-only directly.
 
 2. The `${SANDBOX_D}` will be mounted into `/home/aiuser/workspace/`. A perfect
    place to store working project, it can be shared between different
@@ -106,7 +107,7 @@ ai-agents-sandbox/
 |           Image               |   Size  |               Note               |
 |-------------------------------|---------|----------------------------------|
 | ai-agents-sandbox-gemini      | 833 MB  |                                  | 
-| ai-agents-sandbox-claude      | 1.8 GB  | storage used by `gcloud` utility |
+| ai-agents-sandbox-claude      | ~850 MB | gcloud dependency removed        |
 | ai-agents-sandbox-copilot     | 901 MB  |                                  |
 | ai-agents-sandbox-antigravity | 837 MB  |                                  |
 | ai-agents-sandbox-hermes      | 1.88 GB |                                  |
@@ -319,7 +320,7 @@ includes every agent. Use an agent name as an extra argument to produce a
 | `build` | `ai-agents-sandbox` | gh CLI + gemini + claude | Trusted |
 | `build copilot` | `ai-agents-sandbox-copilot` | gh CLI | Trusted |
 | `build gemini` | `ai-agents-sandbox-gemini` | gemini-cli | Trusted |
-| `build claude` | `ai-agents-sandbox-claude` | gcloud + claude | Trusted |
+| `build claude` | `ai-agents-sandbox-claude` | claude | Trusted |
 | `build opencode` | `ai-agents-sandbox-opencode` | opencode-ai | Trusted |
 | `build pi` | `ai-agents-sandbox-pi` | pi, pi-bold | Trusted |
 | `build hermes-agent` | `ai-agents-sandbox-hermes-agent` | hermes | Untrusted |

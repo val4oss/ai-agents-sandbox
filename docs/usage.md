@@ -17,6 +17,7 @@ coding agents in an isolated sandbox with **Glaipnir**.
 - [8. Safely Running Host Commands from the Sandbox](#8-safely-running-host-commands-from-the-sandbox)
 - [Additional Operations](#additional-operations)
   - [Reusing and Resetting Host Agent Authentication](#reusing-and-resetting-host-agent-authentication)
+  - [Google Cloud Vertex AI Authentication](#google-cloud-vertex-ai-authentication)
   - [Backup and Restore Agent Data](#backup-and-restore-agent-data)
 
 ---
@@ -391,7 +392,40 @@ work inside the sandbox without prompting.
   glaipnir run claude --reset-agent-config
   ```
 * *Note:* Cloud master credentials like `~/.config/gcloud` are intentionally
-  never copied to preserve host security.
+  never copied to preserve host security. To use Google Cloud Vertex AI,
+  use the dedicated `--gcloud` option described below.
+
+### Google Cloud Vertex AI Authentication
+
+When running agents backed by Google Cloud Vertex AI (such as Claude Code or
+OpenCode), the `gcloud` CLI is not required inside the sandbox container.
+Instead, authenticate once on your host machine and mount your credentials
+read-only into the sandbox:
+
+1. **Authenticate on your host:**
+   ```bash
+   gcloud auth application-default login
+   ```
+
+2. **Launch with `--gcloud`:**
+   ```bash
+   glaipnir run claude --gcloud
+   ```
+   Glaipnir mounts your host's `application_default_credentials.json` directly as
+   read-only (`:ro`) and automatically resolves the GCP project ID and region
+   from your host environment or active `gcloud` configuration.
+
+3. **Specify or override a project ID explicitly:**
+   ```bash
+   glaipnir run claude --gcloud --gcloud-project my-project-id
+   ```
+
+4. **Persist in configuration:**
+   In your workspace `.glaipnir.conf` or global configuration file:
+   ```conf
+   USE_GCLOUD=1
+   GCLOUD_PROJECT=my-project-id
+   ```
 
 ### Backup and Restore Agent Data
 

@@ -108,22 +108,6 @@ RUN case " $BUILD_AGENTS " in \
     ;; \
     esac
 
-# Google Cloud SDK - installed when BUILD_AGENTS contains claude, pi or opencode
-RUN case " $BUILD_AGENTS " in \
-    *\ claude\ *|*\ opencode\ *|*\ pi\ *) \
-        REPO_ARCH=$(uname -m) && \
-        rpm --import https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg && \
-        zypper refresh && \
-        zypper --non-interactive addrepo \
-            https://packages.cloud.google.com/yum/repos/cloud-sdk-el10-${REPO_ARCH} \
-            google-cloud-cli && \
-        zypper --non-interactive --gpg-auto-import-keys refresh google-cloud-cli && \
-        zypper --non-interactive install --no-recommends google-cloud-cli && \
-        zypper clean --all && \
-        rm -rf /var/cache/zypp/* \
-    ;; \
-    esac
-
 # AI agents - installed selectively based on BUILD_AGENTS list
 RUN case " $BUILD_AGENTS " in *" gemini "*) \
         command -v gemini >/dev/null 2>&1 ||\

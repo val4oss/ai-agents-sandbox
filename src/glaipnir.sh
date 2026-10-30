@@ -83,6 +83,7 @@ RESET_AGENT_CONF=0
 FORCE=0
 DNS_LIST=""
 RO_MOUNTS=""
+USE_GCLOUD=0
 TOOLS_NEEDED="podman sed grep tar xargs"
 
 # useful vars
@@ -339,6 +340,11 @@ _parse_conf() {
                                     { _add_agent "$_value" || _pc_rc="${FAILURE}"; }
                                 ;;
                             USE_MICROVM)        USE_MICROVM="$_value" ;;
+                            USE_GCLOUD)         USE_GCLOUD="$_value" ;;
+                            GCLOUD_PROJECT)     
+                                GCLOUD_PROJECT="$_value"
+                                USE_GCLOUD="1"
+                                ;;
                             VPN_PROTECTION)     VPN_PROTECTION="$_value" ;;
                             WORKSPACE)          SANDBOX_D="$_value" ;;
                             CACHE)              CACHE_D="$_value" ;;
@@ -799,6 +805,57 @@ _copy_host_files() {
 }
 
 ###
+# Resolve the GCP project ID from environment variables or gcloud config.
+# OUTPTUS:
+#   fd 1: project ID if resolved
+# RETURNS:
+#   SUCCESS, FAILURE if no project ID could be resolved
+###
+_resolve_gcp_project() {
+    _rgp_rc="${SUCCESS}"
+    if [ -n "${GCLOUD_PROJECT:-}" ]; then
+        printf '%s' "$GCLOUD_PROJECT"
+    elif [ -n "${GOOGLE_CLOUD_PROJECT:-}" ]; then
+        printf '%s' "$GOOGLE_CLOUD_PROJECT"
+    elif [ -n "${ANTHROPIC_VERTEX_PROJECT_ID:-}" ]; then
+        printf '%s' "$ANTHROPIC_VERTEX_PROJECT_ID"
+    else
+        _rgp_rc="${FAILURE}"
+        if command -v gcloud >/dev/null 2>&1; then
+            _p="$(gcloud config get-value project 2>/dev/null)"
+            if [ -n "$_p" ] && [ "$_p" != "(unset)" ]; then
+                printf '%s' "$_p"
+                _rgp_rc="${SUCCESS}"
+            fi
+        fi
+    fi
+    return "${_rgp_rc}"
+}
+
+###
+# Resolve the GCP region from environment variables.
+# OUTPTUS:
+#   fd 1: region if resolved
+# RETURNS:
+#   SUCCESS, FAILURE if no region could be resolved
+###
+_resolve_gcp_region() {
+    _rgr_rc="${SUCCESS}"
+    if [ -n "${VERTEX_LOCATION:-}" ]; then
+        printf '%s' "$VERTEX_LOCATION"
+    elif [ -n "${ANTHROPIC_VERTEX_LOCATION:-}" ]; then
+        printf '%s' "$ANTHROPIC_VERTEX_LOCATION"
+    elif [ -n "${GOOGLE_CLOUD_REGION:-}" ]; then
+        printf '%s' "$GOOGLE_CLOUD_REGION"
+    elif [ -n "${CLOUD_ML_REGION:-}" ]; then
+        printf '%s' "${CLOUD_ML_REGION}"
+    else
+        _rgr_rc="${FAILURE}"
+    fi
+    return "${_rgr_rc}"
+}
+
+###
 # Remove the agents mount dir. The next bind fills it again from the host.
 # RETURNS:
 #   SUCCESS, FAILURE when glaipnir cannot remove the directory
@@ -831,7 +888,6 @@ _bind_agent_mounts() {
     _home="/home/aiuser"
     _mounts=""
     _gemini_mounted=0
-    _gcloud_mounted=0
     _host_cfg_d="${XDG_CONFIG_HOME:-${HOME}/.config}"
 
     # ~/.agents for all agents
@@ -869,18 +925,6 @@ _bind_agent_mounts() {
         _mounts="$_mounts --volume $_mount_d/.claude.json:$_home/.claude.json:z"
     ;; esac
 
-    # claude (Vertex) + opencode share ~/.config/gcloud/
-    # Never copy the ADC, cloud identity, from the host.
-    # case " $AGENT " in *" claude "*|*" opencode "*)
-    case " $AGENT " in *" claude "*|*" opencode "*|*" pi "*)
-        if [ "$_gcloud_mounted" = "0" ]; then
-            mkdir -p "$_mount_d/.config/gcloud"
-            _mounts="$_mounts \
---volume $_mount_d/.config/gcloud:$_home/.config/gcloud:z"
-            _gcloud_mounted=1
-        fi
-    ;; esac
-
     # opencode
     case " $AGENT " in *" opencode "*)
         mkdir -p "$_mount_d/.config/opencode"
@@ -913,6 +957,24 @@ _bind_agent_mounts() {
             *)            _copy_agent_files "$_agt" "$_mount_d/.$_agt" ;;
         esac
     done
+
+    # gcloud adc file
+    if [ "${USE_GCLOUD:-0}" = "1" ]; then
+        _host_adc="${_host_cfg_d}/gcloud/application_default_credentials.json"
+        _home_adc="${_home}/.config/gcloud/application_default_credentials.json"
+        [ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] && \
+            [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ] && \
+            _host_adc="$GOOGLE_APPLICATION_CREDENTIALS"
+
+        if [ ! -f "$_host_adc" ]; then
+            print_error "Google ADC file not found : $_host_adc"
+            print_error "Run from your host :"
+            print_error "  gcloud auth application-default login"
+            return "$FAILURE"
+        fi
+
+        _mounts="${_mounts} --volume ${_host_adc}:${_home_adc}:ro,z"
+    fi
 
     printf '%s' "$_mounts"
 }
@@ -1119,6 +1181,12 @@ Options:
                Specify custom directory for saved data archives
                (default: ${HOME_DATA_D_DEFAULT})
   --force      Force overwriting existing cache data on restore
+  --gcloud     Use gcloud authentication for Vertex AI. If not set, glaipnir
+               will try to resolve it from the environment or gcloud config.
+  --gcloud-project <project_id>
+               Specify the GCP project ID to use for Vertex AI. If not set,
+               glaipnir will try to resolve it from the environment or gcloud
+               config.
 
 Notes:
   - The sandbox is designed to run in a secure, isolated environment.
@@ -1486,12 +1554,24 @@ run() {
             --env "BUN_TMPDIR=/run/agent-tmp"
     ;; esac
 
-    # Forward cloud/relay settings needed by Vertex-backed OpenCode sessions.
-    if [ -n "$GOOGLE_CLOUD_PROJECT" ]; then
-        set -- "$@" --env "GOOGLE_CLOUD_PROJECT=$GOOGLE_CLOUD_PROJECT"
-    fi
-    if [ -n "$VERTEX_LOCATION" ]; then
-        set -- "$@" --env "VERTEX_LOCATION=$VERTEX_LOCATION"
+    # Forward cloud/relay settings needed by Vertex-backed sessions.
+    if [ "${USE_GCLOUD:-0}" = "1" ]; then
+        _detected_project="$(_resolve_gcp_project)" || {
+            printf "Google Cloud Project ID needed for Vertex AI: " >&2
+            read -r _detected_project
+        }
+        _detected_region="$(_resolve_gcp_region)" || {
+            printf "Google Cloud Region needed for Vertex AI: " >&2
+            read -r _detected_region
+        }
+
+        set -- "$@" \
+            --env "GOOGLE_CLOUD_PROJECT=${_detected_project}" \
+            --env "ANTHROPIC_VERTEX_PROJECT_ID=${_detected_project}" \
+            --env "CLOUDSDK_CORE_PROJECT=${_detected_project}" \
+            --env "CLAUDE_CODE_USE_VERTEX=1" \
+            --env "CLOUD_ML_REGION=${_detected_region}" \
+            --env "VERTEX_LOCATION=${_detected_region}"
     fi
 
     if [ "$USE_MICROVM" = "1" ]; then
@@ -1860,6 +1940,16 @@ while [ $# -gt 0 ]; do
             shift 2
             ;;
         --force)                 FORCE=1;                   shift 1 ;;
+        --gcloud)                USE_GCLOUD=1;              shift 1 ;;
+        --gcloud-project)
+            if [ -z "$2" ]; then
+                print_error "Error: $1 requires an argument."
+                exit 1
+            fi
+            USE_GCLOUD=1
+            GOOGLE_CLOUD_PROJECT="$2"
+            shift 2
+            ;;
         -*)
             print_error "Unknown option: $1"
             usage

@@ -6,9 +6,17 @@
 
 * Added
   * `pi` agent support (`pi`, `pi-bold`).
+  * `--gcloud` and `--gcloud-project` options to mount host Google ADC
+    read-only and configure Vertex AI.
+  * Auto-resolution of GCP project ID and region from environment variables or
+    host gcloud configuration.
 * Changed
   * build: rebuild if context changes from build to install.
   * CLI agent arguments override agents defined in configuration file.
+  * Removed `google-cloud-cli` dependency from container image, reducing image
+    size.
+  * Claude and OpenCode authenticate through host ADC instead of running gcloud
+    inside the sandbox.
 * Fixed
   * verify_mount_dir: verify the dir only if it exists.
   * status: list all images and containers by default or with `--all`.

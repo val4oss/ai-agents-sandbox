@@ -96,8 +96,11 @@ pi_auth_check() {
 banner_header() {
     _mode="$(get_mode)"
     toilet -t -f pagga -F border "$BANNER_HEADLINE"
-    printf "Isolation:  %s\n" "${_mode}"
-    printf "Version:    %s\n" "${VERSION}"
+    printf "Isolation:   %s\n" "${_mode}"
+    printf "Version:     %s\n" "${VERSION}"
+    [ -n "$GOOGLE_CLOUD_PROJECT" ] &&\
+        printf "GCP Project: %s\n" "$GOOGLE_CLOUD_PROJECT"
+
 }
 
 # Print the banner for an agent with authentication status
@@ -208,19 +211,15 @@ agent_enabled "claude" &&\
         "claude_auth_check" \
         "claude auth login  (or: export ANTHROPIC_API_KEY=sk-...)" &&\
     banner_notes \
-        "To install though Vertex Ai, connect to Google Cloud with:" \
-        "gcloud auth application-default login"
+        "To install though Vertex Ai, use gcloud glaipnir argument."
 
 agent_enabled "opencode" &&\
     banner_agent "Open Code" "opencode --version" \
         "opencode_auth_check" \
-        "gcloud auth application-default login" &&\
+        "on host: gcloud auth application-default login" &&\
     banner_notes \
-        "Required environment variables:" \
-        "GOOGLE_CLOUD_PROJECT=<project ID>" \
-        "VERTEX_LOCATION=<vertex location>" \
-        "Keep GOOGLE_APPLICATION_CREDENTIALS unset for ADC default path." \
-        "Set GOOGLE_CLOUD_PROJECT to enable Vertex AI provider."
+        "To install though Vertex Ai, use gcloud glaipnir argument."
+
 agent_enabled "antigravity" &&\
     banner_agent "Antigravity" "agy --version"\
         "test -f $HOME/.gemini/antigravity-cli/antigravity-oauth-token" \
@@ -229,6 +228,7 @@ agent_enabled "antigravity" &&\
         "Only cli is installed: agy" \
         "When you authenticate through Google OAuth, the link provided can" \
         "integrate some spaces, be careful when you copy-paste the URL."
+
 agent_enabled "pi" &&\
     banner_agent "Pi" "pi --version" \
         "pi_auth_check" \
@@ -236,6 +236,7 @@ agent_enabled "pi" &&\
     banner_notes \
         "Also available: pi-bold" \
         "Config lives at ~/.pi/agent/"
+
 # Print disclaimer note for untrusted Hermes Agent
 agent_enabled "hermes-agent" &&\
     banner_agent "Hermes Agent (untrusted)" "hermes --version" \
