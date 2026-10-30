@@ -8,8 +8,11 @@
   * `pi` agent support (`pi`, `pi-bold`).
 * Changed
   * build: rebuild if context changes from build to install.
+  * CLI agent arguments override agents defined in configuration file.
 * Fixed
   * verify_mount_dir: verify the dir only if it exists.
+  * status: list all images and containers by default or with `--all`.
+  * clean: remove all images, containers, and volumes with `--all`.
 
 ## [1.2.0] - 2026-10-23
 

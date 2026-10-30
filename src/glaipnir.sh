@@ -71,6 +71,7 @@ PROXY_CMDS=""
 
 # argument variables
 AGENT=""
+_CLI_AGENT_SET=0
 USE_MICROVM=1
 VPN_PROTECTION=1
 ACTION=""
@@ -306,7 +307,8 @@ _parse_conf() {
                             PACKAGES) PKGS="$PKGS $_item"   ;;
                             REPOS)    REPOS="$REPOS $_item" ;;
                             AGENTS)
-                                _add_agent "$_item" || _pc_rc="${FAILURE}"
+                                [ ${_CLI_AGENT_SET} -eq 0 ] && \
+                                    { _add_agent "$_item" || _pc_rc="${FAILURE}"; }
                                 ;;
                             RO_MOUNTS)
                                 if [ -n "$RO_MOUNTS" ]; then
@@ -333,7 +335,8 @@ _parse_conf() {
                         # Assigning to keys
                         case "$_key" in
                             AGENT)       
-                                _add_agent "$_value" || _pc_rc="${FAILURE}"
+                                [ ${_CLI_AGENT_SET} -eq 0 ] && \
+                                    { _add_agent "$_value" || _pc_rc="${FAILURE}"; }
                                 ;;
                             USE_MICROVM)        USE_MICROVM="$_value" ;;
                             VPN_PROTECTION)     VPN_PROTECTION="$_value" ;;
@@ -505,14 +508,19 @@ _podman_img_ids() {
     done | sort -u
 }
 
+###
 # Get the list of available images for the project
+# ARGUMENTS:
+#   1 - img: Image name prefix (default: ${SANDBOX_ID})
+###
 _podman_list_img() {
+    _pli_prefix="${1:-${SANDBOX_ID}}"
     _list=""
     _list=$(
         podman images \
             --sort created \
             --format "{{.Repository}}:{{.Tag}}" \
-            --filter "reference=${IMG_NAME}*"\
+            --filter "reference=${_pli_prefix}*"\
             --filter "dangling=false" |\
         while IFS= read -r line; do
             printf "%s" "$line "
@@ -534,13 +542,18 @@ _podman_ctn_exists() {
     podman container exists "${_ctn}"
 }
 
+###
 # Get the list of available containers
+# ARGUMENTS:
+#   1 - ctn: Name or ID of the container to check
+###
 _podman_list_ctn() {
+    _plc_prefix="${1:-${SANDBOX_ID}}"
     _list=""
     _list=$(
         podman ps -a \
             --format "{{.Names}}" \
-            --filter "name=${CTN_NAME}*" |\
+            --filter "name=${_plc_prefix}*" |\
         while IFS= read -r line; do
             printf "%s" "$line "
         done
@@ -1095,7 +1108,8 @@ Options:
                leaks. This is not recommended.
   --full       Build fully the container image instead of refering to the one
                from registry ${DEFAULT_IMG_REPO}
-  --all, -a    For 'clean' action, Remove all containers and images
+  --all, -a    For 'clean' and 'status' actions, apply to all containers and
+               images
   --image      For 'clean' action, Remove built images of an agent
   --reset-agent-config
                For 'run' action, remove the agents configuration cached in
@@ -1546,13 +1560,15 @@ clean() {
     if [ $ALL -eq 1 ]; then
         # Keep care of old volumes
         # ---
-        _home_volume="$CTN_NAME-home"
-        if podman volume exists "$_home_volume"; then
-            if ! podman volume rm -f "$_home_volume"; then
-                print_error "Failed to remove volume '$_home_volume'."
+        _volumes=$(
+            podman volume ls --format "{{.Name}}" --filter "name=${SANDBOX_ID}*"
+        )
+        for _vol in ${_volumes}; do
+            if ! podman volume rm -f "${_vol}" > /dev/null 2>&1; then
+                print_error "Failed to remove volume '${_vol}'."
                 _ret="$FAILURE"
             fi
-        fi
+        done
         # ---
         if [ "$(uname -s)" = "Darwin" ]; then
             print_info "Removing macOS VPN enforcer artifacts..."
@@ -1574,8 +1590,13 @@ clean() {
         for _img in ${_images}; do
             _podman_rm_img "${_img}" || _ret="${FAILURE}"
         done
-        [ "${_ret}" = "${SUCCESS}" ] &&\
-            print_info "All images related to ${IMG_NAME} has been removed."
+        if [ "${_ret}" = "${SUCCESS}" ]; then
+            if [ ${ALL} -eq 1 ]; then
+                print_info "All images related to ${SANDBOX_ID} have been removed."
+            else
+                print_info "All images related to ${IMG_NAME} have been removed."
+            fi
+        fi
     fi
     return "${_ret}"
 }
@@ -1840,6 +1861,10 @@ while [ $# -gt 0 ]; do
             exit 1
             ;;
         *)
+            if [ ${_CLI_AGENT_SET} -eq 0 ]; then
+                AGENT=""
+                _CLI_AGENT_SET=1
+            fi
             _add_agent "$1" || exit 1
             shift 1
             ;;
