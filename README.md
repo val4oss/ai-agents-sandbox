@@ -267,6 +267,27 @@ sudo zypper install --from Virtualization libkrun1 libkrunfw5
 * If the group cannot be dynamically applied to your current shell session, log
   out and log back in.
 
+Containers created before OpenCode data persistence was added still store
+sessions only in their writable layer. Before running `clean`, exit OpenCode
+and recover that data from the stopped container (adjust its name using
+`glaipnir status`, and the cache path if you use `--cache`):
+
+```bash
+cache="${XDG_CACHE_HOME:-$HOME/.cache}/glaipnir"
+mkdir -p "$cache/agents-mount/.local/share/opencode"
+podman cp ai-agents-sandbox-opencode:/home/aiuser/.local/share/opencode/. \
+  "$cache/agents-mount/.local/share/opencode/"
+glaipnir save-data
+```
+
+Use this recovery copy only if the cache has no newer OpenCode data: it can
+overwrite existing files. After a successful copy and backup, recreate the
+container with `glaipnir clean opencode` and `glaipnir run opencode` to apply
+the new mount. Back up any other container-only files before cleaning.
+Older archives cannot recover sessions that were never mounted, and sessions
+from an already removed container cannot be recovered through `restore-data`.
+Archives include credentials and conversation history; keep them private.
+
 ---
 
 ## Documentation
