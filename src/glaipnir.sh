@@ -1165,7 +1165,8 @@ build() {
 
     # Populate the build dir
     _build_d="${CACHE_D}/build"
-    [ -d "${_build_d}" ] || mkdir -p "${_build_d}"
+    [ -d "${_build_d}" ] && rm -rf "${_build_d}"
+    mkdir -p "${_build_d}"
     cp -r "${IMG_D}/." "${_build_d}/"
 
     # Copy user hooks into the build context
@@ -1221,7 +1222,7 @@ build() {
     fi
 
     # clean up temporary hook files from build context
-    [ -d "${_build_d}" ] && rm -r "${_build_d}"
+    [ -d "${_build_d}" ] && rm -rf "${_build_d}"
     return "$_ret"
 }
 
@@ -1506,6 +1507,9 @@ clean() {
     if [ "$(uname -s)" != "Darwin" ] && [ "$USE_MICROVM" = 1 ]; then
         CTN_NAME="${CTN_NAME}-microvm"
     fi
+
+    # Clean staging build cache
+    [ -d "${CACHE_D}/build" ] && rm -rf "${CACHE_D}/build"
 
     # Clean container(s)
     if [ $ALL -eq 1 ]; then
