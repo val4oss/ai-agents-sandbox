@@ -672,9 +672,7 @@ _verify_mount_point_d() {
 _verify_workspace_d() {
     _ret="$SUCCESS"
     SANDBOX_D="$(echo "${SANDBOX_D}" | sed "s|~|${HOME}|g")"
-    SANDBOX_D="$(
-        realpath "${SANDBOX_D}" 2>/dev/null || echo "${SANDBOX_D}"
-    )"
+    SANDBOX_D="$(realpath "${SANDBOX_D}" 2>/dev/null || echo "${SANDBOX_D}")"
     _verify_mount_point_d "$SANDBOX_D" || {
         _ret="$SUCCESS"
         # Default could be overriding.
@@ -686,6 +684,7 @@ _verify_workspace_d() {
         else
             SANDBOX_D="$SANDBOX_D_DEFAULT"
         fi
+        SANDBOX_D="$(realpath "${SANDBOX_D}" 2>/dev/null || echo "${SANDBOX_D}")"
         print_warning \
             "Falling back to default workspace: '$SANDBOX_D'."
         _verify_mount_point_d "${SANDBOX_D}" || _ret="${FAILURE}"
@@ -1044,6 +1043,33 @@ _start_proxy_listener() {
     return "${_spl_rc}"
 }
 
+# Reject reuse of a container mounted from a different workspace.
+_check_container_workspace() {
+    _cw_env=$(podman inspect "$CTN_NAME" \
+        --format '{{range .Config.Env}}{{println .}}{{end}}') ||
+        return "$FAILURE"
+    _cw_dst=$(printf '%s\n' "$_cw_env" | sed -n 's/^AI_WORKSPACE=//p')
+    [ -n "$_cw_dst" ] || {
+        print_error "Cannot identify workspace of container '$CTN_NAME'."
+        return "$FAILURE"
+    }
+    _cw_mounts=$(podman inspect "$CTN_NAME" --format \
+        '{{range .Mounts}}{{printf "%s\t%s\n" .Source .Destination}}{{end}}') ||
+        return "$FAILURE"
+    _cw_src=$(printf '%s\n' "$_cw_mounts" | awk -F '\t' \
+        -v destination="$_cw_dst" '$2 == destination { print $1 }')
+    _cw_requested=$(realpath "$SANDBOX_D") || return "$FAILURE"
+    if [ "$_cw_src" != "$_cw_requested" ]; then
+        print_error "Container '$CTN_NAME' uses workspace '$_cw_src'."
+        print_error "Requested workspace: '$_cw_requested'."
+        print_error "Container mounts cannot change on resume or attach."
+        print_error "Back up container-only files before using 'clean'."
+        print_error "Then run again with the requested workspace."
+        return "$FAILURE"
+    fi
+    return "$SUCCESS"
+}
+
 # ================
 # Action functions
 # ----------------
@@ -1349,6 +1375,7 @@ run() {
                     print_info "A container already run with '$_runtime'."
                     print_info "Creating a new one with suffixe $CTN_NAME."
                 else
+                    _check_container_workspace || return "$FAILURE"
                     print_info "Attaching to running container..."
                     if ! ${_podman_cmd} exec -it "$CTN_NAME" bash; then
                         _ret="$FAILURE"
@@ -1360,6 +1387,7 @@ run() {
                 fi
             };;
             initialized|created|configured|exited) {
+                _check_container_workspace || return "$FAILURE"
                 print_info "Starting container from '${_ctn_state}'..."
                 if ! ${_podman_cmd} start -ai "$CTN_NAME"; then
                     _ret="$FAILURE"
@@ -1377,8 +1405,6 @@ run() {
             };;
         esac
     fi
-
-    _verify_workspace_d || return "$FAILURE"
 
     # Check if image is built locally
     _default_repo="${DEFAULT_IMG_REPO}/${IMG_NAME}"
@@ -1417,7 +1443,9 @@ run() {
     }
 
     # Determine the destination workspace path in sandbox
-    if echo "${SANDBOX_D}" | grep -q "${HOME}"; then
+    SANDBOX_D="$(realpath "${SANDBOX_D}")"
+    _ai_workspace_d="${SANDBOX_D}"
+    if echo "${_ai_workspace_d}" | grep -q "${HOME}"; then
         _ai_workspace_d="$(
             echo "${SANDBOX_D}" | sed "s|^${HOME}/||;s|^${HOME}$||"
         )"
