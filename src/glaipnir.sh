@@ -761,8 +761,9 @@ _copy_host_files() {
     _dst="$2"
     [ -e "$_src" ] || return "$SUCCESS"
     if [ -e "${_dst}" ]; then
-        _src_last_modified="$(stat -c %Y "${_src}" 2>/dev/null)"
-        _dst_created="$(stat -c %W "${_dst}" 2>/dev/null)"
+        # Check if the source is newer than the destination
+        _src_last_modified="$(stat -c %Y "${_src}" 2>/dev/null || :)"
+        _dst_created="$(stat -c %W "${_dst}" 2>/dev/null || :)"
         if [ -n "${_src_last_modified}" ] && [ -n "${_dst_created}" ]; then
             if [ "${_src_last_modified}" -gt "${_dst_created}" ]; then
                 print_debug "'${_src} is newer than '${_dst}', to update the"
@@ -770,7 +771,10 @@ _copy_host_files() {
                 print_debug "option."
             fi
         fi
-        return "${SUCCESS}"
+        # If either the source or destination is not a directory, skip further checks
+        if [ ! -d "$_src" ] || [ ! -d "$_dst" ]; then
+            return "${SUCCESS}"
+        fi
     fi
     print_debug "Copying the host '$_src' into '$_dst'"
     _cp_rc="$SUCCESS"
