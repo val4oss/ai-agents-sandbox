@@ -1352,17 +1352,26 @@ run() {
     # Resume a stopped container
     if [ -n "$_ctn_state" ]; then
         case "$_ctn_state" in
-            running) {
+            running|stopping) {
                 _runtime=$(
                     podman inspect "$CTN_NAME" --format '{{.OCIRuntime}}'
                 )
                 if [ -n "$_runtime" ] && [ "$_runtime" = "krun" ]; then
+                    _base_name="$CTN_NAME"
                     _nbr="$(podman ps -a --format '{{.Names}}' |\
-                            grep -c "$CTN_NAME")"
-                    CTN_NAME="$CTN_NAME-$_nbr"
-                    print_info "A container already run with '$_runtime'."
-                    print_info "Creating a new one with suffixe $CTN_NAME."
-                else
+                            grep -c "^${_base_name}")"
+                    CTN_NAME="${_base_name}-${_nbr}"
+                    while _podman_ctn_exists "$CTN_NAME"; do
+                        _nbr=$(( _nbr + 1 ))
+                        CTN_NAME="${_base_name}-${_nbr}"
+                    done
+                    if [ -n "$PROXY_RUN_D" ] && [ -d "$PROXY_RUN_D" ]; then
+                        mv "$PROXY_RUN_D" "${CACHE_D}/run/${CTN_NAME}"
+                        PROXY_RUN_D="${CACHE_D}/run/${CTN_NAME}"
+                    fi
+                    print_info "A container already exists in '$_ctn_state' state with '$_runtime'."
+                    print_info "Creating a new one with suffix $CTN_NAME."
+                elif [ "$_ctn_state" = "running" ]; then
                     print_info "Attaching to running container..."
                     if ! ${_podman_cmd} exec -it "$CTN_NAME" bash; then
                         _ret="$FAILURE"
@@ -1371,6 +1380,11 @@ run() {
                         && [ "${VPN_PROTECTION}" = "1" ] \
                         && _macos_run_teardown
                     return "$_ret"
+                else
+                    print_error "Container '$CTN_NAME' is in state '${_ctn_state}'"
+                    print_error "    -> Cannot attach or resume."
+                    print_error "    -> Please use 'clean' before 'run'."
+                    return "$FAILURE"
                 fi
             };;
             initialized|created|configured|exited) {
@@ -1533,27 +1547,18 @@ clean() {
             fi
         done
     else
-        if _podman_ctn_exists "$CTN_NAME"; then
-            _ctns="$(podman ps -a --format '{{.Names}}' |\
-                grep -E "$CTN_NAME-[0-9]+")"
-            if [ -n "$_ctns" ]; then
-                for _ctn in $_ctns; do
-                    print_info "Stopping and removing container '$_ctn'..."
-                    if _podman_rm_ctn "$_ctn"; then
-                        print_info "Container removed."
-                    else
-                        print_error "Failed to remove container '$_ctn'."
-                        _ret="$FAILURE"
-                    fi
-                done
-            fi
-            print_info "Stopping and removing container '$CTN_NAME'..."
-            if _podman_rm_ctn "$CTN_NAME"; then
-                print_info "Container removed."
-            else
-                print_error "Failed to remove container '$CTN_NAME'."
-                _ret="$FAILURE"
-            fi
+        _ctns="$(podman ps -a --format '{{.Names}}' |\
+            grep -E "^${CTN_NAME}(-[0-9]+)?$")"
+        if [ -n "$_ctns" ]; then
+            for _ctn in $_ctns; do
+                print_info "Stopping and removing container '$_ctn'..."
+                if _podman_rm_ctn "$_ctn"; then
+                    print_info "Container removed."
+                else
+                    print_error "Failed to remove container '$_ctn'."
+                    _ret="$FAILURE"
+                fi
+            done
         fi
     fi
 

@@ -13,6 +13,8 @@
   * verify_mount_dir: verify the dir only if it exists.
   * status: list all images and containers by default or with `--all`.
   * clean: remove all images, containers, and volumes with `--all`.
+  * run: create suffixed microVM container if existing container is stopping.
+  * clean: remove suffixed containers even if base container is absent.
 
 ## [1.2.0] - 2026-10-23
 
