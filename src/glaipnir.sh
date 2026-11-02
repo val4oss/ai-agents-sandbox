@@ -889,6 +889,7 @@ _bind_agent_mounts() {
     _mounts=""
     _gemini_mounted=0
     _host_cfg_d="${XDG_CONFIG_HOME:-${HOME}/.config}"
+    _host_data_d="${XDG_DATA_HOME:-${HOME}/.local/share}"
 
     # ~/.agents for all agents
     _copy_host_files "${HOME}/.agents" "${_mount_d}/.agents"
@@ -929,8 +930,12 @@ _bind_agent_mounts() {
     case " $AGENT " in *" opencode "*)
         _copy_host_files "${_host_cfg_d}/opencode" "$_mount_d/.config/opencode"
         mkdir -p "$_mount_d/.config/opencode" || return "${FAILURE}"
+        _copy_host_files "$_host_data_d/opencode" \
+            "$_mount_d/.local/share/opencode"
+        mkdir -p "$_mount_d/.local/share/opencode" || return "${FAILURE}"
         _mounts="$_mounts \
---volume $_mount_d/.config/opencode:$_home/.config/opencode:z"
+--volume $_mount_d/.config/opencode:$_home/.config/opencode:z \
+--volume $_mount_d/.local/share/opencode:$_home/.local/share/opencode:z"
     ;; esac
 
     # pi
