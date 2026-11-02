@@ -517,10 +517,10 @@ _podman_img_ids() {
 ###
 # Get the list of available images for the project
 # ARGUMENTS:
-#   1 - img: Image name prefix (default: ${SANDBOX_ID})
+#   1 - img: Image name prefix
 ###
 _podman_list_img() {
-    _pli_prefix="${1:-${SANDBOX_ID}}"
+    _pli_prefix="${1}"
     _list=""
     _list=$(
         podman images \
@@ -554,7 +554,7 @@ _podman_ctn_exists() {
 #   1 - ctn: Name or ID of the container to check
 ###
 _podman_list_ctn() {
-    _plc_prefix="${1:-${SANDBOX_ID}}"
+    _plc_prefix="${1}"
     _list=""
     _list=$(
         podman ps -a \
@@ -1626,7 +1626,7 @@ clean() {
 
     # Clean container(s)
     if [ $ALL -eq 1 ]; then
-        _containers=$(_podman_list_ctn)
+        _containers=$(_podman_list_ctn "${SANDBOX_ID}")
         for _ctn in ${_containers}; do
             if _podman_rm_ctn "$_ctn"; then
                 print_info "Container ${_ctn} removed."
@@ -1676,7 +1676,7 @@ clean() {
     # Clean images, if all has been given all images will be removed. If an
     # agent has been specified, the listing will show only related agent image.
     if [ ${CLEAN_IMG} -eq 1 ] || [ ${ALL} -eq 1 ]; then
-        _images=$(_podman_list_img)
+        _images=$(_podman_list_img "${SANDBOX_ID}")
         # Protect from "all" not given, IMG_NAME whould list all.
         if [ ${ALL} -eq 0 ]; then
             _images=$(echo "${_images}" | tr ' ' '\n' | grep "${IMG_NAME}:")
@@ -1832,7 +1832,7 @@ restore_data() {
 # callback for status action
 status() {
     printf "Images :\n"
-    _images=$(_podman_list_img)
+    _images=$(_podman_list_img "${SANDBOX_ID}")
     if [ "${_images}" = "" ]; then
         printf "  None\n"
     else
@@ -1841,7 +1841,7 @@ status() {
         done
     fi
     printf "Containers :\n"
-    _containers=$(_podman_list_ctn)
+    _containers=$(_podman_list_ctn "${SANDBOX_ID}")
     if [ "${_containers}" = "" ]; then
         printf "  None\n"
     else
