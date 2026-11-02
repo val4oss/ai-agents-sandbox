@@ -23,6 +23,7 @@
   * clean: remove all images, containers, and volumes with `--all`.
   * run: create suffixed microVM container if existing container is stopping.
   * clean: remove suffixed containers even if base container is absent.
+  * mount: copy host files before creating the mount directory.
 
 ## [1.2.0] - 2026-10-23
 

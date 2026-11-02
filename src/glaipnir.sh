@@ -773,15 +773,16 @@ _copy_agent_files() {
 # OUTPUTS:
 #   fd 3: log messages
 # RETURNS:
-#   SUCCESS, also when the host holds nothing to copy
+#   SUCCESS if copied, FAILURE otherwise
 ###
 _copy_host_files() {
     _src="$1"
     _dst="$2"
-    [ -e "$_src" ] || return "$SUCCESS"
-    if [ -e "${_dst}" ]; then
-        _src_last_modified="$(stat -c %Y "${_src}" 2>/dev/null)"
-        _dst_created="$(stat -c %W "${_dst}" 2>/dev/null)"
+    _chf_rc="${SUCCESS}"
+    if [ ! -e "$_src" ]; then _chf_rc="$FAILURE"
+    elif [ -e "${_dst}" ]; then
+        _src_last_modified="$(stat -c %Y "${_src}" 2>/dev/null || :)"
+        _dst_created="$(stat -c %W "${_dst}" 2>/dev/null || :)"
         if [ -n "${_src_last_modified}" ] && [ -n "${_dst_created}" ]; then
             if [ "${_src_last_modified}" -gt "${_dst_created}" ]; then
                 print_debug "'${_src} is newer than '${_dst}', to update the"
@@ -789,19 +790,18 @@ _copy_host_files() {
                 print_debug "option."
             fi
         fi
-        return "${SUCCESS}"
-    fi
-    print_debug "Copying the host '$_src' into '$_dst'"
-    _cp_rc="$SUCCESS"
-    if [ -d "$_src" ]; then
-        mkdir -p "$_dst"
-        cp -rn "$_src/." "$_dst/" 2>/dev/null || _cp_rc="$FAILURE"
     else
-        cp -n "$_src" "$_dst" 2>/dev/null || _cp_rc="$FAILURE"
+        print_debug "Copying the host '$_src' into '$_dst'"
+        if [ -d "$_src" ]; then
+            mkdir -p "$_dst"
+            cp -rn "$_src/." "$_dst/" 2>/dev/null || _chf_rc="$FAILURE"
+        else
+            cp -n "$_src" "$_dst" 2>/dev/null || _chf_rc="$FAILURE"
+        fi
+        [ "$_chf_rc" = "$SUCCESS" ] ||
+            print_warning "glaipnir did not copy some files of '$_src'."
     fi
-    [ "$_cp_rc" = "$SUCCESS" ] ||
-        print_warning "glaipnir did not copy some files of '$_src'."
-    return "$SUCCESS"
+    return "${_chf_rc}"
 }
 
 ###
@@ -877,13 +877,13 @@ _reset_agent_mounts() {
 # OUTPUTS:
 #   fd 3: log messages
 # RETURNS:
-#   SUCCESS, FAILURE if the mount point is not valid
+#   SUCCESS if copied or already initialized, FAILURE otherwise
 ###
 _bind_agent_mounts() {
     _mount_d="${CACHE_D}/agents-mount"
     _verify_mount_point_d "$_mount_d" || {
         print_error "${_mount_d} is not a valid mount point."
-        return "$FAILURE"
+        return "${FAILURE}"
     }
     _home="/home/aiuser"
     _mounts=""
@@ -891,15 +891,16 @@ _bind_agent_mounts() {
     _host_cfg_d="${XDG_CONFIG_HOME:-${HOME}/.config}"
 
     # ~/.agents for all agents
-    mkdir -p "${_mount_d}/.agents"
     _copy_host_files "${HOME}/.agents" "${_mount_d}/.agents"
+    mkdir -p "${_mount_d}/.agents" || return "$FAILURE"
     _mounts="$_mounts --volume $_mount_d/.agents:$_home/.agents:z"
 
     # copilot
     case " $AGENT " in *" copilot "*)
-        mkdir -p "${_mount_d}/.config/gh" "${_mount_d}/.copilot"
         _copy_host_files "${_host_cfg_d}/gh" "${_mount_d}/.config/gh"
+        mkdir -p "${_mount_d}/.config/gh" || return "${FAILURE}"
         _copy_host_files "${HOME}/.copilot" "${_mount_d}/.copilot"
+        mkdir -p "${_mount_d}/.copilot" || return "${FAILURE}"
         _mounts="$_mounts --volume $_mount_d/.config/gh:$_home/.config/gh:z"
         _mounts="$_mounts --volume $_mount_d/.copilot:$_home/.copilot:z"
     ;; esac
@@ -907,8 +908,8 @@ _bind_agent_mounts() {
     # gemini + antigravity share ~/.gemini/
     case " $AGENT " in *" gemini "*|*" antigravity "*)
         if [ "$_gemini_mounted" = "0" ]; then
-            mkdir -p "$_mount_d/.gemini"
             _copy_host_files "${HOME}/.gemini" "$_mount_d/.gemini"
+            mkdir -p "$_mount_d/.gemini" || return "${FAILURE}"
             _mounts="$_mounts --volume $_mount_d/.gemini:$_home/.gemini:z"
             _gemini_mounted=1
         fi
@@ -916,34 +917,33 @@ _bind_agent_mounts() {
 
     # claude
     case " $AGENT " in *" claude "*)
-        mkdir -p "$_mount_d/.claude"
         _copy_host_files "${HOME}/.claude" "$_mount_d/.claude"
+        mkdir -p "$_mount_d/.claude" || return "${FAILURE}"
         _copy_host_files "${HOME}/.claude.json" "$_mount_d/.claude.json"
-        # must exist as file before mount
-        touch "$_mount_d/.claude.json"
+        touch "$_mount_d/.claude.json" || return "${FAILURE}"
         _mounts="$_mounts --volume $_mount_d/.claude:$_home/.claude:z"
         _mounts="$_mounts --volume $_mount_d/.claude.json:$_home/.claude.json:z"
     ;; esac
 
     # opencode
     case " $AGENT " in *" opencode "*)
-        mkdir -p "$_mount_d/.config/opencode"
         _copy_host_files "${_host_cfg_d}/opencode" "$_mount_d/.config/opencode"
+        mkdir -p "$_mount_d/.config/opencode" || return "${FAILURE}"
         _mounts="$_mounts \
 --volume $_mount_d/.config/opencode:$_home/.config/opencode:z"
     ;; esac
 
     # pi
     case " $AGENT " in *" pi "*)
-        mkdir -p "$_mount_d/.pi"
         _copy_host_files "${HOME}/.pi" "$_mount_d/.pi"
-        _mounts="$_mounts --volume $_mount_d/.pi:$_home/.pi:z"  
+        mkdir -p "$_mount_d/.pi" || return "${FAILURE}"
+        _mounts="$_mounts --volume $_mount_d/.pi:$_home/.pi:z"
     ;; esac
 
     # hermes-agent
     case " $AGENT " in *" hermes-agent "*)
-        mkdir -p "$_mount_d/.hermes"
         _copy_host_files "${HOME}/.hermes" "$_mount_d/.hermes"
+        mkdir -p "$_mount_d/.hermes" || return "${FAILURE}"
         _mounts="$_mounts --volume $_mount_d/.hermes:$_home/.hermes:z"
     ;; esac
 
