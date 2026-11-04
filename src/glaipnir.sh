@@ -345,6 +345,7 @@ _parse_conf() {
                                 GCLOUD_PROJECT="$_value"
                                 USE_GCLOUD="1"
                                 ;;
+                            GCLOUD_REGION)      GCLOUD_REGION="$_value" ;;
                             VPN_PROTECTION)     VPN_PROTECTION="$_value" ;;
                             WORKSPACE)          SANDBOX_D="$_value" ;;
                             CACHE)              CACHE_D="$_value" ;;
@@ -841,7 +842,9 @@ _resolve_gcp_project() {
 ###
 _resolve_gcp_region() {
     _rgr_rc="${SUCCESS}"
-    if [ -n "${VERTEX_LOCATION:-}" ]; then
+    if [ -n "${GCLOUD_REGION:-}" ]; then
+        printf '%s' "$GCLOUD_REGION"
+    elif [ -n "${VERTEX_LOCATION:-}" ]; then
         printf '%s' "$VERTEX_LOCATION"
     elif [ -n "${ANTHROPIC_VERTEX_LOCATION:-}" ]; then
         printf '%s' "$ANTHROPIC_VERTEX_LOCATION"

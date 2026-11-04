@@ -425,6 +425,7 @@ read-only into the sandbox:
    ```conf
    USE_GCLOUD=1
    GCLOUD_PROJECT=my-project-id
+   GCLOUD_REGION=global
    ```
 
 ### Backup and Restore Agent Data
