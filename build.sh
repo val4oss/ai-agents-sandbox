@@ -111,6 +111,8 @@ options:
     install     Install the artefacts built
     uninstall   Uninstall the project
     clean:      Clean build env
+    test:       Build then run the testsuite on the built script
+                (BIN_TEST=<script> to test another one, without building)
     help:       Print this helper
 info:
     Build the glaipnir project
@@ -350,6 +352,58 @@ build_uninstall() {
     return "$_rc"
 }
 
+###
+# Run the tests of the project against the built script. A BIN_TEST given in
+# the environment overrides it (e.g. BIN_TEST=src/glaipnir.sh to test the
+# sources), the project is then not built.
+# GLOBALS:
+#   read: ROOT_D BUILD_D BINDIR PRJ_ID VERSION
+# OUTPUTS:
+#   status of the tests
+# RETURNS:
+#   SUCCESS, FAILURE if tests fails
+###
+build_test() {
+    _rc=${SUCCESS}
+    _bats_p="${ROOT_D}/test/bats/bin/bats"
+    _test_version="$(echo "${VERSION}" | tr '~' '-')"
+    while true; do
+        if [ ! -x "${_bats_p}" ]; then
+            echo "Missing ${_bats_p}"
+            echo "Run: git submodule update --init --recursive"
+            _rc=${FAILURE}; break
+        fi
+
+        if [ -z "${BIN_TEST:-}" ]; then
+            build_main || {
+                echo "test: Failed to build"
+                _rc=${FAILURE}; break
+            }
+            BIN_TEST="${BUILD_D}${BINDIR}/${PRJ_ID}"
+        fi
+        if [ ! -x "${BIN_TEST}" ]; then
+            echo "Missing script to test: ${BIN_TEST}"
+            _rc=${FAILURE}; break
+        fi
+
+        # Run the tests in a subshell to avoid polluting the environment of the
+        # build script with the test variables.
+        (
+            BIN_TEST="$(realpath "${BIN_TEST}")"
+            export BIN_TEST
+            export VERSION="${_test_version}"
+            printf "Running tests on %s ...\n" "${BIN_TEST}"
+            "${_bats_p}" --pretty "${ROOT_D}"/test/*.bats || exit 1
+        ) || {
+            echo "Tests failed"
+            _rc=${FAILURE}; break
+        }
+        break
+    done
+
+    return "${_rc}"
+}
+
 # ===========
 # Entry point
 # -----------
@@ -362,6 +416,7 @@ if [ "$1" != "" ]; then
         install)    build_install       || _action_rc="${FAILURE}" ;;
         uninstall)  build_uninstall     || _action_rc="${FAILURE}" ;;
         clean)      build_clean         || _action_rc="${FAILURE}" ;;
+        test)       build_test          || _action_rc="${FAILURE}" ;;
     esac
     
     if [ "${_action_rc}" -ne "${SUCCESS}" ]; then

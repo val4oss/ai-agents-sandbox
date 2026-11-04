@@ -63,6 +63,7 @@ ai-agents-sandbox/
 │   ├── glaipnir.sh   # Main script (can be run directly from sources)
 │   ├── printer.sh    # Terminal formatting and output library
 │   └── macos-*.sh    # macOS sandbox, network policy, and VPN helpers
+├── test/             # testsuite with bats
 ├── image/            # Container definitions (Containerfiles, entrypoint, agent configs)
 └── docs/             # Extended guides (usage, troubleshooting, architecture overview)
 ```
@@ -266,6 +267,47 @@ sudo zypper install --from Virtualization libkrun1 libkrunfw5
   requiring a system reboot.
 * If the group cannot be dynamically applied to your current shell session, log
   out and log back in.
+
+---
+
+## Testing
+
+Testsuite is developed into [./test/](./test) and use the
+[bats](https://github.com/bats-core/bats-core) project.
+
+You would need first to install git submodules using `--recurse-submodules` in
+the `git clone command`, or if already cloned: `git pull --recurse-submodules`.
+
+Then run `sh build.sh test` to run the testsuite.
+
+### Podman isolation
+
+Integration tests run directly on the host, but never touch your own podman
+state. `test/test_helper/podman-isolation.bash` provides two helpers:
+
+* `isolate_podman <dir>`, to call from `setup_file()`: redirects the podman
+  storage (`CONTAINERS_STORAGE_CONF`, `rootless_storage_path`, runroot),
+  `HOME` and the `XDG_*` directories into `<dir>`. It fails immediately if
+  podman still points at the real store.
+* `cleanup_podman <dir>`, to call from `teardown_file()`: removes the
+  containers, then the directory (with `podman unshare`, as the storage files
+  belong to sub-uids) and stops the rootless pause process.
+
+Nothing is written outside the temporary directory, which is created in
+`${GLAIPNIR_TEST_TMPDIR:-${TMPDIR:-/tmp}}`. Set `GLAIPNIR_TEST_TMPDIR` to
+another path if `/tmp` is a small tmpfs.
+
+Set `GLAIPNIR_TEST_SHARE_IMAGES=1` to reuse your own images read-only
+(`additionalimagestores`) instead of pulling them again.
+
+Tests that only check the command built by `glaipnir run` do not need a real
+podman: `test/test_helper/podman-stub.bash` puts a fake `podman`, `ip` and
+`passt` (`test/test_helper/stubs/`) first in `PATH` and records the arguments
+given to `podman run`. See `test/run-security.bats`.
+
+Tests that need a real store should use a tiny offline image (`FROM scratch`)
+rather than building the real one. See `test/isolation.bats` for a working
+example.
 
 ---
 
