@@ -636,10 +636,26 @@ _real_path() {
 }
 
 ###
+# Print the path given with a leading "~" replaced by HOME, others "~" are kept
+# ARGUMENTS:
+#   1 - path: path to expand
+###
+_expand_home() {
+    _tilde="~"
+    case "$1" in
+        "${_tilde}")     printf "%s\n" "${HOME}" ;;
+        "${_tilde}"/*)   printf "%s\n" "${HOME}/${1#"${_tilde}"/}" ;;
+        *)               printf "%s\n" "$1" ;;
+    esac
+}
+
+###
 # Verify that the directory exists and is a allowed paths to not share
 # sensitives path
 # ARGUMENTS:
 #   1 - dir: Path to the dir to verify
+#   2 - hidden: "1" to also refuse the hidden directories of HOME (~/.ssh...),
+#       for the host directories shared with the container
 # RETURNS:
 #   SUCCESS, FAILURE if directory cannot be created or is not valid
 ###
@@ -660,25 +676,26 @@ _verify_mount_point_d() {
 
     if [ "${_ret}" != "${FAILURE}" ]; then
         # TODO: Other list to allows ?
-        _restricted_dirs="${HOME}"
-        _allowed_paths="${_restricted_dirs} /tmp /var/tmp /opt"
+        _vmp_home="$(_real_path "${HOME}")"
+        _allowed_paths="${_vmp_home} /tmp /var/tmp /opt"
         _ret="${FAILURE}"
-       for _apath in ${_allowed_paths}; do
-           case "${_path}" in
-               "${_apath}"*) _ret="${SUCCESS}"; break ;;
-           esac
-       done
-       if [ "${_ret}" = "${FAILURE}" ]; then
-           print_warning "Mounting from ${_path} is not allowed"
-       else
-           for _rdir in ${_restricted_dirs}; do
-               if [ "${_path}" = "${_rdir}" ]; then
-                   print_warning "Mounting from ${_rdir} is forbidden"
-                   _ret="${FAILURE}"
-                   break
-               fi
-           done
-       fi
+        for _apath in ${_allowed_paths}; do
+            case "${_path}" in
+                "${_apath}"/*) _ret="${SUCCESS}"; break ;;
+            esac
+        done
+        if [ "${_ret}" = "${FAILURE}" ]; then
+            print_warning "Mounting from ${_path} is not allowed"
+        elif [ "${_path}" = "${_vmp_home}" ]; then
+            print_warning "Mounting from ${_vmp_home} is forbidden"
+            _ret="${FAILURE}"
+        elif [ "${2:-0}" = "1" ]; then
+            case "${_path}" in
+                "${_vmp_home}/."*|"${_vmp_home}/"*"/."*)
+                    print_warning "Mounting from ${_path} is forbidden (hidden)"
+                    _ret="${FAILURE}" ;;
+            esac
+        fi
     fi
 
     if [ "${_ret}" != "${FAILURE}" ] && [ ! -e "${_path}" ]; then
@@ -687,6 +704,7 @@ _verify_mount_point_d() {
             _ret="$SUCCESS"
         else
             print_warning "Failed to create it"
+            _ret="$FAILURE"
         fi
     fi
  
@@ -700,9 +718,9 @@ _verify_mount_point_d() {
 ###
 _verify_workspace_d() {
     _ret="$SUCCESS"
-    SANDBOX_D="$(echo "${SANDBOX_D}" | sed "s|~|${HOME}|g")"
+    SANDBOX_D="$(_expand_home "${SANDBOX_D}")"
     SANDBOX_D="$(_real_path "${SANDBOX_D}")"
-    _verify_mount_point_d "$SANDBOX_D" || {
+    _verify_mount_point_d "$SANDBOX_D" 1 || {
         _ret="$SUCCESS"
         # Default could be overriding.
         if [ "$SANDBOX_D_DEFAULT" = "$HOME" ]; then
@@ -726,7 +744,7 @@ _verify_workspace_d() {
 #   SUCCESS, FAILURE if directory cannot be created or is not valid
 ###
 _verify_cache_d() {
-    CACHE_D="$(echo "${CACHE_D}" | sed "s|~|${HOME}|g")"
+    CACHE_D="$(_expand_home "${CACHE_D}")"
     CACHE_D="$(_real_path "${CACHE_D}")"
     _verify_mount_point_d "$CACHE_D" || {
         print_warning "Falling back to default cache: '$CACHE_D_DEFAULT'."
@@ -740,7 +758,7 @@ _verify_cache_d() {
 #   SUCCESS, FAILURE if directory cannot be created or is not valid
 ###
 _verify_home_data_dir() {
-    HOME_DATA_D="$(echo "${HOME_DATA_D}" | sed "s|~|${HOME}|g")"
+    HOME_DATA_D="$(_expand_home "${HOME_DATA_D}")"
     HOME_DATA_D="$(_real_path "${HOME_DATA_D}")"
     _verify_mount_point_d "${HOME_DATA_D}" || {
         print_warning \
@@ -1016,7 +1034,7 @@ _bind_ro_mounts() {
             _brm_dst="$(_real_path "$_brm_dst")"
         fi
 
-        if ! _verify_mount_point_d "$_brm_src"; then
+        if ! _verify_mount_point_d "$_brm_src" 1; then
             print_warning \
                 "ro mount source '$_brm_src' is not a valid directory."
             _brm_rc="$FAILURE"
@@ -1526,14 +1544,13 @@ run() {
     }
 
     # Determine the destination workspace path in sandbox
-    if echo "${SANDBOX_D}" | grep -q "${HOME}"; then
-        _ai_workspace_d="$(
-            echo "${SANDBOX_D}" | sed "s|^${HOME}/||;s|^${HOME}$||"
-        )"
-        if [ -n "${_ai_workspace_d}" ]; then
+    _home_d="$(_real_path "${HOME}")"
+    case "${SANDBOX_D}" in
+        "${_home_d}"/*)
+            _ai_workspace_d="${SANDBOX_D#"${_home_d}"/}"
             AI_USER_WORKSPACE="/home/${AI_USER_NAME}/${_ai_workspace_d}"
-        fi
-    fi
+            ;;
+    esac
 
     set --
     [ "$USE_MICROVM" = "1" ] && set -- --runtime krun --rm
