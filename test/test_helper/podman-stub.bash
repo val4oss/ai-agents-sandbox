@@ -41,8 +41,7 @@ glaipnir_run_no_microvm() {
 
 # Run 'glaipnir run' in the fake environment WITH microVM (the default mode).
 # Skip the test when the host cannot run microVMs: glaipnir would then fall back
-# silently to the container mode (its warnings go to the terminal, not to the
-# output).
+# to the container mode.
 # ARGUMENTS:
 #   @ - agents and options given to glaipnir
 glaipnir_run_microvm() {
@@ -99,4 +98,20 @@ assert_run_opt_match() {
 refute_run_opt_match() {
     ! run_opt_values "$1" | grep -Eq -- "$2" ||
         fail "unexpected '$1' value matching '$2'"$'\n'"$(_run_log)"
+}
+
+# Fail unless 'podman run' mounts the default workspace of glaipnir, which is
+# the fallback of a refused workspace.
+assert_workspace_fallback() {
+    assert_run_opt --volume \
+        "${XDG_CACHE_HOME}/glaipnir/workspace:/home/aiuser/workspace:z"
+}
+
+# Fail if 'podman run' mounts the given host path, whatever the destination.
+# ARGUMENTS:
+#   1 - src: host path that must not be mounted
+refute_run_mount_of() {
+    run_opt_values --volume | cut -d: -f1 | grep -Fxq -- "$1" &&
+        fail "mounted: $1"$'\n'"$(_run_log)"
+    return 0
 }
