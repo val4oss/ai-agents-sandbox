@@ -627,6 +627,15 @@ _podman_rm_img() {
 }
 
 ###
+# Print the canonical path given, the path itself if it cannot be resolved
+# ARGUMENTS:
+#   1 - path: path to resolve
+###
+_real_path() {
+    realpath "$1" 2>/dev/null || printf "%s\n" "$1"
+}
+
+###
 # Verify that the directory exists and is a allowed paths to not share
 # sensitives path
 # ARGUMENTS:
@@ -636,7 +645,7 @@ _podman_rm_img() {
 ###
 _verify_mount_point_d() {
     _ret="$SUCCESS"
-    _path="$(realpath "$1" 2>/dev/null || echo "$1")"
+    _path="$(_real_path "$1")"
 
     if [ -z "$1" ]; then
         print_warning "Mount point is not set."
@@ -692,9 +701,7 @@ _verify_mount_point_d() {
 _verify_workspace_d() {
     _ret="$SUCCESS"
     SANDBOX_D="$(echo "${SANDBOX_D}" | sed "s|~|${HOME}|g")"
-    SANDBOX_D="$(
-        realpath "${SANDBOX_D}" 2>/dev/null || echo "${SANDBOX_D}"
-    )"
+    SANDBOX_D="$(_real_path "${SANDBOX_D}")"
     _verify_mount_point_d "$SANDBOX_D" || {
         _ret="$SUCCESS"
         # Default could be overriding.
@@ -720,9 +727,7 @@ _verify_workspace_d() {
 ###
 _verify_cache_d() {
     CACHE_D="$(echo "${CACHE_D}" | sed "s|~|${HOME}|g")"
-    CACHE_D="$(
-        realpath "${CACHE_D}" 2>/dev/null || echo "${CACHE_D}"
-    )"
+    CACHE_D="$(_real_path "${CACHE_D}")"
     _verify_mount_point_d "$CACHE_D" || {
         print_warning "Falling back to default cache: '$CACHE_D_DEFAULT'."
         CACHE_D="$CACHE_D_DEFAULT"
@@ -736,9 +741,7 @@ _verify_cache_d() {
 ###
 _verify_home_data_dir() {
     HOME_DATA_D="$(echo "${HOME_DATA_D}" | sed "s|~|${HOME}|g")"
-    HOME_DATA_D="$(
-        realpath "${HOME_DATA_D}" 2>/dev/null || echo "${HOME_DATA_D}"
-    )"
+    HOME_DATA_D="$(_real_path "${HOME_DATA_D}")"
     _verify_mount_point_d "${HOME_DATA_D}" || {
         print_warning \
             "Falling back to default data dir: '${HOME_DATA_D_DEFAULT}'."
@@ -1005,12 +1008,12 @@ _bind_ro_mounts() {
 
     for _brm_entry in $RO_MOUNTS; do
         _brm_src="$(printf '%s' "$_brm_entry" | cut -d ':' -f 1)"
-        _brm_src="$(realpath "$_brm_src" 2>/dev/null || echo "$_brm_src")"
+        _brm_src="$(_real_path "$_brm_src")"
         _brm_dst="$(printf '%s' "$_brm_entry" | cut -d ':' -f 2)"
         if [ "$_brm_dst" = "$_brm_entry" ]; then
             _brm_dst="/home/${AI_USER_NAME}/$(basename "$_brm_src")"
         else
-            _brm_dst="$(realpath "$_brm_dst" 2>/dev/null || echo "$_brm_dst")"
+            _brm_dst="$(_real_path "$_brm_dst")"
         fi
 
         if ! _verify_mount_point_d "$_brm_src"; then
