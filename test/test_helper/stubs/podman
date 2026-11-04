@@ -1,0 +1,26 @@
+#!/bin/sh
+# Fake podman for the testsuite: records the calls and never runs anything.
+#   PODMAN_STUB_LOG:     file receiving one line per call (all the arguments)
+#   PODMAN_STUB_RUN_LOG: file receiving the arguments of 'run', one per line
+
+if [ -n "${PODMAN_STUB_LOG:-}" ]; then
+    printf '%s\n' "$*" >> "${PODMAN_STUB_LOG}"
+fi
+
+case "$1" in
+    run)
+        shift
+        if [ -n "${PODMAN_STUB_RUN_LOG:-}" ]; then
+            printf '%s\n' "$@" > "${PODMAN_STUB_RUN_LOG}"
+        fi
+        ;;
+    container)
+        # 'container exists': there is never a container
+        exit 1
+        ;;
+    images)
+        printf 'localhost/ai-agents-sandbox\n'
+        ;;
+esac
+# 'image exists', 'ps', 'volume'...: succeed silently
+exit 0

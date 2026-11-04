@@ -1,0 +1,3 @@
+#!/bin/sh
+# Fake passt for the testsuite: only has to be found by 'command -v'.
+exit 0
