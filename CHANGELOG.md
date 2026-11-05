@@ -40,6 +40,7 @@
   * mount: expand only a leading `~`, and fail if a mount point cannot be
     created.
   * run: build the workspace path of the sandbox from the exact `$HOME` prefix.
+  * agent: prompt untrusted disclaimer after CLI parsing and handle empty action.
 
 ## [1.2.0] - 2026-10-23
 

@@ -211,12 +211,6 @@ _valid_agent() {
     if [ "${_va_rc}" = "${FAILURE}" ]; then
         for _agt_v in $UNTRUSTED_AGENTS; do
             if [ "$_agent" = "$_agt_v" ]; then
-                for _act_v in $UNTRUSTED_AGENTS_SENSITIVE_ACTIONS; do
-                    if [ "$ACTION" = "$_act_v" ]; then
-                        _check_untrusted_disclaimer "$_agent"
-                        break
-                    fi
-                done
                 _va_rc="$SUCCESS"
                 break
             fi
@@ -2206,12 +2200,26 @@ else
     AGENT="$TRUSTED_AGENTS"
 fi
 
-if ! eval "$ACTION"; then
-    print_error "[✗] Action '$ACTION' failed."
-    exit "${FAILURE}"
-elif [ -z "${ACTION}" ]; then
+for _agt_v in $AGENT; do
+    for _uagt_v in $UNTRUSTED_AGENTS; do
+        if [ "$_agt_v" = "$_uagt_v" ]; then
+            for _act_v in $UNTRUSTED_AGENTS_SENSITIVE_ACTIONS; do
+                if [ "$ACTION" = "$_act_v" ]; then
+                    _check_untrusted_disclaimer "$_agt_v"
+                    break
+                fi
+            done
+            break
+        fi
+    done
+done
+
+if [ -z "${ACTION}" ]; then
     print_warning "No action specified. Nothing to do."
     usage
+elif ! eval "$ACTION"; then
+    print_error "[✗] Action '$ACTION' failed."
+    exit "${FAILURE}"
 else
     print_info "[✓] Done."
 fi
