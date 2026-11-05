@@ -25,6 +25,8 @@
   * run: create suffixed microVM container if existing container is stopping.
   * clean: remove suffixed containers even if base container is absent.
   * mount: copy host files before creating the mount directory.
+  * ro-mount: refuse a missing source, clean the destination and expand `~` and
+    `$HOME` in the source.
 
 ## [1.2.0] - 2026-10-23
 

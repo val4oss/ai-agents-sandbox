@@ -630,22 +630,56 @@ _podman_rm_img() {
 # Print the canonical path given, the path itself if it cannot be resolved
 # ARGUMENTS:
 #   1 - path: path to resolve
+# OUTPUTS:
+#   fd 1: resolved path
 ###
 _real_path() {
     realpath "$1" 2>/dev/null || printf "%s\n" "$1"
 }
 
 ###
-# Print the path given with a leading "~" replaced by HOME, others "~" are kept
+# Print the path given with a leading "~", "$HOME" or "${HOME}" replaced by the
+# value of HOME, other occurrences are kept
 # ARGUMENTS:
 #   1 - path: path to expand
+# OUTPUTS:
+#   fd 1: expanded path
 ###
 _expand_home() {
     _tilde="~"
+    _home_var="\$HOME"
+    _home_brace="\${HOME}"
     case "$1" in
-        "${_tilde}")     printf "%s\n" "${HOME}" ;;
-        "${_tilde}"/*)   printf "%s\n" "${HOME}/${1#"${_tilde}"/}" ;;
-        *)               printf "%s\n" "$1" ;;
+        "${_tilde}"|"${_home_var}"|"${_home_brace}")
+            printf "%s\n" "${HOME}" ;;
+        "${_tilde}"/*)
+            printf "%s\n" "${HOME}/${1#"${_tilde}"/}" ;;
+        "${_home_var}"/*)
+            printf "%s\n" "${HOME}/${1#"${_home_var}"/}" ;;
+        "${_home_brace}"/*)
+            printf "%s\n" "${HOME}/${1#"${_home_brace}"/}" ;;
+        *)
+            printf "%s\n" "$1" ;;
+    esac
+}
+
+###
+# Print a path without duplicate nor trailing slashes.
+# ARGUMENTS:
+#   1 - path: path to normalize
+# OUTPUTS:
+#   fd 1: normalized path
+# RETURNS:
+#   SUCCESS, FAILURE if the path is relative, "/" or has a "." or ".." part
+###
+_normalize_path() {
+    _np="$(printf '%s' "$1" | sed 's|//*|/|g;s|/$||')"
+    case "${_np}/" in
+        */./*|*/../*) return "${FAILURE}" ;;
+    esac
+    case "${_np}" in
+        /*) printf "%s\n" "${_np}" ;;
+        *)  return "${FAILURE}" ;;
     esac
 }
 
@@ -1026,15 +1060,24 @@ _bind_ro_mounts() {
 
     for _brm_entry in $RO_MOUNTS; do
         _brm_src="$(printf '%s' "$_brm_entry" | cut -d ':' -f 1)"
-        _brm_src="$(_real_path "$_brm_src")"
+        _brm_src="$(_real_path "$(_expand_home "$_brm_src")")"
         _brm_dst="$(printf '%s' "$_brm_entry" | cut -d ':' -f 2)"
         if [ "$_brm_dst" = "$_brm_entry" ]; then
             _brm_dst="/home/${AI_USER_NAME}/$(basename "$_brm_src")"
+        elif _brm_norm="$(_normalize_path "$_brm_dst")"; then
+            _brm_dst="$_brm_norm"
         else
-            _brm_dst="$(_real_path "$_brm_dst")"
+            print_error "ro mount destination '$_brm_dst' is not valid."
+            print_error "Use an absolute path without '.' nor '..' parts."
+            _brm_rc="$FAILURE"
+            continue
         fi
 
-        if ! _verify_mount_point_d "$_brm_src" 1; then
+        if [ ! -e "$_brm_src" ]; then
+            print_warning "ro mount source '$_brm_src' does not exist."
+            _brm_rc="$FAILURE"
+            continue
+        elif ! _verify_mount_point_d "$_brm_src" 1; then
             print_warning \
                 "ro mount source '$_brm_src' is not a valid directory."
             _brm_rc="$FAILURE"
