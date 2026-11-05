@@ -27,6 +27,8 @@
   * mount: copy host files before creating the mount directory.
   * ro-mount: refuse a missing source, clean the destination and expand `~` and
     `$HOME` in the source.
+  * run: quote the arguments of the podman command, so paths with spaces work
+    and the values of the configuration are not executed anymore.
 
 ## [1.2.0] - 2026-10-23
 

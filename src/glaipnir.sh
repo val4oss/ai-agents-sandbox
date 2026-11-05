@@ -182,6 +182,17 @@ _check_untrusted_disclaimer() {
 }
 
 ###
+# Print the argument single-quoted, to give it safely to eval
+# ARGUMENTS:
+#   1 - str: string to quote
+# OUTPUTS:
+#   fd 1: quoted string
+###
+_safe_arg() {
+    printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
+}
+
+###
 # check if agent is valid
 # ARGUMENTS:
 #   1 - agent: agent name
@@ -646,6 +657,19 @@ _podman_rm_img() {
 }
 
 ###
+# Print a podman --volume option, quoted to be given to eval
+# ARGUMENTS:
+#   1 - src: host path
+#   2 - dst: path in the container
+#   3 - opts: mount options
+# OUTPUTS:
+#   fd 1: the option, with a leading space
+###
+_podman_volume_opt() {
+    printf " --volume %s" "$(_safe_arg "$1:$2:$3")"
+}
+
+###
 # Print the canonical path given, the path itself if it cannot be resolved
 # ARGUMENTS:
 #   1 - path: path to resolve
@@ -971,7 +995,9 @@ _bind_agent_mounts() {
     # ~/.agents for all agents
     _copy_host_files "${HOME}/.agents" "${_mount_d}/.agents"
     mkdir -p "${_mount_d}/.agents" || return "$FAILURE"
-    _mounts="$_mounts --volume $_mount_d/.agents:$_home/.agents:z"
+    _mounts="$_mounts $(
+        _podman_volume_opt "$_mount_d/.agents" "$_home/.agents" z
+    )"
 
     # copilot
     case " $AGENT " in *" copilot "*)
@@ -979,8 +1005,12 @@ _bind_agent_mounts() {
         mkdir -p "${_mount_d}/.config/gh" || return "${FAILURE}"
         _copy_host_files "${HOME}/.copilot" "${_mount_d}/.copilot"
         mkdir -p "${_mount_d}/.copilot" || return "${FAILURE}"
-        _mounts="$_mounts --volume $_mount_d/.config/gh:$_home/.config/gh:z"
-        _mounts="$_mounts --volume $_mount_d/.copilot:$_home/.copilot:z"
+        _mounts="$_mounts $(
+            _podman_volume_opt "$_mount_d/.config/gh" "$_home/.config/gh" z
+        )"
+        _mounts="$_mounts $(
+            _podman_volume_opt "$_mount_d/.copilot" "$_home/.copilot" z
+        )"
     ;; esac
 
     # gemini + antigravity share ~/.gemini/
@@ -988,7 +1018,9 @@ _bind_agent_mounts() {
         if [ "$_gemini_mounted" = "0" ]; then
             _copy_host_files "${HOME}/.gemini" "$_mount_d/.gemini"
             mkdir -p "$_mount_d/.gemini" || return "${FAILURE}"
-            _mounts="$_mounts --volume $_mount_d/.gemini:$_home/.gemini:z"
+            _mounts="$_mounts $(
+                _podman_volume_opt "$_mount_d/.gemini" "$_home/.gemini" z
+            )"
             _gemini_mounted=1
         fi
     ;; esac
@@ -999,8 +1031,12 @@ _bind_agent_mounts() {
         mkdir -p "$_mount_d/.claude" || return "${FAILURE}"
         _copy_host_files "${HOME}/.claude.json" "$_mount_d/.claude.json"
         touch "$_mount_d/.claude.json" || return "${FAILURE}"
-        _mounts="$_mounts --volume $_mount_d/.claude:$_home/.claude:z"
-        _mounts="$_mounts --volume $_mount_d/.claude.json:$_home/.claude.json:z"
+        _mounts="$_mounts $(
+            _podman_volume_opt "$_mount_d/.claude" "$_home/.claude" z
+        )"
+        _mounts="$_mounts $(
+            _podman_volume_opt "$_mount_d/.claude.json" "$_home/.claude.json" z
+        )"
     ;; esac
 
     # opencode
@@ -1010,23 +1046,30 @@ _bind_agent_mounts() {
         _copy_host_files "$_host_data_d/opencode" \
             "$_mount_d/.local/share/opencode"
         mkdir -p "$_mount_d/.local/share/opencode" || return "${FAILURE}"
-        _mounts="$_mounts \
---volume $_mount_d/.config/opencode:$_home/.config/opencode:z \
---volume $_mount_d/.local/share/opencode:$_home/.local/share/opencode:z"
+        _mounts="$_mounts $(
+            _podman_volume_opt "$_mount_d/.config/opencode"\
+                "$_home/.config/opencode" z
+        )"
+        _mounts="$_mounts $(
+            _podman_volume_opt "$_mount_d/.local/share/opencode" \
+                "$_home/.local/share/opencode" z
+        )"
     ;; esac
 
     # pi
     case " $AGENT " in *" pi "*)
         _copy_host_files "${HOME}/.pi" "$_mount_d/.pi"
         mkdir -p "$_mount_d/.pi" || return "${FAILURE}"
-        _mounts="$_mounts --volume $_mount_d/.pi:$_home/.pi:z"
+        _mounts="$_mounts $(_podman_volume_opt "$_mount_d/.pi" "$_home/.pi" z)"
     ;; esac
 
     # hermes-agent
     case " $AGENT " in *" hermes-agent "*)
         _copy_host_files "${HOME}/.hermes" "$_mount_d/.hermes"
         mkdir -p "$_mount_d/.hermes" || return "${FAILURE}"
-        _mounts="$_mounts --volume $_mount_d/.hermes:$_home/.hermes:z"
+        _mounts="$_mounts $(
+            _podman_volume_opt "$_mount_d/.hermes" "$_home/.hermes" z
+        )"
     ;; esac
 
     # Seed each mounted config dir with the agent's skel files from the image.
@@ -1055,7 +1098,9 @@ _bind_agent_mounts() {
             return "$FAILURE"
         fi
 
-        _mounts="${_mounts} --volume ${_host_adc}:${_home_adc}:ro,z"
+        _mounts="${_mounts} $(
+            _podman_volume_opt "${_host_adc}" "${_home_adc}" ro,z
+        )"
     fi
 
     printf '%s' "$_mounts"
@@ -1115,7 +1160,9 @@ _bind_ro_mounts() {
                 ;;
         esac
         _brm_dsts="$_brm_dsts $_brm_dst"
-        _brm_mounts="$_brm_mounts --volume $_brm_src:$_brm_dst:ro,z"
+        _brm_mounts="$_brm_mounts $(
+            _podman_volume_opt "$_brm_src" "$_brm_dst" ro,z
+        )"
     done
 
     printf '%s' "$_brm_mounts"
@@ -1487,7 +1534,7 @@ run() {
 
     _network_arg=""
     if [ -n "${_pasta_opts}" ]; then
-        _network_arg="--network \"pasta:${_pasta_opts}\""
+        _network_arg="--network $(_safe_arg "pasta:${_pasta_opts}")"
     else
         _network_arg="--network pasta"
     fi
@@ -1495,7 +1542,7 @@ run() {
     _dns_args=""
     [ "$DNS_LIST" = "" ] && DNS_LIST="1.1.1.1 8.8.8.8"
     for _dns in $DNS_LIST; do
-        _dns_args="$_dns_args --dns \"$_dns\""
+        _dns_args="$_dns_args --dns $(_safe_arg "$_dns")"
     done
 
     _ctn_state=""
@@ -1622,10 +1669,6 @@ run() {
     [ "$USE_MICROVM" = "1" ] && set -- --runtime krun --rm
     set -- "$@" \
         --name "$CTN_NAME" \
-        "${_agent_mounts}" \
-        "${_ro_mounts}" \
-        "${_network_arg}" \
-        "${_dns_args}" \
         --volume "${_hooks_mount_d}:/usr/local/bin/${SANDBOX_ID}-run-hooks/:z" \
         --volume "${SANDBOX_D}:${AI_USER_WORKSPACE}:z" \
         --tmpfs "/tmp:rw,nosuid,nodev,noexec,size=1g" \
@@ -1687,9 +1730,15 @@ run() {
             --env "GLAIPNIR_PROXY_HOST=127.0.0.1"
     fi
 
-    _args=$*
+    # Every argument is quoted, so that eval keeps the paths and the values with
+    # spaces or special characters as they are.
+    _args=""
+    for _arg in "$@"; do
+        _args="$_args $(_safe_arg "$_arg")"
+    done
     print_info "Starting isolated container..."
-    _cmd="${_podman_cmd} run -it $_args ${IMG_NAME}:latest"
+    _cmd="${_podman_cmd} run -it ${_agent_mounts} ${_ro_mounts}"
+    _cmd="${_cmd} ${_network_arg} ${_dns_args}${_args} ${IMG_NAME}:latest"
     print_debug "$_cmd"
     if ! eval "$_cmd"; then
         print_error "Failed to start container ${CTN_NAME}."
