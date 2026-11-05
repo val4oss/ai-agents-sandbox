@@ -1126,10 +1126,25 @@ _bind_ro_mounts() {
     while [ -n "$_brm_list" ]; do
         _brm_entry="${_brm_list%%|*}"
         _brm_list="${_brm_list#*|}"
-        _brm_src="$(printf '%s' "$_brm_entry" | cut -d ':' -f 1)"
+        _brm_src="$_brm_entry"
+        _brm_dst=""
+        if printf '%s' "$_brm_src" | grep -Eq ':(ro|rw|z|Z)(,(ro|rw|z|Z))*$'
+        then
+            _brm_src="${_brm_src%:*}"
+        fi
+        case "$_brm_src" in
+            *:*)
+                case "${_brm_src##*:}" in
+                    /*)
+                        _brm_dst="${_brm_src##*:}"
+                        _brm_src="${_brm_src%:*}"
+                        ;;
+                esac
+                ;;
+        esac
+
         _brm_src="$(_real_path "$(_expand_home "$_brm_src")")"
-        _brm_dst="$(printf '%s' "$_brm_entry" | cut -d ':' -f 2)"
-        if [ "$_brm_dst" = "$_brm_entry" ]; then
+        if [ -z "$_brm_dst" ]; then
             _brm_dst="/home/${AI_USER_NAME}/$(basename "$_brm_src")"
         elif _brm_norm="$(_normalize_path "$_brm_dst")"; then
             _brm_dst="$_brm_norm"
@@ -1139,6 +1154,16 @@ _bind_ro_mounts() {
             _brm_rc="$FAILURE"
             continue
         fi
+
+        case "${_brm_src}:${_brm_dst}" in
+            *:*:*)
+                print_error "ro mount '$_brm_entry' has a ':' in a path."
+                print_error "A destination is an absolute path after the ':',"
+                print_error "and ':' cannot be used in a path."
+                _brm_rc="$FAILURE"
+                continue
+                ;;
+        esac
 
         if [ ! -e "$_brm_src" ]; then
             print_warning "ro mount source '$_brm_src' does not exist."
@@ -1306,8 +1331,8 @@ Options:
   --ro-mount <src>[:<dst>]
                For 'run' action, bind-mount a host path read-only into the
                sandbox. Can be set multiple times. Defaults 'dst' to
-               /home/aiuser/<basename(src)> when omitted. '|' cannot be used
-               in a path.
+               /home/aiuser/<basename(src)> when omitted. 'dst' is an absolute
+               path, and '|' cannot be used in a path.
   --no-vpn-protection
                For 'run' action, disable the microVM protection against VPN
                leaks. This is not recommended.
