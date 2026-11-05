@@ -10,6 +10,7 @@
     read-only and configure Vertex AI.
   * Auto-resolution of GCP project ID and region from environment variables or
     host gcloud configuration.
+  * bats testsuite, run on the built script with `./build.sh test`.
 * Changed
   * build: rebuild if context changes from build to install.
   * CLI agent arguments override agents defined in configuration file.
@@ -29,6 +30,16 @@
     `$HOME` in the source.
   * run: quote the arguments of the podman command, so paths with spaces work
     and the values of the configuration are not executed anymore.
+  * ro-mount: the destination is the last absolute part of an entry, so a
+    source can hold spaces; refuse a `:` or a `|` in a path and a destination
+    used by another mount.
+  * mount: match the allowed paths on whole path components, `$HOME`, `/tmp`,
+    `/var/tmp` and `/opt` themselves are refused.
+  * mount: refuse the hidden directories of `$HOME` as workspace or read-only
+    mount source.
+  * mount: expand only a leading `~`, and fail if a mount point cannot be
+    created.
+  * run: build the workspace path of the sandbox from the exact `$HOME` prefix.
 
 ## [1.2.0] - 2026-10-23
 

@@ -237,6 +237,11 @@ glaipnir run claude --ro-mount /path/to/host/dir
   ```bash
   glaipnir run claude --ro-mount /opt/shared-libs:/home/aiuser/libs:ro
   ```
+* **Paths:** The host path can contain spaces. A destination is an absolute
+  path, and a mount cannot use the destination of another mount of the sandbox
+  (the workspace, the agent configuration...). The characters `:` and `|` are
+  not supported in a path, and the hidden directories of your home (`~/.ssh`,
+  `~/.config`...) cannot be mounted.
 * **Multiple mounts:** You can repeat `--ro-mount` multiple times on the
   command line:
   ```bash
