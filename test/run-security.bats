@@ -230,3 +230,46 @@ setup() {
     assert_success
     [ "$(grep -c '^run ' "$PODMAN_STUB_LOG")" -eq 1 ]
 }
+
+# =====================
+# Injection of commands
+# ---------------------
+
+@test "run does not execute the values of the command line" {
+    glaipnir_run_no_microvm claude \
+        --dns "\$(touch\${IFS}${HOME}/pwned1)" \
+        --dns "1.1.1.1\";touch\${IFS}${HOME}/pwned2;\""
+    assert_success
+    [ ! -e "$HOME/pwned1" ]
+    [ ! -e "$HOME/pwned2" ]
+    assert_run_opt --dns "\$(touch\${IFS}${HOME}/pwned1)"
+}
+
+@test "run does not execute the values of a workspace configuration" {
+    # a repository can bring its own .glaipnir.conf
+    printf 'DNS=`touch${IFS}%s/pwned1`\n' "$HOME" > "$WS/.glaipnir.conf"
+    printf 'DNS=1.1.1.1";touch${IFS}%s/pwned2;echo "x\n' "$HOME" \
+        >> "$WS/.glaipnir.conf"
+    glaipnir_run_no_microvm claude
+    assert_success
+    [ ! -e "$HOME/pwned1" ]
+    [ ! -e "$HOME/pwned2" ]
+    assert_run_opt --dns "\`touch\${IFS}${HOME}/pwned1\`"
+}
+
+@test "run keeps a workspace with spaces and quotes as one argument" {
+    mkdir -p "$HOME/my ws" "$HOME/it's ws"
+    for _ws in "$HOME/my ws" "$HOME/it's ws"; do
+        glaipnir_run_no_microvm claude --workspace "$_ws"
+        assert_success
+        assert_run_opt_match --volume \
+            "^$(printf '%s' "$_ws" | sed 's/[][\.*^$]/\\&/g'):/home/aiuser/"
+    done
+}
+
+@test "run keeps a cache with spaces as one argument" {
+    glaipnir_run_no_microvm claude --cache "$HOME/my cache"
+    assert_success
+    assert_run_opt --volume \
+        "${HOME}/my cache/agents-mount/.claude:/home/aiuser/.claude:z"
+}
