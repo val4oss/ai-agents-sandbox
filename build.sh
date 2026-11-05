@@ -54,6 +54,9 @@ DATADIR="${PREFIX}/share"
 PKGDATADIR="${DATADIR}/${PRJ_ID}"
 DESTDIR="${DESTDIR:-}"
 
+# test variables
+BUILD_TEST_JOBS=${BUILD_TEST_JOBS:-2}
+
 # ==============
 # Main functions
 # --------------
@@ -393,7 +396,13 @@ build_test() {
             export BIN_TEST
             export VERSION="${_test_version}"
             printf "Running tests on %s ...\n" "${BIN_TEST}"
-            "${_bats_p}" --pretty "${ROOT_D}"/test/*.bats || exit 1
+            _bats_args="--pretty"
+            if command -v parallel > /dev/null 2>&1; then
+                _bats_args="${_bats_args} --jobs ${BUILD_TEST_JOBS}"
+                _bats_args="${_bats_args} --no-parallelize-across-files"
+            fi
+            # shellcheck disable=SC2086
+            "${_bats_p}" ${_bats_args} "${ROOT_D}"/test/*.bats || exit 1
         ) || {
             echo "Tests failed"
             _rc=${FAILURE}; break
