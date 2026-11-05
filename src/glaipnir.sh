@@ -2075,6 +2075,10 @@ while [ $# -gt 0 ]; do
         --no-vpn-protection|no-vpn-protection)
                                  VPN_PROTECTION=0;          shift 1 ;;
         --conf)
+            if [ -z "$2" ]; then
+                print_error "Error: $1 requires an argument."
+                exit 1
+            fi
             CONF_P="$2"
             if ! _parse_conf; then
                 print_error "Failed to parse configuration file: $CONF_P"
@@ -2082,10 +2086,38 @@ while [ $# -gt 0 ]; do
             fi
             shift 2
             ;;
-        --cache)                 CACHE_D="$2";              shift 2 ;;
-        --build-hook)            BUILD_HOOK_ARG="$2";       shift 2 ;;
-        --run-hook)              RUN_HOOK_ARG="$2";         shift 2 ;;
-        --dns)                   DNS_LIST="$2 $DNS_LIST";   shift 2 ;;
+        --cache)
+            if [ -z "$2" ]; then
+                print_error "Error: $1 requires an argument."
+                exit 1
+            fi
+            CACHE_D="$2"
+            shift 2
+            ;;
+        --build-hook)
+            if [ -z "$2" ]; then
+                print_error "Error: $1 requires an argument."
+                exit 1
+            fi
+            BUILD_HOOK_ARG="$2"
+            shift 2
+            ;;
+        --run-hook)
+            if [ -z "$2" ]; then
+                print_error "Error: $1 requires an argument."
+                exit 1
+            fi
+            RUN_HOOK_ARG="$2"
+            shift 2
+            ;;
+        --dns)
+            if [ -z "$2" ]; then
+                print_error "Error: $1 requires an argument."
+                exit 1
+            fi
+            DNS_LIST="$2 $DNS_LIST"
+            shift 2
+            ;;
         full|--full)             BUILD_FULL=1;              shift 1 ;;
         --reset-agent-config)    RESET_AGENT_CONF=1;        shift 1 ;;
         all|--all|-a)            ALL=1;                     shift 1 ;;
