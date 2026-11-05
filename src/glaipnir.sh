@@ -271,6 +271,29 @@ _add_proxy_cmd() {
 }
 
 ###
+# Add an entry to RO_MOUNTS, the entries are separated by "|"
+# ARGUMENTS:
+#   1 - entry: <src>[:<dst>[:<options>]]
+# GLOBALS:
+#   RO_MOUNTS: updated with the new entry
+# RETURNS:
+#   SUCCESS, FAILURE if the entry is empty or has a "|"
+###
+_add_ro_mount() {
+    case "$1" in
+        "")
+            print_error "A read-only mount cannot be empty."
+            return "${FAILURE}"
+            ;;
+        *"|"*)
+            print_error "'|' is not allowed in a read-only mount: '$1'."
+            return "${FAILURE}"
+            ;;
+    esac
+    RO_MOUNTS="${RO_MOUNTS:+${RO_MOUNTS}|}$1"
+}
+
+###
 # parse configuration file if it exists
 # RETURNS:
 #   SUCCESS, FAILURE if conf not valid
@@ -312,11 +335,7 @@ _parse_conf() {
                                     { _add_agent "$_item" || _pc_rc="${FAILURE}"; }
                                 ;;
                             RO_MOUNTS)
-                                if [ -n "$RO_MOUNTS" ]; then
-                                    RO_MOUNTS="${RO_MOUNTS} ${_item}"
-                                else
-                                    RO_MOUNTS="${_item}"
-                                fi
+                                _add_ro_mount "$_item" || _pc_rc="${FAILURE}"
                                 ;;
                             CMDS)
                                 _add_proxy_cmd "$_item" || _pc_rc="${FAILURE}"
@@ -1057,8 +1076,11 @@ _bind_ro_mounts() {
     _brm_rc="$SUCCESS"
     _brm_mounts=""
     _brm_dsts="/home/${AI_USER_NAME} /tmp"
+    _brm_list="${RO_MOUNTS}|"
 
-    for _brm_entry in $RO_MOUNTS; do
+    while [ -n "$_brm_list" ]; do
+        _brm_entry="${_brm_list%%|*}"
+        _brm_list="${_brm_list#*|}"
         _brm_src="$(printf '%s' "$_brm_entry" | cut -d ':' -f 1)"
         _brm_src="$(_real_path "$(_expand_home "$_brm_src")")"
         _brm_dst="$(printf '%s' "$_brm_entry" | cut -d ':' -f 2)"
@@ -1237,7 +1259,8 @@ Options:
   --ro-mount <src>[:<dst>]
                For 'run' action, bind-mount a host path read-only into the
                sandbox. Can be set multiple times. Defaults 'dst' to
-               /home/aiuser/<basename(src)> when omitted.
+               /home/aiuser/<basename(src)> when omitted. '|' cannot be used
+               in a path.
   --no-vpn-protection
                For 'run' action, disable the microVM protection against VPN
                leaks. This is not recommended.
@@ -1991,11 +2014,7 @@ while [ $# -gt 0 ]; do
                 print_error "Error: $1 requires an argument."
                 exit 1
             fi
-            if [ -n "$RO_MOUNTS" ]; then
-                RO_MOUNTS="${RO_MOUNTS} $2"
-            else
-                RO_MOUNTS="$2"
-            fi
+            _add_ro_mount "$2" || exit 1
             shift 2
             ;;
         --data-dir)
