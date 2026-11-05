@@ -300,6 +300,8 @@ _add_ro_mount() {
 
 ###
 # parse configuration file if it exists
+# OUTPUTS:
+#   fd 3: Log messages
 # RETURNS:
 #   SUCCESS, FAILURE if conf not valid
 ###
@@ -315,10 +317,15 @@ _parse_conf() {
             CONF_P="${_old_conf}"
         fi
     fi
-    if [ -f "$CONF_P" ]; then
+    if [ ! -f "$CONF_P" ] || [ ! -r "$CONF_P" ]; then
+        if [ "$CONF_P" != "$CONF_P_DEFAULT" ]; then
+            print_error "Configuration file not found or not readable: $CONF_P"
+            _pc_rc="${FAILURE}"
+        fi
+    else
         _in_block=0
         _block_key=""
-        while IFS= read -r _line; do
+        while IFS= read -r _line || [ -n "$_line" ]; do
             # strip leading whitespace
             _line="${_line#"${_line%%[! ]*}"}"
             case "$_line" in
@@ -362,7 +369,10 @@ _parse_conf() {
                         case "$_key" in
                             AGENT)       
                                 [ ${_CLI_AGENT_SET} -eq 0 ] && \
-                                    { _add_agent "$_value" || _pc_rc="${FAILURE}"; }
+                                    {
+                                        _add_agent "$_value" || \
+                                            _pc_rc="${FAILURE}";
+                                    }
                                 ;;
                             USE_MICROVM)        USE_MICROVM="$_value" ;;
                             USE_GCLOUD)         USE_GCLOUD="$_value" ;;
