@@ -342,8 +342,9 @@ _parse_conf() {
                             PACKAGES) PKGS="$PKGS $_item"   ;;
                             REPOS)    REPOS="$REPOS $_item" ;;
                             AGENTS)
-                                [ ${_CLI_AGENT_SET} -eq 0 ] && \
-                                    { _add_agent "$_item" || _pc_rc="${FAILURE}"; }
+                                if [ ${_CLI_AGENT_SET} -eq 0 ]; then
+                                    _add_agent "$_item" || _pc_rc="${FAILURE}"
+                                fi
                                 ;;
                             RO_MOUNTS)
                                 _add_ro_mount "$_item" || _pc_rc="${FAILURE}"
