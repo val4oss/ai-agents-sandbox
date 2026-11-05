@@ -1761,6 +1761,31 @@ run() {
     for _arg in "$@"; do
         _args="$_args $(_safe_arg "$_arg")"
     done
+
+    # podman refuses two mounts on the same destination, tell it before. The
+    # arguments of the mounts are given back to eval to be read as words.
+    eval "set -- ${_agent_mounts} ${_ro_mounts} ${_args}"
+    _mnt_dup="$(
+        _prev_arg=""
+        for _arg in "$@"; do
+            case "$_prev_arg" in
+                --volume)
+                    _mnt_dst="${_arg%:*}"
+                    printf '%s\n' "${_mnt_dst##*:}"
+                    ;;
+                --tmpfs)
+                    printf '%s\n' "${_arg%%:*}"
+                    ;;
+            esac
+            _prev_arg="$_arg"
+        done | sed 's|//*|/|g;s|/$||' | sort | uniq -d | head -n 1
+    )"
+    if [ -n "$_mnt_dup" ]; then
+        print_error "Two mounts use the destination '${_mnt_dup}'."
+        print_error "    -> Use another destination for one of them."
+        return "$FAILURE"
+    fi
+
     print_info "Starting isolated container..."
     _cmd="${_podman_cmd} run -it ${_agent_mounts} ${_ro_mounts}"
     _cmd="${_cmd} ${_network_arg} ${_dns_args}${_args} ${IMG_NAME}:latest"
