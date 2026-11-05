@@ -1900,14 +1900,14 @@ clean_cache() {
     _cc_rc="${SUCCESS}"
     print_info "Removing cache dir ${CACHE_D}..."
     rm -rf "${CACHE_D}" || {
-        print_error "Faield to clean cache dir."
+        print_error "Failed to clean cache dir."
         _cc_rc="${FAILURE}"
     }
 
     [ "${_cc_rc}" != "${SUCCESS}" ] || {
         print_info "podman volumes and Cache has been cleaned."
     }
-
+    return "${_cc_rc}"
 }
 
 ###
