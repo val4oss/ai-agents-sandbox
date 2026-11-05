@@ -2052,11 +2052,32 @@ if [ $# -lt 1 ]; then
     usage; exit 1
 fi
 
-if [ -f "${CONF_P}" ]; then
-    if ! _parse_conf; then
-        print_error "Failed to parse configuration file: $CONF_P"
-        exit "${FAILURE}"
+_custom_conf=""
+_has_conf=0
+_skip_next=0
+for _arg in "$@"; do
+    if [ "$_skip_next" -eq 1 ]; then
+        _custom_conf="$_arg"
+        _skip_next=0
+        continue
     fi
+    if [ "$_arg" = "--conf" ]; then
+        _has_conf=1
+        _skip_next=1
+    fi
+done
+
+if [ "$_has_conf" -eq 1 ]; then
+    if [ -z "$_custom_conf" ]; then
+        print_error "Error: --conf requires an argument."
+        exit 1
+    fi
+    CONF_P="$_custom_conf"
+fi
+
+if ! _parse_conf; then
+    print_error "Failed to parse configuration file: $CONF_P"
+    exit "${FAILURE}"
 fi
 
 while [ $# -gt 0 ]; do
@@ -2078,11 +2099,6 @@ while [ $# -gt 0 ]; do
             if [ -z "$2" ]; then
                 print_error "Error: $1 requires an argument."
                 exit 1
-            fi
-            CONF_P="$2"
-            if ! _parse_conf; then
-                print_error "Failed to parse configuration file: $CONF_P"
-                exit "${FAILURE}"
             fi
             shift 2
             ;;

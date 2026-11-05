@@ -19,6 +19,7 @@
   * Claude and OpenCode authenticate through host ADC instead of running gcloud
     inside the sandbox.
   * opencode: mount host data directory.
+  * configuration: parse configuration file one time.
 * Fixed
   * verify_mount_dir: verify the dir only if it exists.
   * status: list all images and containers by default or with `--all`.
