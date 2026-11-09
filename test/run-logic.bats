@@ -20,6 +20,11 @@ setup() {
     REPO="$REPO/containers/opensuse"
 }
 
+# Run after each test: never leave a fake listener behind
+teardown() {
+    stub_kill_fake_socat
+}
+
 # Write a shell script that passes shellcheck.
 # ARGUMENTS:
 #   1 - path: file to write
@@ -384,25 +389,11 @@ _bad_hook() {
 }
 
 @test "run stops the proxy listener when podman run fails" {
-    # A fake listener: it stays alive and tells its PID
-    mkdir -p "$BATS_TEST_TMPDIR/fake"
-    cat > "$BATS_TEST_TMPDIR/fake/socat" << 'SOCAT'
-#!/bin/sh
-printf '%s\n' "$$" > "$SOCAT_PID_F"
-exec sleep 300
-SOCAT
-    chmod +x "$BATS_TEST_TMPDIR/fake/socat"
-    export SOCAT_PID_F="$BATS_TEST_TMPDIR/socat.pid"
+    stub_fake_socat
     export PODMAN_STUB_FAIL="run"
-    PATH="$BATS_TEST_TMPDIR/fake:$PATH" glaipnir_run_no_microvm claude \
-        --cmd "git status"
+    glaipnir_run_no_microvm claude --cmd "git status"
     assert_failure 1
     [ -s "$SOCAT_PID_F" ]
-    _pid="$(cat "$SOCAT_PID_F")"
-    # Whatever happens, never leave the fake listener behind
-    if kill -0 "$_pid" 2>/dev/null; then
-        kill "$_pid"
-        fail "the proxy listener is still running (PID $_pid)"
-    fi
+    stub_kill_fake_socat || fail "the proxy listener is still running"
     [ ! -e "$CACHE/run/$CTN" ]
 }

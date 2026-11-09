@@ -1,10 +1,11 @@
 #!/bin/sh
 # Fake ip for the testsuite: a single public default route.
-# IP_STUB_ROUTE overrides the output of 'ip route show default'.
+# IP_STUB_ROUTE overrides the output of 'ip route show default', an empty
+# value is no default route at all.
 case "$*" in
     "route show default")
         printf '%s\n' \
-            "${IP_STUB_ROUTE:-default via 192.0.2.1 dev eth0 proto static}"
+            "${IP_STUB_ROUTE-default via 192.0.2.1 dev eth0 proto static}"
         ;;
 esac
 exit 0

@@ -202,3 +202,31 @@ refute_run_called() {
     [ ! -s "$PODMAN_STUB_RUN_LOG" ] ||
         fail "podman run was called"$'\n'"$(_run_log)"
 }
+
+# Put a fake socat first in the PATH. Like the real listener, it stays alive
+# and the PID of the process is written in $SOCAT_PID_F. Call
+# stub_kill_fake_socat from teardown() to never leave it behind.
+stub_fake_socat() {
+    mkdir -p "$BATS_TEST_TMPDIR/fake"
+    cat > "$BATS_TEST_TMPDIR/fake/socat" << 'SOCAT'
+#!/bin/sh
+printf '%s\n' "$$" > "$SOCAT_PID_F"
+exec sleep 300
+SOCAT
+    chmod +x "$BATS_TEST_TMPDIR/fake/socat"
+    export SOCAT_PID_F="$BATS_TEST_TMPDIR/socat.pid"
+    PATH="$BATS_TEST_TMPDIR/fake:$PATH"
+    export PATH
+}
+
+# Kill the fake socat if it still runs. Fails if it did.
+stub_kill_fake_socat() {
+    local _pid
+    [ -s "${SOCAT_PID_F:-/nonexistent}" ] || return 0
+    _pid="$(cat "$SOCAT_PID_F")"
+    if kill -0 "$_pid" 2>/dev/null; then
+        kill "$_pid"
+        return 1
+    fi
+    return 0
+}
