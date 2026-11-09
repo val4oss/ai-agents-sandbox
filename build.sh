@@ -114,7 +114,9 @@ options:
     install     Install the artefacts built
     uninstall   Uninstall the project
     clean:      Clean build env
-    test:       Build then run the testsuite on the built script
+    test [name...]
+                Build then run the testsuite on the built script, or only the
+                test files given (name of test/<name>.bats, e.g. build-real)
                 (BIN_TEST=<script> to test another one, without building)
     help:       Print this helper
 info:
@@ -361,16 +363,35 @@ build_uninstall() {
 # sources), the project is then not built.
 # GLOBALS:
 #   read: ROOT_D BUILD_D BINDIR PRJ_ID VERSION
+# ARGUMENTS:
+#   @ - names of the test files to run, with or without the .bats extension
+#       (test/<name>.bats). All the test files if omitted.
 # OUTPUTS:
 #   status of the tests
 # RETURNS:
-#   SUCCESS, FAILURE if tests fails
+#   SUCCESS, FAILURE if tests fails or a test file doesn't exist
 ###
 build_test() {
     _rc=${SUCCESS}
     _bats_p="${ROOT_D}/test/bats/bin/bats"
     _test_version="$(echo "${VERSION}" | tr '~' '-')"
+    # Test files to run, given to bats by the positional parameters
+    _test_names="$*"
+    set --
     while true; do
+        if [ -z "${_test_names}" ]; then
+            set -- "${ROOT_D}"/test/*.bats
+        else
+            for _test_name in ${_test_names}; do
+                _test_f="${ROOT_D}/test/${_test_name%.bats}.bats"
+                if [ ! -f "${_test_f}" ]; then
+                    echo "Unknown test file: ${_test_name}"
+                    _rc=${FAILURE}; break 2
+                fi
+                set -- "$@" "${_test_f}"
+            done
+        fi
+
         if [ ! -x "${_bats_p}" ]; then
             echo "Missing ${_bats_p}"
             echo "Run: git submodule update --init --recursive"
@@ -402,7 +423,7 @@ build_test() {
                 _bats_args="${_bats_args} --no-parallelize-across-files"
             fi
             # shellcheck disable=SC2086
-            "${_bats_p}" ${_bats_args} "${ROOT_D}"/test/*.bats || exit 1
+            "${_bats_p}" ${_bats_args} "$@" || exit 1
         ) || {
             echo "Tests failed"
             _rc=${FAILURE}; break
@@ -419,17 +440,19 @@ build_test() {
 
 _action_rc="${SUCCESS}"
 if [ "$1" != "" ]; then
-    case "$1" in
+    _action="$1"
+    shift
+    case "${_action}" in
         help)       build_usage         || _action_rc="${FAILURE}" ;;
         check)      build_check         || _action_rc="${FAILURE}" ;;
         install)    build_install       || _action_rc="${FAILURE}" ;;
         uninstall)  build_uninstall     || _action_rc="${FAILURE}" ;;
         clean)      build_clean         || _action_rc="${FAILURE}" ;;
-        test)       build_test          || _action_rc="${FAILURE}" ;;
+        test)       build_test "$@"     || _action_rc="${FAILURE}" ;;
     esac
-    
+
     if [ "${_action_rc}" -ne "${SUCCESS}" ]; then
-        echo "Action $1 Failed."
+        echo "Action ${_action} Failed."
     fi
 else
     build_main || _action_rc="${FAILURE}"
