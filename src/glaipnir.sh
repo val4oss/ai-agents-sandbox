@@ -491,8 +491,10 @@ _detect_public_iface() {
     _vpn_if="tun|wg|vpn|tap|ppp|openvpn|docker0|br-"
 
     if command -v ip > /dev/null 2>&1; then
+        # The device follows "dev", a route without gateway has no "via"
         _iface="$(ip route show default \
-            | awk '{print $5}' \
+            | awk '{ for (i = 1; i < NF; i++) if ($i == "dev") {
+                         print $(i + 1); next } }' \
             | grep -Ev "${_vpn_if}" \
             | head -1)"
     elif command -v route > /dev/null 2>&1; then

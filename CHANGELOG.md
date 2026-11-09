@@ -28,6 +28,8 @@
   * build: refuse a non-existing `--build-hook`.
   * run: abort on a hook failing shellcheck even if a valid one follows it.
   * run: refuse a non-existing `--run-hook`.
+  * run: read the interface of a default route written without gateway, so a
+    VPN route like `default dev wg0 scope link` aborts the run.
   * verify_mount_dir: verify the dir only if it exists.
   * status: list all images and containers by default or with `--all`.
   * clean: remove all images, containers, and volumes with `--all`.
