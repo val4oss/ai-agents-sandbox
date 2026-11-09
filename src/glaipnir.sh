@@ -1999,6 +1999,11 @@ save_data() {
     _archive_name="${PRJ_ID}-data-$(date +%Y%m%d_%H%M%S).tar.gz"
     _archive_path="${HOME_DATA_D}/${_archive_name}"
 
+    if [ -f "${_archive_path}" ]; then
+        print_warning "Archive '${_archive_path}' already exists."
+        return "${FAILURE}"
+    fi
+
     print_info "Saving data from '${_src_d}' to '${_archive_path}'..."
     if tar -czf "${_archive_path}" -C "${CACHE_D}" "agents-mount"; then
         print_info "Data archive successfully saved: ${_archive_path}"
