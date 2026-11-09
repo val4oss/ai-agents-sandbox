@@ -103,6 +103,7 @@ BIN_TEST=src/glaipnir.sh test/bats/bin/bats --filter "hook" test/build.bats
 | `run-security.bats`   | security options of the `podman run` command        | stub   |
 | `run-logic.bats`      | `run`: containers states, image pull, hooks, reset  | stub   |
 | `gcloud.bats`         | Vertex AI: enabling, project and region, ADC file   | stub   |
+| `aws.bats`            | AWS Bedrock: enabling, profile and region, mounts    | stub   |
 | `agent-mounts.bats`   | agents config: volumes, host files copy, skel, links | stub |
 | `network.bats`        | `run` network: public interface, VPN, proxy port, DNS | stub |
 | `proxy.bats`          | host command proxy: options, listener, shims, security | stub |
