@@ -58,6 +58,7 @@ teardown_file() {
 setup() {
     load 'test_helper/common-setup'
     _common_setup
+    load 'test_helper/podman-isolation'
     export NO_COLOR=1
 }
 
