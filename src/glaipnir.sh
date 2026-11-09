@@ -86,6 +86,12 @@ RO_MOUNTS=""
 USE_GCLOUD=0
 NO_GCLOUD=0
 CLI_GCLOUD_PROJECT=""
+USE_AWS=0
+NO_AWS=0
+CLI_AWS_PROFILE=""
+CLI_AWS_REGION=""
+AWS_PROFILE="${AWS_PROFILE:-}"
+AWS_REGION="${AWS_REGION:-}"
 TOOLS_NEEDED="podman sed grep tar xargs"
 
 # useful vars
@@ -383,6 +389,12 @@ _parse_conf() {
                                 USE_GCLOUD="1"
                                 ;;
                             GCLOUD_REGION)      GCLOUD_REGION="$_value" ;;
+                            USE_AWS)            USE_AWS="$_value" ;;
+                            AWS_PROFILE)
+                                AWS_PROFILE="$_value"
+                                USE_AWS="1"
+                                ;;
+                            AWS_REGION)         AWS_REGION="$_value" ;;
                             VPN_PROTECTION)     VPN_PROTECTION="$_value" ;;
                             WORKSPACE)          SANDBOX_D="$_value" ;;
                             CACHE)              CACHE_D="$_value" ;;
@@ -999,6 +1011,59 @@ _resolve_gcp_region() {
 }
 
 ###
+# Resolve the AWS profile from CLI, config, or environment variables.
+# OUTPUTS:
+#   fd 1: profile name (defaults to "default")
+###
+_resolve_aws_profile() {
+    if [ -n "${CLI_AWS_PROFILE:-}" ]; then
+        printf '%s' "$CLI_AWS_PROFILE"
+    elif [ -n "${AWS_PROFILE:-}" ]; then
+        printf '%s' "$AWS_PROFILE"
+    else
+        printf 'default'
+    fi
+}
+
+###
+# Resolve the AWS region from CLI, config, environment, or AWS config.
+# OUTPUTS:
+#   fd 1: region if resolved
+# RETURNS:
+#   SUCCESS, FAILURE if no region could be resolved
+###
+_resolve_aws_region() {
+    _rar_rc="${SUCCESS}"
+    if [ -n "${CLI_AWS_REGION:-}" ]; then
+        printf '%s' "$CLI_AWS_REGION"
+    elif [ -n "${AWS_REGION:-}" ]; then
+        printf '%s' "$AWS_REGION"
+    elif [ -n "${AWS_DEFAULT_REGION:-}" ]; then
+        printf '%s' "$AWS_DEFAULT_REGION"
+    else
+        _rar_rc="${FAILURE}"
+        _p="$(_resolve_aws_profile)"
+        _cfg="${HOME}/.aws/config"
+        if [ -f "$_cfg" ]; then
+            _pat="^[[:space:]]*region[[:space:]]*=[[:space:]]*"
+            _reg="$(sed -n \
+                "/^[[:space:]]*\[profile ${_p}\]/,/^\[/ s/${_pat}//p" \
+                "$_cfg" | head -n 1)"
+            if [ -z "$_reg" ] && [ "$_p" = "default" ]; then
+                _reg="$(sed -n \
+                    "/^[[:space:]]*\[default\]/,/^\[/ s/${_pat}//p" \
+                    "$_cfg" | head -n 1)"
+            fi
+            if [ -n "$_reg" ]; then
+                printf '%s' "$_reg"
+                _rar_rc="${SUCCESS}"
+            fi
+        fi
+    fi
+    return "${_rar_rc}"
+}
+
+###
 # Remove the agents mount dir. The next bind fills it again from the host.
 # RETURNS:
 #   SUCCESS, FAILURE when glaipnir cannot remove the directory
@@ -1143,6 +1208,43 @@ _bind_agent_mounts() {
         _mounts="${_mounts} $(
             _podman_volume_opt "${_host_adc}" "${_home_adc}" ro,z
         )"
+    fi
+
+    # AWS Bedrock authentication files
+    if [ "${USE_AWS:-0}" = "1" ]; then
+        _aws_mounted=0
+        _host_aws_cfg="${HOME}/.aws/config"
+        _home_aws_cfg="${_home}/.aws/config"
+        _host_aws_cred="${HOME}/.aws/credentials"
+        _home_aws_cred="${_home}/.aws/credentials"
+        _host_aws_sso="${HOME}/.aws/sso/cache"
+        _home_aws_sso="${_home}/.aws/sso/cache"
+
+        if [ -f "$_host_aws_cfg" ]; then
+            _mounts="${_mounts} $(
+                _podman_volume_opt "${_host_aws_cfg}" "${_home_aws_cfg}" ro,z
+            )"
+            _aws_mounted=1
+        fi
+        if [ -f "$_host_aws_cred" ]; then
+            _mounts="${_mounts} $(
+                _podman_volume_opt "${_host_aws_cred}" "${_home_aws_cred}" ro,z
+            )"
+            _aws_mounted=1
+        fi
+        if [ -d "$_host_aws_sso" ]; then
+            _mounts="${_mounts} $(
+                _podman_volume_opt "${_host_aws_sso}" "${_home_aws_sso}" ro,z
+            )"
+            _aws_mounted=1
+        fi
+
+        if [ "$_aws_mounted" -eq 0 ]; then
+            print_error "AWS configuration not found in ~/.aws"
+            print_error "Run from your host :"
+            print_error "  aws configure  OR  aws sso login"
+            return "$FAILURE"
+        fi
     fi
 
     printf '%s' "$_mounts"
@@ -1399,6 +1501,14 @@ Options:
                Specify the GCP project ID to use for Vertex AI. If not set,
                glaipnir will try to resolve it from the environment or gcloud
                config.
+  --aws        Use AWS Bedrock authentication. If not set, glaipnir
+               will try to resolve it from the environment or AWS config.
+  --no-aws     Bypass AWS authentication, even if set in the configuration
+               file (forces USE_AWS=0).
+  --aws-profile <profile>
+               Specify the AWS profile to use for Bedrock (default: default).
+  --aws-region <region>
+               Specify the AWS region to use for Bedrock.
 
 Notes:
   - The sandbox is designed to run in a secure, isolated environment.
@@ -1560,6 +1670,15 @@ run() {
        _podman_ctn_exists "$CTN_NAME"; then
         print_warning "Vertex env vars are applied only when creating a new container."
         print_warning "     -> Use 'clean ${AGENT}' then 'run ${AGENT}' to apply updates."
+    fi
+
+    if { [ "${USE_AWS:-0}" = "1" ] ||
+         [ -n "$AWS_PROFILE$AWS_REGION" ]; } &&
+       _podman_ctn_exists "$CTN_NAME"; then
+        print_warning "AWS Bedrock env vars are applied only when creating a \
+new container."
+        print_warning \
+            "     -> Use 'clean ${AGENT}' then 'run ${AGENT}' to apply updates."
     fi
 
     if ! _check_tools_needed; then
@@ -1795,6 +1914,28 @@ run() {
             --env "CLAUDE_CODE_USE_VERTEX=1" \
             --env "CLOUD_ML_REGION=${_detected_region}" \
             --env "VERTEX_LOCATION=${_detected_region}"
+    fi
+
+    # Forward cloud/relay settings needed by Bedrock-backed sessions.
+    if [ "${USE_AWS:-0}" = "1" ]; then
+        _detected_profile="$(_resolve_aws_profile)"
+        _detected_region="$(_resolve_aws_region)" || {
+            printf "AWS Region needed for Bedrock: " >&2
+            read -r _detected_region || true
+        }
+        if [ -z "${_detected_region}" ]; then
+            print_error "No AWS Region for Bedrock."
+            return "$FAILURE"
+        fi
+
+        set -- "$@" \
+            --env "AWS_PROFILE=${_detected_profile}" \
+            --env "AWS_REGION=${_detected_region}" \
+            --env "AWS_DEFAULT_REGION=${_detected_region}"
+
+        case " $AGENT " in *" claude "*)
+            set -- "$@" --env "CLAUDE_CODE_USE_BEDROCK=1"
+        ;; esac
     fi
 
     if [ "$USE_MICROVM" = "1" ]; then
@@ -2257,6 +2398,26 @@ while [ $# -gt 0 ]; do
             CLI_GCLOUD_PROJECT="$2"
             shift 2
             ;;
+        --aws)                   USE_AWS=1;                 shift 1 ;;
+        --no-aws)                NO_AWS=1;                  shift 1 ;;
+        --aws-profile)
+            if [ -z "$2" ]; then
+                print_error "Error: $1 requires an argument."
+                exit 1
+            fi
+            USE_AWS=1
+            CLI_AWS_PROFILE="$2"
+            shift 2
+            ;;
+        --aws-region)
+            if [ -z "$2" ]; then
+                print_error "Error: $1 requires an argument."
+                exit 1
+            fi
+            USE_AWS=1
+            CLI_AWS_REGION="$2"
+            shift 2
+            ;;
         -*)
             print_error "Unknown option: $1"
             usage
@@ -2313,6 +2474,11 @@ fi
 # --no-gcloud has priority over any configuration file.
 if [ "${NO_GCLOUD}" = "1" ]; then
     USE_GCLOUD=0
+fi
+
+# --no-aws has priority over any configuration file.
+if [ "${NO_AWS}" = "1" ]; then
+    USE_AWS=0
 fi
 
 if [ "$AGENT" != "" ]; then

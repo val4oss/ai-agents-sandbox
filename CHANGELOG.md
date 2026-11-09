@@ -10,6 +10,11 @@
     read-only and configure Vertex AI.
   * `--no-gcloud` option to bypass gcloud authentication set in the
     configuration file.
+  * `--aws`, `--no-aws`, `--aws-profile`, and `--aws-region` options to mount
+    host AWS config, credentials, and SSO cache read-only and configure
+    Bedrock.
+  * Auto-resolution of AWS profile and region from environment variables or
+    host AWS configuration.
   * Auto-resolution of GCP project ID and region from environment variables or
     host gcloud configuration.
   * bats testsuite, run on the built script with `./build.sh test`.

@@ -443,6 +443,47 @@ read-only into the sandbox:
    `glaipnir run claude --no-gcloud` forces `USE_GCLOUD=0` for this run,
    whatever the configuration files say.
 
+### AWS Bedrock Authentication
+
+When running agents backed by AWS Bedrock (such as Claude Code or OpenCode),
+the AWS CLI is not required inside the sandbox container. Instead, authenticate
+once on your host machine and mount your credentials read-only into the sandbox:
+
+1. **Authenticate on your host:**
+   ```bash
+   aws sso login  # OR: aws configure
+   ```
+
+2. **Launch with `--aws`:**
+   ```bash
+   glaipnir run claude --aws
+   ```
+   Glaipnir mounts only the strictly necessary files from your host (`~/.aws/config`,
+   `~/.aws/credentials`, and `~/.aws/sso/cache`) as read-only (`:ro`) and
+   automatically forwards `AWS_PROFILE`, `AWS_REGION`, and Bedrock environment
+   variables to the container.
+
+3. **Specify or override a profile or region explicitly:**
+   ```bash
+   glaipnir run claude --aws --aws-profile my-profile --aws-region us-east-1
+   ```
+   Without options, the profile defaults to `default` (or `AWS_PROFILE` in config/env).
+   The region is resolved from `--aws-region`, `AWS_REGION`, `AWS_DEFAULT_REGION`,
+   or the profile's region in `~/.aws/config`. Glaipnir interactively prompts for the
+   region if it is not found.
+
+4. **Persist in configuration:**
+   In your workspace `.glaipnir.conf` or global configuration file:
+   ```conf
+   USE_AWS=1
+   AWS_PROFILE=my-profile
+   AWS_REGION=us-east-1
+   ```
+
+5. **Bypass a configured AWS setup:**
+   `glaipnir run claude --no-aws` forces `USE_AWS=0` for this run,
+   whatever the configuration files say.
+
 ### Backup and Restore Agent Data
 
 To safely preserve or migrate your agent configurations and session histories:
