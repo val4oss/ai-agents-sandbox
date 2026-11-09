@@ -13,6 +13,15 @@
 #   PODMAN_STUB_IMAGES:      file listing the local images, one per line:
 #                            "<repository> <tag> <id>". 'images' prints the
 #                            ones matching its 'reference' filter.
+#   PODMAN_STUB_IMG_REPO:    repository printed by 'images <name>', the one
+#                            of the image 'run' looks at. Default: a local one.
+#   PODMAN_STUB_NO_IMAGE:    when set, 'image exists' fails (no local image)
+#   PODMAN_STUB_CONTAINERS:  file listing the containers, one per line:
+#                            "<name> <state> [<runtime>]". Without it, there
+#                            is no container.
+#   PODMAN_STUB_FAIL:        space separated commands that fail, e.g.
+#                            "run pull start exec". 'build' has its own
+#                            PODMAN_STUB_BUILD_FAIL.
 
 if [ -n "${PODMAN_STUB_LOG:-}" ]; then
     printf '%s\n' "$*" >> "${PODMAN_STUB_LOG}"
@@ -26,12 +35,18 @@ while :; do
     esac
 done
 
+_fails=0
+case " ${PODMAN_STUB_FAIL:-} " in
+    *" $1 "*) _fails=1 ;;
+esac
+
 case "$1" in
     run)
         shift
         if [ -n "${PODMAN_STUB_RUN_LOG:-}" ]; then
             printf '%s\n' "$@" > "${PODMAN_STUB_RUN_LOG}"
         fi
+        [ "$_fails" -eq 1 ] && exit 1
         ;;
     build)
         shift
@@ -45,10 +60,56 @@ case "$1" in
         [ -n "${PODMAN_STUB_BUILD_FAIL:-}" ] && exit 1
         ;;
     container)
-        # 'container exists': there is never a container
+        # 'container exists <name>'
+        [ -n "${PODMAN_STUB_CONTAINERS:-}" ] || exit 1
+        while read -r _name _state _runtime; do
+            [ "${_name}" = "$3" ] && exit 0
+        done < "${PODMAN_STUB_CONTAINERS}"
         exit 1
         ;;
+    inspect)
+        # 'inspect <name> --format <template>'
+        [ -n "${PODMAN_STUB_CONTAINERS:-}" ] || exit 1
+        while read -r _name _state _runtime; do
+            [ "${_name}" = "$2" ] || continue
+            case "$4" in
+                *State.Status*) printf '%s\n' "${_state}" ;;
+                *OCIRuntime*)   printf '%s\n' "${_runtime:-runc}" ;;
+            esac
+            exit 0
+        done < "${PODMAN_STUB_CONTAINERS}"
+        exit 1
+        ;;
+    ps)
+        # only the listing of the names is faked
+        case "$*" in
+            *"{{.Names}}"*)
+                [ -n "${PODMAN_STUB_CONTAINERS:-}" ] &&
+                    while read -r _name _state _runtime; do
+                        printf '%s\n' "${_name}"
+                    done < "${PODMAN_STUB_CONTAINERS}"
+                ;;
+        esac
+        exit 0
+        ;;
+    image)
+        case "$2" in
+            exists) [ -n "${PODMAN_STUB_NO_IMAGE:-}" ] && exit 1 ;;
+        esac
+        ;;
+    pull|start|exec)
+        [ "$_fails" -eq 1 ] && exit 1
+        ;;
     images)
+        case "$2" in
+            -*|"") ;;
+            *)
+                if [ -n "${PODMAN_STUB_IMG_REPO:-}" ]; then
+                    printf '%s\n' "${PODMAN_STUB_IMG_REPO}"
+                    exit 0
+                fi
+                ;;
+        esac
         if [ -z "${PODMAN_STUB_IMAGES:-}" ]; then
             printf 'localhost/ai-agents-sandbox\n'
             exit 0

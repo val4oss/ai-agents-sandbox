@@ -18,7 +18,8 @@ stub_env() {
     export PODMAN_STUB_RUN_LOG="$_d/run.log"
     export PODMAN_STUB_BUILD_LOG="$_d/build.log"
     export PODMAN_STUB_BUILD_CTX="$_d/build-ctx.log"
-    unset PODMAN_STUB_BUILD_FAIL PODMAN_STUB_IMAGES
+    unset PODMAN_STUB_BUILD_FAIL PODMAN_STUB_IMAGES PODMAN_STUB_IMG_REPO \
+        PODMAN_STUB_NO_IMAGE PODMAN_STUB_CONTAINERS PODMAN_STUB_FAIL
     # Workspace to give to '--workspace', canonical path
     WS="$(realpath "$HOME/ws")"
     export WS
@@ -167,4 +168,37 @@ assert_build_opt_match() {
 refute_build_called() {
     [ ! -s "$PODMAN_STUB_BUILD_LOG" ] ||
         fail "podman build was called"$'\n'"$(_build_log)"
+}
+
+# Add a container to the fake podman.
+# ARGUMENTS:
+#   1 - name: name of the container
+#   2 - state: state given by 'podman inspect' (running, exited, paused...)
+#   3 - runtime: OCI runtime, runc by default
+stub_container() {
+    export PODMAN_STUB_CONTAINERS="$BATS_TEST_TMPDIR/containers"
+    printf '%s %s %s\n' "$1" "$2" "${3:-runc}" >> "$PODMAN_STUB_CONTAINERS"
+}
+
+# Fail unless podman got exactly this call (all its arguments on one line).
+# ARGUMENTS:
+#   @ - the arguments of the call
+assert_podman_call() {
+    grep -Fxq -- "$*" "$PODMAN_STUB_LOG" ||
+        fail "missing podman call '$*'"$'\n'"$(cat "$PODMAN_STUB_LOG")"
+}
+
+# Fail if podman got a call starting with these arguments.
+# ARGUMENTS:
+#   @ - the beginning of the call
+refute_podman_call() {
+    ! awk -v p="$*" 'index($0, p) == 1 { f = 1 } END { exit !f }' \
+        "$PODMAN_STUB_LOG" ||
+        fail "unexpected podman call '$*'"$'\n'"$(cat "$PODMAN_STUB_LOG")"
+}
+
+# Fail if 'podman run' was called.
+refute_run_called() {
+    [ ! -s "$PODMAN_STUB_RUN_LOG" ] ||
+        fail "podman run was called"$'\n'"$(_run_log)"
 }
