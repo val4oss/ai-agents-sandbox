@@ -907,7 +907,8 @@ _copy_host_files() {
     elif [ -e "${_dst}" ]; then
         _src_last_modified="$(stat -c %Y "${_src}" 2>/dev/null || :)"
         _dst_created="$(stat -c %W "${_dst}" 2>/dev/null || :)"
-        if [ -n "${_src_last_modified}" ] && [ -n "${_dst_created}" ]; then
+        if [ -n "${_src_last_modified}" ] && [ -n "${_dst_created}" ] &&
+           [ "${_dst_created}" != "0" ]; then
             if [ "${_src_last_modified}" -gt "${_dst_created}" ]; then
                 print_debug "'${_src} is newer than '${_dst}', to update the"
                 print_debug "sandbox configuration use '--reset-agent-config'"
