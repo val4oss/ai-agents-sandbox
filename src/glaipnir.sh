@@ -85,6 +85,7 @@ DNS_LIST=""
 RO_MOUNTS=""
 USE_GCLOUD=0
 NO_GCLOUD=0
+CLI_GCLOUD_PROJECT=""
 TOOLS_NEEDED="podman sed grep tar xargs"
 
 # useful vars
@@ -938,7 +939,9 @@ _copy_host_files() {
 ###
 _resolve_gcp_project() {
     _rgp_rc="${SUCCESS}"
-    if [ -n "${GCLOUD_PROJECT:-}" ]; then
+    if [ -n "${CLI_GCLOUD_PROJECT:-}" ]; then
+        printf '%s' "$CLI_GCLOUD_PROJECT"
+    elif [ -n "${GCLOUD_PROJECT:-}" ]; then
         printf '%s' "$GCLOUD_PROJECT"
     elif [ -n "${GOOGLE_CLOUD_PROJECT:-}" ]; then
         printf '%s' "$GOOGLE_CLOUD_PROJECT"
@@ -1539,7 +1542,8 @@ run() {
         fi
     fi
 
-    if [ -n "$GOOGLE_CLOUD_PROJECT$VERTEX_LOCATION" ] && \
+    if { [ "${USE_GCLOUD:-0}" = "1" ] ||
+         [ -n "$GOOGLE_CLOUD_PROJECT$VERTEX_LOCATION" ]; } &&
        _podman_ctn_exists "$CTN_NAME"; then
         print_warning "Vertex env vars are applied only when creating a new container."
         print_warning "     -> Use 'clean ${AGENT}' then 'run ${AGENT}' to apply updates."
@@ -1756,12 +1760,20 @@ run() {
     if [ "${USE_GCLOUD:-0}" = "1" ]; then
         _detected_project="$(_resolve_gcp_project)" || {
             printf "Google Cloud Project ID needed for Vertex AI: " >&2
-            read -r _detected_project
+            read -r _detected_project || true
         }
+        if [ -z "${_detected_project}" ]; then
+            print_error "No Google Cloud Project ID for Vertex AI."
+            return "$FAILURE"
+        fi
         _detected_region="$(_resolve_gcp_region)" || {
             printf "Google Cloud Region needed for Vertex AI: " >&2
-            read -r _detected_region
+            read -r _detected_region || true
         }
+        if [ -z "${_detected_region}" ]; then
+            print_error "No Google Cloud Region for Vertex AI."
+            return "$FAILURE"
+        fi
 
         set -- "$@" \
             --env "GOOGLE_CLOUD_PROJECT=${_detected_project}" \
@@ -2224,7 +2236,7 @@ while [ $# -gt 0 ]; do
                 exit 1
             fi
             USE_GCLOUD=1
-            GOOGLE_CLOUD_PROJECT="$2"
+            CLI_GCLOUD_PROJECT="$2"
             shift 2
             ;;
         -*)

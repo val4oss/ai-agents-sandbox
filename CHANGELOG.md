@@ -28,6 +28,12 @@
   * build: refuse a non-existing `--build-hook`.
   * run: abort on a hook failing shellcheck even if a valid one follows it.
   * run: refuse a non-existing `--run-hook`.
+  * run: `--gcloud-project` has priority over the project of the
+    configuration and of the environment.
+  * run: refuse to start when no Google Cloud project or region is given for
+    Vertex AI, instead of forwarding empty values.
+  * run: warn that the Vertex settings are not applied to an existing container
+    also when gcloud is enabled by `--gcloud` or the configuration.
   * mount: do not report the host config as newer when the filesystem keeps no
     birth time.
   * run: read the interface of a default route written without gateway, so a

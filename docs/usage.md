@@ -424,6 +424,12 @@ read-only into the sandbox:
    ```bash
    glaipnir run claude --gcloud --gcloud-project my-project-id
    ```
+   Without `--gcloud-project`, the project is the first one found in
+   `GCLOUD_PROJECT` (configuration or environment), `GOOGLE_CLOUD_PROJECT`,
+   `ANTHROPIC_VERTEX_PROJECT_ID`, then `gcloud config get-value project`.
+   The region comes from `GCLOUD_REGION`, `VERTEX_LOCATION`,
+   `ANTHROPIC_VERTEX_LOCATION`, `GOOGLE_CLOUD_REGION` or `CLOUD_ML_REGION`.
+   Glaipnir asks for what it does not find, and refuses to start without them.
 
 4. **Persist in configuration:**
    In your workspace `.glaipnir.conf` or global configuration file:
