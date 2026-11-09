@@ -1504,7 +1504,7 @@ build() {
 
 # callback for run action
 run() {
-    _ret="$SUCCESS"
+    _r_rc="$SUCCESS"
 
     _podman_cmd="podman"
     [ ${DEBUG} -eq 1 ] && _podman_cmd="podman --log-level=debug"
@@ -1637,12 +1637,12 @@ run() {
                 elif [ "$_ctn_state" = "running" ]; then
                     print_info "Attaching to running container..."
                     if ! ${_podman_cmd} exec -it "$CTN_NAME" bash; then
-                        _ret="$FAILURE"
+                        _r_rc="$FAILURE"
                     fi
                     [ "$(uname -s)" = "Darwin" ] \
                         && [ "${VPN_PROTECTION}" = "1" ] \
                         && _macos_run_teardown
-                    return "$_ret"
+                    return "$_r_rc"
                 else
                     print_error "Container '$CTN_NAME' is in state '${_ctn_state}'"
                     print_error "    -> Cannot attach or resume."
@@ -1653,12 +1653,12 @@ run() {
             initialized|created|configured|exited) {
                 print_info "Starting container from '${_ctn_state}'..."
                 if ! ${_podman_cmd} start -ai "$CTN_NAME"; then
-                    _ret="$FAILURE"
+                    _r_rc="$FAILURE"
                 fi
                 [ "$(uname -s)" = "Darwin" ] \
                     && [ "${VPN_PROTECTION}" = 1 ] \
                     && _macos_run_teardown
-                return "$_ret"
+                return "$_r_rc"
             };;
             *)       {
                 print_error "Container '$CTN_NAME' is in state '${_ctn_state}'"
@@ -1691,15 +1691,20 @@ run() {
     _hooks_mount_d="${CACHE_D}/run-hooks"
     [ -d "${_hooks_mount_d}" ] && rm -r "${_hooks_mount_d}"
     mkdir -p "${_hooks_mount_d}"
-    [ -n "${RUN_HOOK_ARG}" ] && \
+    if [ -n "${RUN_HOOK_ARG}" ]; then
+        if [ ! -e "${RUN_HOOK_ARG}" ]; then
+            print_error "Run hook not found: ${RUN_HOOK_ARG}"
+            return "$FAILURE"
+        fi
         _run_hook="$(_parse_hooks_f "${RUN_HOOK_ARG}")"
+    fi
     for _h in $_run_hook; do
         if ! _check_scripts "$_h"; then
             print_warning "malformated hook script: $_h"
-            _ret="$FAILURE"
+            _r_rc="$FAILURE"
         fi
     done
-    [ "${_ret}" = "$FAILURE" ] && return "$_ret"
+    [ "${_r_rc}" = "$FAILURE" ] && return "$_r_rc"
     [ -n "$_run_hook" ] && {
         print_debug "Copying run hook(s): $_run_hook"
         for _h in $_run_hook; do
@@ -1818,7 +1823,7 @@ run() {
     print_debug "$_cmd"
     if ! eval "$_cmd"; then
         print_error "Failed to start container ${CTN_NAME}."
-        _ret="$FAILURE"
+        _r_rc="$FAILURE"
     fi
     [ "$(uname -s)" = "Darwin" ] \
         && [ "${VPN_PROTECTION}" -eq 1 ] \
@@ -1826,7 +1831,7 @@ run() {
 
     [ -n "${PROXY_CMDS}" ] && _stop_proxy_listener
 
-    return "$_ret"
+    return "$_r_rc"
 }
 
 # callback for clean action
