@@ -59,6 +59,9 @@
     created.
   * run: build the workspace path of the sandbox from the exact `$HOME` prefix.
   * agent: prompt untrusted disclaimer after CLI parsing and handle empty action.
+  * save-data: refuse overwriting existing archive with a warning.
+  * restore-data: report missing data directory instead of creating it.
+  * mount: verify allowed paths without auto-creating the home data directory.
 
 ## [1.2.0] - 2026-10-23
 

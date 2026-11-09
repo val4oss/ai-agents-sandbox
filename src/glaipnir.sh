@@ -753,6 +753,51 @@ _normalize_path() {
 }
 
 ###
+# Verify that a path is set, not a file, and inside the allowed paths
+# ARGUMENTS:
+#   1 - path: Path to verify
+#   2 - hidden: "1" to also refuse hidden directories of HOME (~/.ssh...)
+# RETURNS:
+#   SUCCESS, FAILURE if path is invalid or forbidden
+###
+_verify_allowed_path() {
+    _vap_rc="${SUCCESS}"
+    _vap_path="$(_real_path "$1")"
+
+    if [ -z "$1" ]; then
+        print_warning "Path is not set."
+        _vap_rc="$FAILURE"
+    else
+        if [ -e "${_vap_path}" ] && [ ! -d "${_vap_path}" ]; then
+            print_warning "Path '${_vap_path}' is not a directory."
+            _vap_rc="${FAILURE}"
+        else
+            _vap_home="$(_real_path "${HOME}")"
+            _allowed_paths="${_vap_home} /tmp /var/tmp /opt"
+            _vap_rc="${FAILURE}"
+            for _apath in ${_allowed_paths}; do
+                case "${_vap_path}" in
+                    "${_apath}"/*) _vap_rc="${SUCCESS}"; break ;;
+                esac
+            done
+            if [ "${_vap_rc}" = "${FAILURE}" ]; then
+                print_warning "Path '${_vap_path}' is not allowed."
+            elif [ "${_vap_path}" = "${_vap_home}" ]; then
+                print_warning "Path '${_vap_home}' is forbidden."
+                _vap_rc="${FAILURE}"
+            elif [ "${2:-0}" = "1" ]; then
+                case "${_vap_path}" in
+                    "${_vap_home}/."*|"${_vap_home}/"*"/."*)
+                        print_warning "Path '${_vap_path}' is forbidden (hidden)."
+                        _vap_rc="${FAILURE}" ;;
+                esac
+            fi
+        fi
+    fi
+    return "${_vap_rc}"
+}
+
+###
 # Verify that the directory exists and is a allowed paths to not share
 # sensitives path
 # ARGUMENTS:
@@ -763,55 +808,23 @@ _normalize_path() {
 #   SUCCESS, FAILURE if directory cannot be created or is not valid
 ###
 _verify_mount_point_d() {
-    _ret="$SUCCESS"
-    _path="$(_real_path "$1")"
+    _vmp_rc="$SUCCESS"
+    _vmp_path="$(_real_path "$1")"
 
     if [ -z "$1" ]; then
         print_warning "Mount point is not set."
-        _ret="$FAILURE"
-    fi
-
-    if [ "${_ret}" != "${FAILURE}" ] && \
-        { [ -e "${_path}" ] && [ ! -d "${_path}" ]; }; then
-        print_warning "Mount point '${_path}' not a directory."
-        _ret="$FAILURE"
-    fi
-
-    if [ "${_ret}" != "${FAILURE}" ]; then
-        # TODO: Other list to allows ?
-        _vmp_home="$(_real_path "${HOME}")"
-        _allowed_paths="${_vmp_home} /tmp /var/tmp /opt"
-        _ret="${FAILURE}"
-        for _apath in ${_allowed_paths}; do
-            case "${_path}" in
-                "${_apath}"/*) _ret="${SUCCESS}"; break ;;
-            esac
-        done
-        if [ "${_ret}" = "${FAILURE}" ]; then
-            print_warning "Mounting from ${_path} is not allowed"
-        elif [ "${_path}" = "${_vmp_home}" ]; then
-            print_warning "Mounting from ${_vmp_home} is forbidden"
-            _ret="${FAILURE}"
-        elif [ "${2:-0}" = "1" ]; then
-            case "${_path}" in
-                "${_vmp_home}/."*|"${_vmp_home}/"*"/."*)
-                    print_warning "Mounting from ${_path} is forbidden (hidden)"
-                    _ret="${FAILURE}" ;;
-            esac
-        fi
-    fi
-
-    if [ "${_ret}" != "${FAILURE}" ] && [ ! -e "${_path}" ]; then
-        print_debug "Mount point '${_path}' not found. Creating it..."
-        if mkdir -p "${_path}"; then
-            _ret="$SUCCESS"
-        else
+        _vmp_rc="${FAILURE}"
+    elif ! _verify_allowed_path "$1" "${2:-0}"; then
+        _vmp_rc="${FAILURE}"
+    elif [ ! -e "${_vmp_path}" ]; then
+        print_debug "Mount point '${_vmp_path}' not found. Creating it..."
+        if ! mkdir -p "${_vmp_path}"; then
             print_warning "Failed to create it"
-            _ret="$FAILURE"
+            _vmp_rc="$FAILURE"
         fi
     fi
- 
-    return "$_ret"
+
+    return "$_vmp_rc"
 }
 
 ###
@@ -863,7 +876,7 @@ _verify_cache_d() {
 _verify_home_data_dir() {
     HOME_DATA_D="$(_expand_home "${HOME_DATA_D}")"
     HOME_DATA_D="$(_real_path "${HOME_DATA_D}")"
-    _verify_mount_point_d "${HOME_DATA_D}" || {
+    _verify_allowed_path "${HOME_DATA_D}" || {
         print_warning \
             "Falling back to default data dir: '${HOME_DATA_D_DEFAULT}'."
         HOME_DATA_D="${HOME_DATA_D_DEFAULT}"

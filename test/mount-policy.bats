@@ -131,7 +131,7 @@ _skip_if_root() {
 @test "refused workspace is reported with the fallback used" {
     glaipnir_run_no_microvm claude --workspace /etc
     assert_success
-    assert_output --partial "Mounting from /etc is not allowed"
+    assert_output --partial "Path '/etc' is not allowed"
     assert_output --partial "Falling back to default workspace: \
 '${XDG_CACHE_HOME}/glaipnir/workspace'"
 }
@@ -139,19 +139,19 @@ _skip_if_root() {
 @test "refused HOME workspace is reported" {
     glaipnir_run_no_microvm claude --workspace "$HOME"
     assert_success
-    assert_output --partial "Mounting from ${HOME} is forbidden"
+    assert_output --partial "Path '${HOME}' is forbidden"
 }
 
 @test "refused hidden workspace is reported" {
     glaipnir_run_no_microvm claude --workspace "$HOME/.ssh"
     assert_success
-    assert_output --partial "Mounting from ${HOME}/.ssh is forbidden (hidden)"
+    assert_output --partial "Path '${HOME}/.ssh' is forbidden (hidden)"
 }
 
 @test "refused cache is reported with the fallback used" {
     glaipnir_run_no_microvm claude --cache /etc/glaipnir-cache
     assert_success
-    assert_output --partial "Mounting from /etc/glaipnir-cache is not allowed"
+    assert_output --partial "Path '/etc/glaipnir-cache' is not allowed"
     assert_output --partial \
         "Falling back to default cache: '${XDG_CACHE_HOME}/glaipnir'"
 }
@@ -160,7 +160,7 @@ _skip_if_root() {
     _seed_agents_mount
     run "$BIN_TEST" save-data --data-dir "$HOME"
     assert_success
-    assert_output --partial "Mounting from ${HOME} is forbidden"
+    assert_output --partial "Path '${HOME}' is forbidden"
     assert_output --partial \
         "Falling back to default data dir: '${XDG_DATA_HOME}/glaipnir'"
 }
