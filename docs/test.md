@@ -108,6 +108,7 @@ BIN_TEST=src/glaipnir.sh test/bats/bin/bats --filter "hook" test/build.bats
 | `proxy.bats`          | host command proxy: options, listener, shims, security | stub |
 | `clean.bats`          | clean action: containers, images, volumes, build cache | stub |
 | `data.bats`           | cache and data lifecycle: clean, save, restore, migration | stub |
+| `status.bats`         | status action: images, containers, states, filtering | stub   |
 | `build.bats`          | `podman build` arguments, context, hooks, images    | stub   |
 | `build-script.bats`   | the `test` action of `build.sh`                     | no     |
 | `isolation.bats`      | isolation of the podman store of the tests          | real   |

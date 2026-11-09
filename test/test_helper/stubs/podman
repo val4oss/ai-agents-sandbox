@@ -73,10 +73,11 @@ case "$1" in
     inspect)
         # 'inspect <name> --format <template>'
         [ -n "${PODMAN_STUB_CONTAINERS:-}" ] || exit 1
-        while read -r _name _state _runtime; do
+        while read -r _name _state _runtime _img; do
             [ "${_name}" = "$2" ] || continue
             case "$4" in
                 *State.Status*) printf '%s\n' "${_state}" ;;
+                *ImageName*)    printf '%s\n' "${_img:-localhost/ai-agents-sandbox:latest}" ;;
                 *OCIRuntime*)   printf '%s\n' "${_runtime:-runc}" ;;
             esac
             exit 0
