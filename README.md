@@ -82,8 +82,9 @@ ai-agents-sandbox/
   per-agent profiles and skills.
 * **`docs/`**: Detailed project documentation, including the
   [Usage Guide](docs/usage.md),
-  [Troubleshooting Guide](docs/troubleshooting.md), and
-  [Architecture Overview](docs/overview.md).
+  [Troubleshooting Guide](docs/troubleshooting.md),
+  [Architecture Overview](docs/overview.md), and
+  [Testsuite Guide](docs/test.md).
 
 ---
 
@@ -278,7 +279,9 @@ Testsuite is developed into [./test/](./test) and use the
 You would need first to install git submodules using `--recurse-submodules` in
 the `git clone command`, or if already cloned: `git pull --recurse-submodules`.
 
-Then run `sh build.sh test` to run the testsuite.
+Then run `sh build.sh test` to run the testsuite, or `sh build.sh test <name>`
+to run only `test/<name>.bats`. See the [Testsuite Guide](docs/test.md) for the
+details.
 
 ### Podman isolation
 
@@ -328,6 +331,8 @@ example.
 * **[Overview & Architecture](docs/overview.md)** — Detailed view of sandbox
   architecture, volume mappings, security isolation models, and image
   footprints.
+* **[Testsuite Guide](docs/test.md)** — Running and selecting the tests,
+  real image build, host isolation, and writing new tests.
 * **[Contributing Guidelines](CONTRIBUTING.md)** — Project coding style,
   testing practices, and pull request commit standards.
 
