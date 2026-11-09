@@ -102,6 +102,7 @@ BIN_TEST=src/glaipnir.sh test/bats/bin/bats --filter "hook" test/build.bats
 | `ro-mounts.bats`      | `--ro-mount` and `RO_MOUNTS`                        | stub   |
 | `run-security.bats`   | security options of the `podman run` command        | stub   |
 | `run-logic.bats`      | `run`: containers states, image pull, hooks, reset  | stub   |
+| `agent-mounts.bats`   | agents config: volumes, host files copy, skel, links | stub |
 | `network.bats`        | `run` network: public interface, VPN, proxy port, DNS | stub |
 | `build.bats`          | `podman build` arguments, context, hooks, images    | stub   |
 | `build-script.bats`   | the `test` action of `build.sh`                     | no     |
