@@ -300,6 +300,13 @@ another path if `/tmp` is a small tmpfs.
 Set `GLAIPNIR_TEST_SHARE_IMAGES=1` to reuse your own images read-only
 (`additionalimagestores`) instead of pulling them again.
 
+The real build of the image (`test/build-real.bats`) needs the network and
+takes minutes, so it is skipped by default. Set `GLAIPNIR_TEST_REAL_BUILD=1`
+to run it, or `GLAIPNIR_TEST_REAL_BUILD_FULL=1` (which implies it) to also
+build the `from-scratch` stage (the whole system, very long). The build runs
+in the isolated store: your own images, containers and volumes are neither
+used nor modified, and the test checks it.
+
 Tests that only check the command built by `glaipnir run` do not need a real
 podman: `test/test_helper/podman-stub.bash` puts a fake `podman`, `ip` and
 `passt` (`test/test_helper/stubs/`) first in `PATH` and records the arguments

@@ -12,7 +12,9 @@ isolate_podman() {
     REAL_HOME="$HOME"
     REAL_GRAPHROOT="$(podman info --format '{{.Store.GraphRoot}}')"
     REAL_IMAGES="$(podman images -q | sort -u | tr '\n' ' ')"
-    export REAL_HOME REAL_GRAPHROOT REAL_IMAGES
+    REAL_CONTAINERS="$(podman ps -a -q | sort -u | tr '\n' ' ')"
+    REAL_VOLUMES="$(podman volume ls -q | sort -u | tr '\n' ' ')"
+    export REAL_HOME REAL_GRAPHROOT REAL_IMAGES REAL_CONTAINERS REAL_VOLUMES
 
     # Short path: AF_UNIX sockets (pause, netns) are limited to 108 chars
     _run_d="$(mktemp -d /tmp/glt.XXXXXX)" && chmod 700 "$_run_d" || return 1
@@ -54,6 +56,15 @@ isolate_podman() {
             "$_got" "$_iso_d/graph" >&2
         return 1
     fi
+}
+
+# Run podman against the REAL store of the user, for read-only checks.
+# ARGUMENTS:
+#   @ - arguments given to podman
+real_podman() {
+    env -u CONTAINERS_STORAGE_CONF -u CONTAINERS_CONF -u XDG_RUNTIME_DIR \
+        -u XDG_CONFIG_HOME -u XDG_CACHE_HOME -u XDG_DATA_HOME \
+        HOME="$REAL_HOME" podman "$@"
 }
 
 # Remove everything created by isolate_podman. Call it from teardown_file().

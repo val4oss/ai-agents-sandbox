@@ -1,11 +1,30 @@
 #!/bin/sh
 # Fake podman for the testsuite: records the calls and never runs anything.
-#   PODMAN_STUB_LOG:     file receiving one line per call (all the arguments)
-#   PODMAN_STUB_RUN_LOG: file receiving the arguments of 'run', one per line
+#   PODMAN_STUB_LOG:         file receiving one line per call (all the
+#                            arguments)
+#   PODMAN_STUB_RUN_LOG:     file receiving the arguments of 'run', one per
+#                            line
+#   PODMAN_STUB_BUILD_LOG:   file receiving the arguments of 'build', one per
+#                            line
+#   PODMAN_STUB_BUILD_CTX:   file receiving the list of the files of the build
+#                            context (last argument of 'build'), taken when
+#                            'build' is called
+#   PODMAN_STUB_BUILD_FAIL:  when set, 'build' fails
+#   PODMAN_STUB_IMAGES:      file listing the local images, one per line:
+#                            "<repository> <tag> <id>". 'images' prints the
+#                            ones matching its 'reference' filter.
 
 if [ -n "${PODMAN_STUB_LOG:-}" ]; then
     printf '%s\n' "$*" >> "${PODMAN_STUB_LOG}"
 fi
+
+# Global options given before the command, e.g. --log-level=debug
+while :; do
+    case "$1" in
+        --log-level=*) shift ;;
+        *) break ;;
+    esac
+done
 
 case "$1" in
     run)
@@ -14,12 +33,39 @@ case "$1" in
             printf '%s\n' "$@" > "${PODMAN_STUB_RUN_LOG}"
         fi
         ;;
+    build)
+        shift
+        if [ -n "${PODMAN_STUB_BUILD_LOG:-}" ]; then
+            printf '%s\n' "$@" > "${PODMAN_STUB_BUILD_LOG}"
+        fi
+        if [ -n "${PODMAN_STUB_BUILD_CTX:-}" ]; then
+            for _ctx in "$@"; do :; done
+            (cd "$_ctx" && find . | sort) > "${PODMAN_STUB_BUILD_CTX}"
+        fi
+        [ -n "${PODMAN_STUB_BUILD_FAIL:-}" ] && exit 1
+        ;;
     container)
         # 'container exists': there is never a container
         exit 1
         ;;
     images)
-        printf 'localhost/ai-agents-sandbox\n'
+        if [ -z "${PODMAN_STUB_IMAGES:-}" ]; then
+            printf 'localhost/ai-agents-sandbox\n'
+            exit 0
+        fi
+        _ref="*"
+        while [ $# -gt 0 ]; do
+            case "$1" in
+                reference=*) _ref="${1#reference=}" ;;
+            esac
+            shift
+        done
+        while read -r _repo _tag _id; do
+            # shellcheck disable=SC2254
+            case "${_repo}:${_tag}" in
+                ${_ref}|*/${_ref}) printf '%s %s\n' "${_repo}" "${_id}" ;;
+            esac
+        done < "${PODMAN_STUB_IMAGES}"
         ;;
 esac
 # 'image exists', 'ps', 'volume'...: succeed silently

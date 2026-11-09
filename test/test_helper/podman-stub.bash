@@ -16,6 +16,9 @@ stub_env() {
     export XDG_DATA_HOME="$_d/data"
     export PODMAN_STUB_LOG="$_d/podman.log"
     export PODMAN_STUB_RUN_LOG="$_d/run.log"
+    export PODMAN_STUB_BUILD_LOG="$_d/build.log"
+    export PODMAN_STUB_BUILD_CTX="$_d/build-ctx.log"
+    unset PODMAN_STUB_BUILD_FAIL PODMAN_STUB_IMAGES
     # Workspace to give to '--workspace', canonical path
     WS="$(realpath "$HOME/ws")"
     export WS
@@ -114,4 +117,54 @@ refute_run_mount_of() {
     run_opt_values --volume | cut -d: -f1 | grep -Fxq -- "$1" &&
         fail "mounted: $1"$'\n'"$(_run_log)"
     return 0
+}
+
+# Run 'glaipnir build' in the fake environment.
+# ARGUMENTS:
+#   @ - agents and options given to glaipnir
+glaipnir_build() {
+    run "$BIN_TEST" build "$@"
+}
+
+# Print the values of an option of 'podman build', one per line.
+# ARGUMENTS:
+#   1 - opt: option name, e.g. --build-arg
+build_opt_values() {
+    awk -v o="$1" '$0 == o { getline v; print v }' "$PODMAN_STUB_BUILD_LOG"
+}
+
+# Print the whole command recorded, for the failure messages.
+_build_log() {
+    printf 'podman build recorded arguments:\n%s\n' \
+        "$(cat "$PODMAN_STUB_BUILD_LOG" 2>/dev/null)"
+}
+
+# Fail unless 'podman build' got the exact argument.
+assert_build_arg() {
+    grep -Fxq -- "$1" "$PODMAN_STUB_BUILD_LOG" ||
+        fail "missing argument '$1'"$'\n'"$(_build_log)"
+}
+
+# Fail unless 'podman build' got the option with exactly this value.
+# ARGUMENTS:
+#   1 - opt: option name
+#   2 - value: expected value
+assert_build_opt() {
+    build_opt_values "$1" | grep -Fxq -- "$2" ||
+        fail "missing '$1 $2'"$'\n'"$(_build_log)"
+}
+
+# Fail unless 'podman build' got the option with a value matching the regex.
+# ARGUMENTS:
+#   1 - opt: option name
+#   2 - regex: extended regular expression
+assert_build_opt_match() {
+    build_opt_values "$1" | grep -Eq -- "$2" ||
+        fail "no '$1' value matching '$2'"$'\n'"$(_build_log)"
+}
+
+# Fail if 'podman build' was called.
+refute_build_called() {
+    [ ! -s "$PODMAN_STUB_BUILD_LOG" ] ||
+        fail "podman build was called"$'\n'"$(_build_log)"
 }
