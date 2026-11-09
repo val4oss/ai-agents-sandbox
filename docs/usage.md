@@ -433,6 +433,10 @@ read-only into the sandbox:
    GCLOUD_REGION=global
    ```
 
+5. **Bypass a configured gcloud setup:**
+   `glaipnir run claude --no-gcloud` forces `USE_GCLOUD=0` for this run,
+   whatever the configuration files say.
+
 ### Backup and Restore Agent Data
 
 To safely preserve or migrate your agent configurations and session histories:

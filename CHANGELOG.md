@@ -8,6 +8,8 @@
   * `pi` agent support (`pi`, `pi-bold`).
   * `--gcloud` and `--gcloud-project` options to mount host Google ADC
     read-only and configure Vertex AI.
+  * `--no-gcloud` option to bypass gcloud authentication set in the
+    configuration file.
   * Auto-resolution of GCP project ID and region from environment variables or
     host gcloud configuration.
   * bats testsuite, run on the built script with `./build.sh test`.

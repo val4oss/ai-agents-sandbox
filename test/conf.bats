@@ -171,6 +171,18 @@ EOF
     assert_run_opt "--network" "pasta"
 }
 
+@test "--no-gcloud bypasses gcloud set in configuration" {
+    mkdir -p "$XDG_CONFIG_HOME/glaipnir"
+    cat << EOF > "$XDG_CONFIG_HOME/glaipnir/glaipnir.conf"
+AGENT=claude
+USE_GCLOUD=1
+GCLOUD_PROJECT=my-project-123
+EOF
+    glaipnir_run_no_microvm --no-gcloud
+    assert_success
+    refute_run_opt_match --env "GOOGLE_CLOUD_PROJECT"
+}
+
 @test "DATA_DIR and DATA_D keys set HOME_DATA_D" {
     mkdir -p "$XDG_CONFIG_HOME/glaipnir" "$BATS_TEST_TMPDIR/mydata"
     # Seed agents-mount so save-data has something to archive

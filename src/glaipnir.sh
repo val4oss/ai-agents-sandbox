@@ -84,6 +84,7 @@ FORCE=0
 DNS_LIST=""
 RO_MOUNTS=""
 USE_GCLOUD=0
+NO_GCLOUD=0
 TOOLS_NEEDED="podman sed grep tar xargs"
 
 # useful vars
@@ -1356,6 +1357,8 @@ Options:
   --force      Force overwriting existing cache data on restore
   --gcloud     Use gcloud authentication for Vertex AI. If not set, glaipnir
                will try to resolve it from the environment or gcloud config.
+  --no-gcloud  Bypass gcloud authentication, even if set in the configuration
+               file (forces USE_GCLOUD=0).
   --gcloud-project <project_id>
                Specify the GCP project ID to use for Vertex AI. If not set,
                glaipnir will try to resolve it from the environment or gcloud
@@ -2188,6 +2191,7 @@ while [ $# -gt 0 ]; do
             ;;
         --force)                 FORCE=1;                   shift 1 ;;
         --gcloud)                USE_GCLOUD=1;              shift 1 ;;
+        --no-gcloud)             NO_GCLOUD=1;               shift 1 ;;
         --gcloud-project)
             if [ -z "$2" ]; then
                 print_error "Error: $1 requires an argument."
@@ -2248,6 +2252,11 @@ if [ "${SANDBOX_D}" != "${SANDBOX_D_DEFAULT}" ] &&\
             exit "${FAILURE}"
         fi
     fi
+fi
+
+# --no-gcloud has priority over any configuration file.
+if [ "${NO_GCLOUD}" = "1" ]; then
+    USE_GCLOUD=0
 fi
 
 if [ "$AGENT" != "" ]; then
