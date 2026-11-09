@@ -23,6 +23,9 @@
   * opencode: mount host data directory.
   * configuration: parse configuration file one time.
 * Fixed
+  * build: never evaluate configuration values and paths with the shell.
+  * build: abort on a hook failing shellcheck even if a valid one follows it.
+  * build: refuse a non-existing `--build-hook`.
   * verify_mount_dir: verify the dir only if it exists.
   * status: list all images and containers by default or with `--all`.
   * clean: remove all images, containers, and volumes with `--all`.

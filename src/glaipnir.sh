@@ -512,6 +512,23 @@ _detect_public_iface() {
 }
 
 ###
+# Execute podman, hide its output unless verbose mode is on
+# ARGUMENTS:
+#   @ - arguments given as they are to podman
+# OUTPUTS:
+#   fd 1, fd 2: podman output, only if VERBOSE is set
+# RETURNS:
+#   Return code of podman
+###
+_exec_podman() {
+    if [ "${VERBOSE}" -eq 0 ]; then
+        podman "$@" > /dev/null 2>&1
+    else
+        podman "$@"
+    fi
+}
+
+###
 # Check if podman image exists
 # ARGUMENTS:
 #   1 - img: Name or ID of the container to check
@@ -1406,20 +1423,25 @@ print_version() {
 
 # callback for build action
 build() {
-    _ret="$SUCCESS"
+    _b_rc="$SUCCESS"
 
     # Check scripts before continuing
     # TODO: Get the hooks from vendordir `/usr/etc/${PRJ_ID}/*`
     # TODO: Get the hooks from admin config `/etc/${PRJ_ID}/*`
-    [ -n "${BUILD_HOOK_ARG}" ] && \
+    if [ -n "${BUILD_HOOK_ARG}" ]; then
+        if [ ! -e "${BUILD_HOOK_ARG}" ]; then
+            print_error "Build hook not found: ${BUILD_HOOK_ARG}"
+            return "$FAILURE"
+        fi
         _build_hook="$(_parse_hooks_f "${BUILD_HOOK_ARG}")"
+    fi
     for _h in $_build_hook; do
         if ! _check_scripts "$_h"; then
             print_warning "malformated hook script: $_h"
-            _ret="$FAILURE"
+            _b_rc="$FAILURE"
         fi
     done
-    [ "${_ret}" = "$FAILURE" ] && return "${_ret}"
+    [ "${_b_rc}" = "$FAILURE" ] && return "${_b_rc}"
 
     # Populate the build dir
     _build_d="${CACHE_D}/build"
@@ -1454,22 +1476,18 @@ build() {
     set -- "$@" build --no-cache --rm \
         --pull=always \
         --build-arg "TARGET_STAGE=${_target_stage}" \
-        --build-arg "BUILD_AGENTS=\"${AGENT}\"" \
+        --build-arg "BUILD_AGENTS=${AGENT}" \
         --build-arg "IMG_TAG=${IMG_TAG}" \
-        --build-arg "PKGS=\"${PKGS}\"" \
-        --build-arg "REPOS=\"${REPOS}\"" \
+        --build-arg "PKGS=${PKGS}" \
+        --build-arg "REPOS=${REPOS}" \
         --tag "${IMG_NAME}:${IMG_TAG}" \
         --tag "${IMG_NAME}:latest" \
         --file "${_container_f}" \
         "${_build_d}"
-    _args=$*
-    _cmd="podman ${_args}"
-    [ ${VERBOSE} -eq 0 ] && _cmd="${_cmd} > /dev/null 2>&1"
-
-    print_debug "$_cmd"
-    if ! eval "$_cmd"; then
+    print_debug "podman $*"
+    if ! _exec_podman "$@"; then
         print_error "Image build failed."
-        _ret="$FAILURE"
+        _b_rc="$FAILURE"
     else
         print_info "Image built successfully."
         _new_img_id="$(_podman_img_ids "${IMG_NAME}" "${IMG_TAG}")"
@@ -1481,7 +1499,7 @@ build() {
 
     # clean up temporary hook files from build context
     [ -d "${_build_d}" ] && rm -rf "${_build_d}"
-    return "$_ret"
+    return "$_b_rc"
 }
 
 # callback for run action
