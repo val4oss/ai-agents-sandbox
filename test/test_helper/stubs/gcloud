@@ -1,0 +1,14 @@
+#!/bin/sh
+# Fake gcloud for the testsuite: only 'config get-value project' is answered.
+#   GCLOUD_STUB_PROJECT: project printed (nothing by default, like a gcloud
+#                        without active project)
+#   GCLOUD_STUB_LOG:     file receiving one line per call
+if [ -n "${GCLOUD_STUB_LOG:-}" ]; then
+    printf '%s\n' "$*" >> "${GCLOUD_STUB_LOG}"
+fi
+case "$*" in
+    "config get-value project")
+        [ -z "${GCLOUD_STUB_PROJECT:-}" ] || printf '%s\n' "$GCLOUD_STUB_PROJECT"
+        ;;
+esac
+exit 0
