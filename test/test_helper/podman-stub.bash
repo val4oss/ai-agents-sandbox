@@ -19,7 +19,8 @@ stub_env() {
     export PODMAN_STUB_BUILD_LOG="$_d/build.log"
     export PODMAN_STUB_BUILD_CTX="$_d/build-ctx.log"
     unset PODMAN_STUB_BUILD_FAIL PODMAN_STUB_IMAGES PODMAN_STUB_IMG_REPO \
-        PODMAN_STUB_NO_IMAGE PODMAN_STUB_CONTAINERS PODMAN_STUB_FAIL
+        PODMAN_STUB_NO_IMAGE PODMAN_STUB_CONTAINERS PODMAN_STUB_FAIL \
+        PODMAN_STUB_RUN_HOOK SOCAT_STUB_LOG SOCAT_PID_F PODMAN_STUB_VOLUMES
     # Workspace to give to '--workspace', canonical path
     WS="$(realpath "$HOME/ws")"
     export WS
@@ -176,9 +177,30 @@ refute_build_called() {
 #   1 - name: name of the container
 #   2 - state: state given by 'podman inspect' (running, exited, paused...)
 #   3 - runtime: OCI runtime, runc by default
+#   4 - image: image name/id, optional
 stub_container() {
     export PODMAN_STUB_CONTAINERS="$BATS_TEST_TMPDIR/containers"
-    printf '%s %s %s\n' "$1" "$2" "${3:-runc}" >> "$PODMAN_STUB_CONTAINERS"
+    printf '%s %s %s %s\n' "$1" "$2" "${3:-runc}" "${4:-}" \
+        >> "$PODMAN_STUB_CONTAINERS"
+}
+
+# Add an image to the fake podman.
+# ARGUMENTS:
+#   1 - repo: image repository
+#   2 - tag: image tag, latest by default
+#   3 - id: image ID, img123 by default
+stub_image() {
+    export PODMAN_STUB_IMAGES="$BATS_TEST_TMPDIR/images"
+    printf '%s %s %s\n' "$1" "${2:-latest}" "${3:-img123}" \
+        >> "$PODMAN_STUB_IMAGES"
+}
+
+# Add a volume to the fake podman.
+# ARGUMENTS:
+#   1 - name: name of the volume
+stub_volume() {
+    export PODMAN_STUB_VOLUMES="$BATS_TEST_TMPDIR/volumes"
+    printf '%s\n' "$1" >> "$PODMAN_STUB_VOLUMES"
 }
 
 # Fail unless podman got exactly this call (all its arguments on one line).
@@ -198,6 +220,14 @@ refute_podman_call() {
         fail "unexpected podman call '$*'"$'\n'"$(cat "$PODMAN_STUB_LOG")"
 }
 
+# Fail if podman got exactly this call.
+# ARGUMENTS:
+#   @ - the arguments of the call
+refute_podman_exact_call() {
+    ! grep -Fxq -- "$*" "$PODMAN_STUB_LOG" ||
+        fail "unexpected podman call '$*'"$'\n'"$(cat "$PODMAN_STUB_LOG")"
+}
+
 # Fail if 'podman run' was called.
 refute_run_called() {
     [ ! -s "$PODMAN_STUB_RUN_LOG" ] ||
@@ -211,11 +241,15 @@ stub_fake_socat() {
     mkdir -p "$BATS_TEST_TMPDIR/fake"
     cat > "$BATS_TEST_TMPDIR/fake/socat" << 'SOCAT'
 #!/bin/sh
+if [ -n "${SOCAT_STUB_LOG:-}" ]; then
+    printf '%s\n' "$@" > "$SOCAT_STUB_LOG"
+fi
 printf '%s\n' "$$" > "$SOCAT_PID_F"
 exec sleep 300
 SOCAT
     chmod +x "$BATS_TEST_TMPDIR/fake/socat"
     export SOCAT_PID_F="$BATS_TEST_TMPDIR/socat.pid"
+    export SOCAT_STUB_LOG="$BATS_TEST_TMPDIR/socat.log"
     PATH="$BATS_TEST_TMPDIR/fake:$PATH"
     export PATH
 }

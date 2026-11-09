@@ -105,6 +105,8 @@ BIN_TEST=src/glaipnir.sh test/bats/bin/bats --filter "hook" test/build.bats
 | `gcloud.bats`         | Vertex AI: enabling, project and region, ADC file   | stub   |
 | `agent-mounts.bats`   | agents config: volumes, host files copy, skel, links | stub |
 | `network.bats`        | `run` network: public interface, VPN, proxy port, DNS | stub |
+| `proxy.bats`          | host command proxy: options, listener, shims, security | stub |
+| `clean.bats`          | clean action: containers, images, volumes, build cache | stub |
 | `build.bats`          | `podman build` arguments, context, hooks, images    | stub   |
 | `build-script.bats`   | the `test` action of `build.sh`                     | no     |
 | `isolation.bats`      | isolation of the podman store of the tests          | real   |

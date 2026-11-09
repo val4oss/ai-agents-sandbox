@@ -46,6 +46,9 @@ case "$1" in
         if [ -n "${PODMAN_STUB_RUN_LOG:-}" ]; then
             printf '%s\n' "$@" > "${PODMAN_STUB_RUN_LOG}"
         fi
+        if [ -n "${PODMAN_STUB_RUN_HOOK:-}" ]; then
+            eval "${PODMAN_STUB_RUN_HOOK}"
+        fi
         [ "$_fails" -eq 1 ] && exit 1
         ;;
     build)
@@ -83,9 +86,27 @@ case "$1" in
     ps)
         # only the listing of the names is faked
         case "$*" in
+            *"--filter"*"name="*)
+                _filter_name="$(echo "$*" | sed -n 's/.*name=\([^ "]*\).*/\1/p')"
+                [ -n "${PODMAN_STUB_CONTAINERS:-}" ] &&
+                    while read -r _name _state _runtime _img; do
+                        case "${_name}" in
+                            ${_filter_name}) printf '%s\n' "${_name}" ;;
+                        esac
+                    done < "${PODMAN_STUB_CONTAINERS}"
+                ;;
+            *"--filter"*"ancestor="*)
+                _filter_img="$(echo "$*" | sed -n 's/.*ancestor=\([^ "]*\).*/\1/p')"
+                [ -n "${PODMAN_STUB_CONTAINERS:-}" ] &&
+                    while read -r _name _state _runtime _img; do
+                        case "${_img}" in
+                            ${_filter_img}) printf '%s\n' "${_name}" ;;
+                        esac
+                    done < "${PODMAN_STUB_CONTAINERS}"
+                ;;
             *"{{.Names}}"*)
                 [ -n "${PODMAN_STUB_CONTAINERS:-}" ] &&
-                    while read -r _name _state _runtime; do
+                    while read -r _name _state _runtime _img; do
                         printf '%s\n' "${_name}"
                     done < "${PODMAN_STUB_CONTAINERS}"
                 ;;
@@ -95,9 +116,30 @@ case "$1" in
     image)
         case "$2" in
             exists) [ -n "${PODMAN_STUB_NO_IMAGE:-}" ] && exit 1 ;;
+            rm)     [ "$_fails" -eq 1 ] && exit 1 ;;
         esac
         ;;
-    pull|start|exec)
+    volume)
+        case "$2" in
+            ls)
+                _filter_vol="$(echo "$*" | sed -n 's/.*name=\([^ "]*\).*/\1/p')"
+                [ -z "$_filter_vol" ] && _filter_vol="*"
+                if [ -n "${PODMAN_STUB_VOLUMES:-}" ] && [ -f "$PODMAN_STUB_VOLUMES" ]; then
+                    while read -r _vname; do
+                        case "${_vname}" in
+                            ${_filter_vol}) printf '%s\n' "${_vname}" ;;
+                        esac
+                    done < "${PODMAN_STUB_VOLUMES}"
+                fi
+                exit 0
+                ;;
+            rm)
+                [ "$_fails" -eq 1 ] && exit 1
+                exit 0
+                ;;
+        esac
+        ;;
+    rm|pull|start|exec)
         [ "$_fails" -eq 1 ] && exit 1
         ;;
     images)
@@ -115,12 +157,27 @@ case "$1" in
             exit 0
         fi
         _ref="*"
+        _fmt=""
         while [ $# -gt 0 ]; do
             case "$1" in
-                reference=*) _ref="${1#reference=}" ;;
+                reference=*)  _ref="${1#reference=}" ;;
+                *reference=*) _ref="${1#*reference=}" ;;
+                --format)     shift; _fmt="$1" ;;
+                --format=*)   _fmt="${1#--format=}" ;;
             esac
             shift
         done
+        case "$_fmt" in
+            *"{{.Repository}}:{{.Tag}}"*)
+                while read -r _repo _tag _id; do
+                    # shellcheck disable=SC2254
+                    case "${_repo}:${_tag}" in
+                        ${_ref}|*/${_ref}) printf '%s:%s\n' "${_repo}" "${_tag}" ;;
+                    esac
+                done < "${PODMAN_STUB_IMAGES}"
+                exit 0
+                ;;
+        esac
         while read -r _repo _tag _id; do
             # shellcheck disable=SC2254
             case "${_repo}:${_tag}" in
