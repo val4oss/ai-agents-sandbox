@@ -5,6 +5,12 @@
 ## [1.X.Y] - 2026-MM-DD
 
 * Added
+* Changed
+* Fixed
+
+## [1.3.0] - 2026-MM-DD
+
+* Added
   * `pi` agent support (`pi`, `pi-bold`).
   * `--gcloud` and `--gcloud-project` options to mount host Google ADC
     read-only and configure Vertex AI.
