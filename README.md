@@ -2,7 +2,7 @@
 
 <div align="center">
   <img 
-    src="docs/banner.png"
+    src="docs/logo.png"
     alt="Glaipnir project banner"
     width="500" height="500"
   >
