@@ -5,13 +5,15 @@
 # real one.
 setup_file() {
     command -v podman >/dev/null 2>&1 || skip "podman is not installed"
+    load 'test_helper/common-setup'
+    _common_setup
     load 'test_helper/podman-isolation'
     TEST_D="$(mktemp -d "${GLAIPNIR_TEST_TMPDIR:-${TMPDIR:-/tmp}}/glaipnir.XXXXXX")"
     export TEST_D
     isolate_podman "$TEST_D" || exit 1
 
     printf 'FROM scratch\nLABEL test=1\n' > "$TEST_D/Containerfile"
-    podman build -q -t ai-agents-sandbox:1.2.0 \
+    podman build -q -t "ai-agents-sandbox:${VERSION}" \
         -f "$TEST_D/Containerfile" "$TEST_D" >/dev/null || exit 1
 }
 
@@ -35,7 +37,7 @@ setup() {
 @test "status lists the image of the isolated store and no container" {
     run "$BIN_TEST" status
     assert_success
-    assert_output --partial "ai-agents-sandbox:1.2.0"
+    assert_output --partial "ai-agents-sandbox:${VERSION}"
     assert_output --partial "Containers :"$'\n'"  None"
 }
 

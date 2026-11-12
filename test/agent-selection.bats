@@ -40,7 +40,8 @@ setup() {
 @test "no agent on build: all trusted agents; untrusted one never included" {
     run "$BIN_TEST" build
     assert_success
-    assert_output --partial "Building container image ai-agents-sandbox:1.2.0"
+    assert_output \
+        --partial "Building container image ai-agents-sandbox:${VERSION}"
     grep -q "BUILD_AGENTS=copilot claude gemini opencode antigravity agy pi" "$PODMAN_STUB_LOG"
     ! grep -q "hermes-agent" "$PODMAN_STUB_LOG"
 }

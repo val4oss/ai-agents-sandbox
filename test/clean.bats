@@ -75,7 +75,7 @@ setup() {
 
 @test "clean <agent> --image removes the image and its containers" {
     stub_image "ai-agents-sandbox-claude" "latest" "img1"
-    stub_image "ai-agents-sandbox-claude" "1.2.0" "img2"
+    stub_image "ai-agents-sandbox-claude" "${VERSION}" "img2"
     stub_image "ai-agents-sandbox-gemini" "latest" "img3"
     stub_container "ai-agents-sandbox-claude" running
 
@@ -83,7 +83,7 @@ setup() {
     assert_success
     assert_podman_call "rm -f ai-agents-sandbox-claude"
     assert_podman_call "image rm ai-agents-sandbox-claude:latest"
-    assert_podman_call "image rm ai-agents-sandbox-claude:1.2.0"
+    assert_podman_call "image rm ai-agents-sandbox-claude:${VERSION}"
     refute_podman_call "image rm ai-agents-sandbox-gemini:latest"
     assert_output \
         --partial "All images related to ai-agents-sandbox-claude have been removed."

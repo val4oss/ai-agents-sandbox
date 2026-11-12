@@ -3,9 +3,6 @@
 # Basic tests of the command line, they do not need podman.
 # The script under test is "$BIN_TEST", see test_helper/common-setup.bash.
 
-# Version expected from the script under test (given by 'build.sh test')
-VERSION="${VERSION:-1.2.0}"
-
 # Run before each test. The libraries have to be loaded here: a 'load' done in
 # setup_file() would not define its functions in the process of the tests.
 setup() {

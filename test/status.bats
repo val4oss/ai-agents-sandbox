@@ -26,20 +26,20 @@ setup() {
 
 @test "status lists multiple images matching sandbox prefix" {
     stub_image "ai-agents-sandbox-claude" "latest" "img1"
-    stub_image "ai-agents-sandbox-gemini" "1.2.0" "img2"
+    stub_image "ai-agents-sandbox-gemini" "${VERSION}" "img2"
 
     run "$BIN_TEST" status
     assert_success
     assert_output --partial "Images :"
     assert_output --partial "  - ai-agents-sandbox-claude:latest"
-    assert_output --partial "  - ai-agents-sandbox-gemini:1.2.0"
+    assert_output --partial "  - ai-agents-sandbox-gemini:${VERSION}"
 }
 
 @test "status lists multiple containers and shows their states and images" {
     stub_container "ai-agents-sandbox-claude" "running" "runc" \
         "ai-agents-sandbox-claude:latest"
     stub_container "ai-agents-sandbox-gemini" "exited" "runc" \
-        "ai-agents-sandbox-gemini:1.2.0"
+        "ai-agents-sandbox-gemini:${VERSION}"
     stub_container "ai-agents-sandbox-opencode" "created" "runc" \
         "ai-agents-sandbox-opencode:latest"
 
@@ -49,7 +49,7 @@ setup() {
     assert_output --partial "  - ai-agents-sandbox-claude [running]"
     assert_output --partial "      with ai-agents-sandbox-claude:latest"
     assert_output --partial "  - ai-agents-sandbox-gemini [exited]"
-    assert_output --partial "      with ai-agents-sandbox-gemini:1.2.0"
+    assert_output --partial "      with ai-agents-sandbox-gemini:${VERSION}"
     assert_output --partial "  - ai-agents-sandbox-opencode [created]"
     assert_output --partial "      with ai-agents-sandbox-opencode:latest"
 }
