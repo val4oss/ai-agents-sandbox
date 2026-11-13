@@ -118,6 +118,19 @@ sudo zypper refresh
 sudo zypper install glaipnir
 ```
 
+## macOS
+
+```bash
+# Install Homebrew via https://brew.sh
+
+# Install build and runtime requirements
+brew install bash coreutils gnu-sed grep podman
+
+# Create and start a Podman machine, see https://podman.io/docs/installation#macos
+podman machine init
+podman machine start
+```
+
 ---
 
 ## Building, Installing, and Checking with build.sh
