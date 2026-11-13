@@ -165,8 +165,9 @@ EOF
     assert_run_opt "--env" "GOOGLE_CLOUD_PROJECT=my-project-123"
     assert_run_opt "--env" "CLOUDSDK_CORE_PROJECT=my-project-123"
     assert_run_opt "--dns" "9.9.9.9"
-    assert_run_opt_match --volume "^$BATS_TEST_TMPDIR/custom_ws:"
-    assert_run_opt_match --volume "^$BATS_TEST_TMPDIR/custom_cache/agents-mount/"
+    _real_tmpdir="$(realpath "$BATS_TEST_TMPDIR")"
+    assert_run_opt_match --volume "^${_real_tmpdir}/custom_ws:"
+    assert_run_opt_match --volume "^${_real_tmpdir}/custom_cache/agents-mount/"
     # plain pasta due to VPN_PROTECTION=0
     assert_run_opt "--network" "pasta"
 }
@@ -235,8 +236,9 @@ EOF
     glaipnir_run_no_microvm
     assert_success
     assert_run_arg "ai-agents-sandbox-claude-gemini:latest"
-    assert_run_opt "--volume" "$HOME/ro1:/home/aiuser/ro1:ro,z"
-    assert_run_opt "--volume" "$HOME/ro2:/opt/ro2:ro,z"
+    _real_home="$(realpath "$HOME")"
+    assert_run_opt "--volume" "${_real_home}/ro1:/home/aiuser/ro1:ro,z"
+    assert_run_opt "--volume" "${_real_home}/ro2:/opt/ro2:ro,z"
 
     # Also check build receives PACKAGES and REPOS
     run "$BIN_TEST" build
@@ -281,6 +283,7 @@ EOF
 # -------------------------
 
 @test "the sample ai-agents-sandbox.conf of the repo parses successfully" {
+    [ -f "$PROJECT_ROOT/ai-agents-sandbox.conf" ] || skip "sample config not tracked in repo"
     run "$BIN_TEST" --conf "$PROJECT_ROOT/ai-agents-sandbox.conf" build claude
     assert_success
     grep -q "PKGS= osc quilt rpm-build go" "$PODMAN_STUB_LOG"

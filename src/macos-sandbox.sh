@@ -399,6 +399,9 @@ _macos_wait_enforcer_ready() {
 # Sets $_iface to empty (nftables enforcement replaces outbound_addr).
 # Returns FAILURE if enforcement cannot be established.
 _macos_run_setup() {
+    if [ "${VPN_PROTECTION:-1}" = "0" ]; then
+        return "$SUCCESS"
+    fi
     if ! _macos_ensure_enforcer; then
         return "$FAILURE"
     fi
@@ -420,6 +423,9 @@ _macos_run_setup() {
 
 # Tear down VPN enforcement after container exits (macOS run hook).
 _macos_run_teardown() {
+if [ "${VPN_PROTECTION:-1}" = "0" ]; then
+        return "$SUCCESS"
+    fi
     _macos_stop_enforcer
     rm -f "$_ENFORCER_CONF"
 }

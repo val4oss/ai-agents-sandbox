@@ -51,3 +51,11 @@ _common_setup() {
     fi
     export VERSION
 }
+
+file_mode() {
+    stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"
+}
+
+file_btime() {
+    stat -c '%W' "$1" 2>/dev/null || stat -f '%B' "$1"
+}

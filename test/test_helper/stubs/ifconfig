@@ -1,0 +1,14 @@
+#!/bin/sh
+# Fake ifconfig for the testsuite: no utun/ppp VPN interfaces by default.
+# IFCONFIG_STUB_LIST overrides 'ifconfig -l'; IFCONFIG_STUB_OUT overrides
+# interface details.
+case "$1" in
+    "-l")
+        printf '%s\n' "${IFCONFIG_STUB_LIST-lo0 en0}"
+        ;;
+    *)
+        [ -n "${IFCONFIG_STUB_OUT:-}" ] && printf '%s\n' "${IFCONFIG_STUB_OUT}"
+        ;;
+esac
+exit 0
+

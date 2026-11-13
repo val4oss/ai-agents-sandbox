@@ -1,0 +1,10 @@
+#!/bin/sh
+# Fake scutil for the testsuite: no VPN services connected by default.
+# SCUTIL_STUB_LIST overrides the output of 'scutil --nc list'.
+case "$*" in
+    "--nc list")
+        [ -n "${SCUTIL_STUB_LIST:-}" ] && printf '%s\n' "${SCUTIL_STUB_LIST}"
+        ;;
+esac
+exit 0
+
