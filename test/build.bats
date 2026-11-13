@@ -65,12 +65,25 @@ _bad_hook() {
     assert_build_opt --tag "ai-agents-sandbox-claude:latest"
 }
 
+_is_arm64() {
+    case "$(uname -m)" in
+        arm64|aarch64) return 0 ;;
+        *)             return 1 ;;
+    esac
+}
+
 @test "build gives the build args to the Containerfile" {
     _write_conf "IMG_TAG=7.8.9"
     glaipnir_build claude
     assert_success
-    assert_build_opt --build-arg \
-        "TARGET_STAGE=$REPO/ai-agents-sandbox-claude:latest"
+    if _is_arm64; then
+        assert_build_opt --platform "linux/arm64"
+        assert_build_opt --build-arg "TARGET_STAGE=from-scratch"
+    else
+        assert_build_opt --platform "linux/amd64"
+        assert_build_opt --build-arg \
+            "TARGET_STAGE=$REPO/ai-agents-sandbox-claude:latest"
+    fi
     assert_build_opt --build-arg "BUILD_AGENTS=claude"
     assert_build_opt --build-arg "IMG_TAG=7.8.9"
     assert_build_opt_match --build-arg "^PKGS="
@@ -81,8 +94,12 @@ _bad_hook() {
     for _a in claude opencode pi; do
         glaipnir_build "$_a"
         assert_success
-        assert_build_opt --build-arg \
-            "TARGET_STAGE=$REPO/ai-agents-sandbox-${_a}:latest"
+        if _is_arm64; then
+            assert_build_opt --build-arg "TARGET_STAGE=from-scratch"
+        else
+            assert_build_opt --build-arg \
+                "TARGET_STAGE=$REPO/ai-agents-sandbox-${_a}:latest"
+        fi
         assert_build_opt --tag "ai-agents-sandbox-${_a}:latest"
     done
 }
@@ -90,8 +107,12 @@ _bad_hook() {
 @test "build of several agents targets the base stage" {
     glaipnir_build claude pi
     assert_success
-    assert_build_opt --build-arg \
-        "TARGET_STAGE=$REPO/ai-agents-sandbox-base:latest"
+    if _is_arm64; then
+        assert_build_opt --build-arg "TARGET_STAGE=from-scratch"
+    else
+        assert_build_opt --build-arg \
+            "TARGET_STAGE=$REPO/ai-agents-sandbox-base:latest"
+    fi
     assert_build_opt --build-arg "BUILD_AGENTS=claude pi"
     assert_build_opt --tag "ai-agents-sandbox-claude-pi:latest"
 }

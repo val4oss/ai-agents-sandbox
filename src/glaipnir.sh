@@ -733,6 +733,19 @@ _real_path() {
 }
 
 ###
+# Return the OCI architecture matching the running host ("amd64" or "arm64").
+# OUTPUTS:
+#   fd 1: normalized architecture name
+###
+_host_arch() {
+    case "$(uname -m)" in
+        arm64|aarch64) printf 'arm64' ;;
+        x86_64|amd64)  printf 'amd64' ;;
+        *)             uname -m ;;
+    esac
+}
+
+###
 # Print the path given with a leading "~", "$HOME" or "${HOME}" replaced by the
 # value of HOME, other occurrences are kept
 # ARGUMENTS:
@@ -1608,7 +1621,8 @@ build() {
     }
 
     _container_f="${_build_d}/Containerfile"
-    if [ $BUILD_FULL -eq 1 ]; then
+    _arch="$(_host_arch)"
+    if [ $BUILD_FULL -eq 1 ] || [ "$_arch" != "amd64" ]; then
         _target_stage="from-scratch"
     else
         _agent_count="$(printf "%s\n" "${AGENT}" | wc -w)"
@@ -1625,6 +1639,7 @@ build() {
     [ ${DEBUG} -eq 1 ] && set -- --log-level=debug
     set -- "$@" build --no-cache --rm \
         --pull=always \
+        --platform "linux/${_arch}" \
         --build-arg "TARGET_STAGE=${_target_stage}" \
         --build-arg "BUILD_AGENTS=${AGENT}" \
         --build-arg "IMG_TAG=${IMG_TAG}" \
@@ -1674,7 +1689,7 @@ run() {
         print_warning "Running sandbox without microVM isolation for agent \
 '${AGENT}' (not recommended)..."
     fi
-    
+
     if [ "$USE_MICROVM" = "1" ]; then
         TOOLS_NEEDED="$TOOLS_NEEDED krun"
         CTN_NAME="${CTN_NAME}-microvm"
@@ -1735,7 +1750,7 @@ new container."
         else
             print_info "Binding outbound to interface: ${_iface}"
             _pasta_opts="--outbound-if4,${_iface}"
-            
+
         fi
     fi
 
@@ -1835,12 +1850,20 @@ new container."
     _default_repo="${DEFAULT_IMG_REPO}/${IMG_NAME}"
     if ! _podman_img_exists "${IMG_NAME}" ||\
        [ "$(_podman_img_repo)" = "${_default_repo}" ]; then
-        print_info "Pulling image: ${_default_repo}..."
-        if ! podman pull -q "${_default_repo}" > /dev/null 2>&1; then
-            print_warning "No Image built and cannot pull ${_default_repo}"
+        if [ "$(_host_arch)" != "amd64" ]; then
+            print_info "Prebuilt registry image is amd64-only; building native $(_host_arch) image..."
             if ! build; then
                 print_error "Failed to build image ${IMG_NAME}"
                 return "${FAILURE}"
+            fi
+        else
+            print_info "Pulling image: ${_default_repo}..."
+            if ! podman pull -q "${_default_repo}" > /dev/null 2>&1; then
+                print_warning "No Image built and cannot pull ${_default_repo}"
+                if ! build; then
+                    print_error "Failed to build image ${IMG_NAME}"
+                    return "${FAILURE}"
+                fi
             fi
         fi
     fi
