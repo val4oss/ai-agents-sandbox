@@ -245,13 +245,26 @@ _bad_hook() {
     assert_run_arg "$CTN:latest"
 }
 
+_is_arm64() {
+    case "$(uname -m)" in
+        arm64|aarch64) return 0 ;;
+        *)             return 1 ;;
+    esac
+}
+
 @test "run pulls the image when there is no local one" {
     export PODMAN_STUB_NO_IMAGE=1
     glaipnir_run_no_microvm claude
     assert_success
-    assert_output --partial "Pulling image: $REPO/$CTN"
-    assert_podman_call pull -q "$REPO/$CTN"
-    refute_podman_call build
+    if _is_arm64; then
+        assert_output --partial "Prebuilt registry image is amd64-only; building native arm64 image"
+        refute_podman_call pull
+        [ -s "$PODMAN_STUB_BUILD_LOG" ]
+    else
+        assert_output --partial "Pulling image: $REPO/$CTN"
+        assert_podman_call pull -q "$REPO/$CTN"
+        refute_podman_call build
+    fi
     assert_run_arg "$CTN:latest"
 }
 
@@ -259,8 +272,13 @@ _bad_hook() {
     export PODMAN_STUB_IMG_REPO="$REPO/$CTN"
     glaipnir_run_no_microvm claude
     assert_success
-    assert_podman_call pull -q "$REPO/$CTN"
-    refute_podman_call build
+    if _is_arm64; then
+        refute_podman_call pull
+        [ -s "$PODMAN_STUB_BUILD_LOG" ]
+    else
+        assert_podman_call pull -q "$REPO/$CTN"
+        refute_podman_call build
+    fi
 }
 
 @test "run builds the image when the pull fails" {
@@ -268,7 +286,11 @@ _bad_hook() {
     export PODMAN_STUB_FAIL="pull"
     glaipnir_run_no_microvm claude
     assert_success
-    assert_output --partial "No Image built and cannot pull $REPO/$CTN"
+    if _is_arm64; then
+        assert_output --partial "Prebuilt registry image is amd64-only; building native arm64 image"
+    else
+        assert_output --partial "No Image built and cannot pull $REPO/$CTN"
+    fi
     [ -s "$PODMAN_STUB_BUILD_LOG" ]
     assert_run_arg "$CTN:latest"
 }

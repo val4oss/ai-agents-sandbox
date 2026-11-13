@@ -5,13 +5,14 @@
 # ================
 # Global arguments
 # ----------------
+ARG TARGETPLATFORM
 ARG BASE_IMAGE="registry.opensuse.org/home/vlefebvre/container-images/containers/opensuse/ai-agents-sandbox-base:latest"
 ARG TARGET_STAGE="${BASE_IMAGE}"
 
 # ============================================
 # "From scratch" stage to build the base image
 # --------------------------------------------
-FROM registry.opensuse.org/opensuse/tumbleweed:latest AS from-scratch
+FROM --platform=${TARGETPLATFORM} registry.opensuse.org/opensuse/tumbleweed:latest AS from-scratch
 
 ARG AI_USER=aiuser
 ARG AI_UID=1000
