@@ -715,7 +715,21 @@ _podman_volume_opt() {
 #   fd 1: resolved path
 ###
 _real_path() {
-    realpath "$1" 2>/dev/null || printf "%s\n" "$1"
+    if realpath "$1" 2>/dev/null; then
+        return 0
+    fi
+    _rp_dir="$1"
+    _rp_tail=""
+    while [ ! -e "${_rp_dir}" ] && [ "${_rp_dir}" != "/" ] && [ "${_rp_dir}" != "." ]; do
+        _rp_tail="/${_rp_dir##*/}${_rp_tail}"
+        _rp_dir="${_rp_dir%/*}"
+        [ -z "${_rp_dir}" ] && _rp_dir="/"
+    done
+    if _rp_resolved="$(realpath "${_rp_dir}" 2>/dev/null)"; then
+        printf "%s%s\n" "${_rp_resolved%/}" "${_rp_tail}"
+    else
+        printf "%s\n" "$1"
+    fi
 }
 
 ###
@@ -788,10 +802,17 @@ _verify_allowed_path() {
             _allowed_paths="${_vap_home} /tmp /var/tmp /opt"
             _vap_rc="${FAILURE}"
             for _apath in ${_allowed_paths}; do
+                _apath="$(_real_path "${_apath}")"
                 case "${_vap_path}" in
                     "${_apath}"/*) _vap_rc="${SUCCESS}"; break ;;
                 esac
             done
+            if [ "${_vap_rc}" = "${FAILURE}" ] && [ -n "${TMPDIR:-}" ] && [ -d "${TMPDIR}" ]; then
+                _vap_tmpdir="$(_real_path "${TMPDIR}")"
+                case "${_vap_path}" in
+                    "${_vap_tmpdir}"/*) _vap_rc="${SUCCESS}" ;;
+                esac
+            fi
             if [ "${_vap_rc}" = "${FAILURE}" ]; then
                 print_warning "Path '${_vap_path}' is not allowed."
             elif [ "${_vap_path}" = "${_vap_home}" ]; then
@@ -909,7 +930,7 @@ _copy_agent_files() {
     _dst="$2"
     [ -d "$_src" ] || return "$SUCCESS"
     mkdir -p "$_dst"
-    cp -rn "$_src/." "$_dst/"
+    cp -RPn "$_src/." "$_dst/"
     return "$SUCCESS"
 }
 
@@ -931,8 +952,8 @@ _copy_host_files() {
     _chf_rc="${SUCCESS}"
     if [ ! -e "$_src" ]; then _chf_rc="$FAILURE"
     elif [ -e "${_dst}" ]; then
-        _src_last_modified="$(stat -c %Y "${_src}" 2>/dev/null || :)"
-        _dst_created="$(stat -c %W "${_dst}" 2>/dev/null || :)"
+        _src_last_modified="$(stat -c %Y "${_src}" 2>/dev/null || stat -f %m "${_src}" 2>/dev/null || :)"
+        _dst_created="$(stat -c %W "${_dst}" 2>/dev/null || stat -f %B "${_dst}" 2>/dev/null || :)"
         if [ -n "${_src_last_modified}" ] && [ -n "${_dst_created}" ] &&
            [ "${_dst_created}" != "0" ]; then
             if [ "${_src_last_modified}" -gt "${_dst_created}" ]; then
@@ -945,7 +966,7 @@ _copy_host_files() {
         print_debug "Copying the host '$_src' into '$_dst'"
         if [ -d "$_src" ]; then
             mkdir -p "$_dst"
-            cp -rn "$_src/." "$_dst/" 2>/dev/null || _chf_rc="$FAILURE"
+            cp -RPn "$_src/." "$_dst/" 2>/dev/null || _chf_rc="$FAILURE"
         else
             cp -n "$_src" "$_dst" 2>/dev/null || _chf_rc="$FAILURE"
         fi
@@ -1962,24 +1983,25 @@ new container."
         _args="$_args $(_safe_arg "$_arg")"
     done
 
+    _find_dup_mount() {
+    _prev_arg=""
+    for _arg in "$@"; do
+        case "$_prev_arg" in
+            --volume)
+                _mnt_dst="${_arg%:*}"
+                printf '%s\n' "${_mnt_dst##*:}"
+                ;;
+            --tmpfs)
+                printf '%s\n' "${_arg%%:*}"
+                ;;
+        esac
+        _prev_arg="$_arg"
+    done | sed 's|//*|/|g;s|/$||' | sort | uniq -d | head -n 1
+}
     # podman refuses two mounts on the same destination, tell it before. The
     # arguments of the mounts are given back to eval to be read as words.
     eval "set -- ${_agent_mounts} ${_ro_mounts} ${_args}"
-    _mnt_dup="$(
-        _prev_arg=""
-        for _arg in "$@"; do
-            case "$_prev_arg" in
-                --volume)
-                    _mnt_dst="${_arg%:*}"
-                    printf '%s\n' "${_mnt_dst##*:}"
-                    ;;
-                --tmpfs)
-                    printf '%s\n' "${_arg%%:*}"
-                    ;;
-            esac
-            _prev_arg="$_arg"
-        done | sed 's|//*|/|g;s|/$||' | sort | uniq -d | head -n 1
-    )"
+    _mnt_dup="$(_find_dup_mount "$@")"
     if [ -n "$_mnt_dup" ]; then
         print_error "Two mounts use the destination '${_mnt_dup}'."
         print_error "    -> Use another destination for one of them."

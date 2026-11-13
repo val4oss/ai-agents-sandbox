@@ -44,6 +44,7 @@ _bad_hook() {
 # -------
 
 @test "run without microVM needs passt and ip" {
+    [ "$(uname -s)" != "Darwin" ] || skip "passt and ip are Linux-only requirements"
     # A PATH holding the stub of podman only, and the tools glaipnir needs
     mkdir -p "$BATS_TEST_TMPDIR/bin"
     for cmd in sh bash cat rm mkdir touch dirname basename realpath sed grep \
@@ -69,6 +70,7 @@ _bad_hook() {
 # ----------
 
 @test "run falls back to the container mode when microVM is unavailable" {
+    [ "$(uname -s)" != "Darwin" ] || skip "microVM fallback prompt is Linux-specific"
     # Without krun or KVM the check fails before any question to the user
     if [ -x /usr/bin/krun ] && [ -c /dev/kvm ]; then
         skip "this host can run microVMs"

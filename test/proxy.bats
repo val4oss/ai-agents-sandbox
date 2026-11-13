@@ -183,12 +183,12 @@ _call_wrapper() {
 
     _run_d="$BATS_TEST_TMPDIR/saved_run/$CTN"
     [ -d "$_run_d" ]
-    _run_mode="$(stat -c %a "$_run_d")"
+    _run_mode="$(file_mode "$_run_d")"
     [ "$_run_mode" = "700" ]
 
     _allow_f="$_run_d/allowed_commands.list"
     [ -f "$_allow_f" ]
-    _allow_mode="$(stat -c %a "$_allow_f")"
+    _allow_mode="$(file_mode "$_allow_f")"
     [ "$_allow_mode" = "600" ]
 
     grep -Fxq "git rev-parse" "$_allow_f"
@@ -206,7 +206,7 @@ _call_wrapper() {
     _shim_f="$BATS_TEST_TMPDIR/saved_run/$CTN/bin/dummytool"
     [ -f "$_shim_f" ]
     [ -x "$_shim_f" ]
-    _shim_mode="$(stat -c %a "$_shim_f")"
+    _shim_mode="$(file_mode "$_shim_f")"
     [ "$_shim_mode" = "755" ]
 
     assert_run_opt --volume \
@@ -349,7 +349,7 @@ EOF
 
     # Directory traversal out of workspace
     run _call_wrapper "$GLAIPNIR_PROXY_TOKEN" "/home/aiuser/workspace" \
-        "/home/aiuser/workspace/../../../../etc" "dummytool" "1" "run"
+        "/home/aiuser/workspace/../../../../../../../../../../../../etc" "dummytool" "1" "run"
     assert_failure 1
     assert_output \
         --partial "Glaipnir Security Error: Execution outside of workspace is blocked."

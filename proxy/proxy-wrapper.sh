@@ -5,6 +5,24 @@
 set -euo pipefail
 exec 2>&1
 
+_real_path() {
+    if realpath -m "$1" 2>/dev/null; then
+        return 0
+    fi
+    local _dir="$1" _tail=""
+    while [ ! -e "$_dir" ] && [ "$_dir" != "/" ] && [ "$_dir" != "." ]; do
+        _tail="/${_dir##*/}${_tail}"
+        _dir="${_dir%/*}"
+        [ -z "$_dir" ] && _dir="/"
+    done
+    local _resolved
+    if _resolved="$(realpath "$_dir" 2>/dev/null)"; then
+        printf '%s%s\n' "${_resolved%/}" "$_tail"
+    else
+        printf '%s\n' "$1"
+    fi
+}
+
 IFS= read -r -d '' RECEIVED_TOKEN || true
 EXPECTED_TOKEN="${GLAIPNIR_PROXY_TOKEN:-}"
 
@@ -75,8 +93,7 @@ else
     TARGET_DIR="${HOST_WORKSPACE}"
 fi
 
-REAL_TARGET="$(realpath -m "$TARGET_DIR" 2>/dev/null ||
-    echo "$TARGET_DIR")"
+REAL_TARGET="$(_real_path "$TARGET_DIR")"
 REAL_BASE="$(realpath "$HOST_WORKSPACE")"
 
 if [[ "$REAL_TARGET" != "$REAL_BASE" &&

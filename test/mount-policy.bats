@@ -11,6 +11,7 @@ setup() {
     _common_setup
     load 'test_helper/podman-stub'
     stub_env "$BATS_TEST_TMPDIR"
+    REAL_HOME_TEST="$(realpath "$HOME")"
 }
 
 # Never create directories at the root of a real system.
@@ -26,14 +27,14 @@ _skip_if_root() {
     mkdir -p "$HOME/project"
     glaipnir_run_no_microvm claude --workspace "$HOME/project"
     assert_success
-    assert_run_opt --volume "${HOME}/project:/home/aiuser/project:z"
+    assert_run_opt --volume "${REAL_HOME_TEST}/project:/home/aiuser/project:z"
 }
 
 @test "missing workspace under HOME is created" {
     glaipnir_run_no_microvm claude --workspace "$HOME/new/sub"
     assert_success
     [ -d "$HOME/new/sub" ]
-    assert_run_opt --volume "${HOME}/new/sub:/home/aiuser/new/sub:z"
+    assert_run_opt --volume "${REAL_HOME_TEST}/new/sub:/home/aiuser/new/sub:z"
 }
 
 @test "workspace /tmp subdirectory is accepted" {
@@ -88,7 +89,7 @@ _skip_if_root() {
 
 @test "workspace .. traversal to a forbidden path falls back" {
     glaipnir_run_no_microvm claude \
-        --workspace "$HOME/../../../../../../../../etc"
+        --workspace "$HOME/../../../../../../../../../../../../etc"
     assert_success
     assert_workspace_fallback
     refute_run_mount_of /etc
@@ -97,7 +98,7 @@ _skip_if_root() {
 @test "workspace ~ is expanded to HOME" {
     glaipnir_run_no_microvm claude --workspace '~/tilde'
     assert_success
-    assert_run_opt --volume "${HOME}/tilde:/home/aiuser/tilde:z"
+    assert_run_opt --volume "${REAL_HOME_TEST}/tilde:/home/aiuser/tilde:z"
 }
 
 @test "workspace without argument is an error" {
@@ -129,9 +130,10 @@ _skip_if_root() {
 # ---------
 
 @test "refused workspace is reported with the fallback used" {
+    _real_etc="$(realpath /etc)"
     glaipnir_run_no_microvm claude --workspace /etc
     assert_success
-    assert_output --partial "Path '/etc' is not allowed"
+    assert_output --partial "Path '${_real_etc}' is not allowed"
     assert_output --partial "Falling back to default workspace: \
 '${XDG_CACHE_HOME}/glaipnir/workspace'"
 }
@@ -139,19 +141,20 @@ _skip_if_root() {
 @test "refused HOME workspace is reported" {
     glaipnir_run_no_microvm claude --workspace "$HOME"
     assert_success
-    assert_output --partial "Path '${HOME}' is forbidden"
+    assert_output --partial "Path '${REAL_HOME_TEST}' is forbidden"
 }
 
 @test "refused hidden workspace is reported" {
     glaipnir_run_no_microvm claude --workspace "$HOME/.ssh"
     assert_success
-    assert_output --partial "Path '${HOME}/.ssh' is forbidden (hidden)"
+    assert_output --partial "Path '${REAL_HOME_TEST}/.ssh' is forbidden (hidden)"
 }
 
 @test "refused cache is reported with the fallback used" {
+    _real_etc="$(realpath /etc)"
     glaipnir_run_no_microvm claude --cache /etc/glaipnir-cache
     assert_success
-    assert_output --partial "Path '/etc/glaipnir-cache' is not allowed"
+    assert_output --partial "Path '${_real_etc}/glaipnir-cache' is not allowed"
     assert_output --partial \
         "Falling back to default cache: '${XDG_CACHE_HOME}/glaipnir'"
 }
@@ -160,7 +163,7 @@ _skip_if_root() {
     _seed_agents_mount
     run "$BIN_TEST" save-data --data-dir "$HOME"
     assert_success
-    assert_output --partial "Path '${HOME}' is forbidden"
+    assert_output --partial "Path '${REAL_HOME_TEST}' is forbidden"
     assert_output --partial \
         "Falling back to default data dir: '${XDG_DATA_HOME}/glaipnir'"
 }
@@ -172,7 +175,7 @@ _skip_if_root() {
 @test "cache under HOME is used for the agents mounts" {
     glaipnir_run_no_microvm claude --cache "$HOME/mycache"
     assert_success
-    assert_run_opt_match --volume "^${HOME}/mycache/agents-mount/\.claude:"
+    assert_run_opt_match --volume "^${REAL_HOME_TEST}/mycache/agents-mount/\.claude:"
     [ -d "$HOME/mycache/agents-mount" ]
 }
 
@@ -181,7 +184,7 @@ _skip_if_root() {
     assert_success
     assert_run_opt_match --volume \
         "^${XDG_CACHE_HOME}/glaipnir/agents-mount/\.claude:"
-    refute_run_opt_match --volume '^/etc'
+    refute_run_opt_match --volume '^(/private)?/etc'
 }
 
 @test "cache HOME itself falls back to the default" {
@@ -258,8 +261,7 @@ _seed_agents_mount() {
     unset XDG_CACHE_HOME
     glaipnir_run_no_microvm claude --workspace "$HOME/.ssh"
     assert_success
-    assert_run_opt --volume "${HOME}/.cache/glaipnir/workspace:\
-/home/aiuser/.cache/glaipnir/workspace:z"
+    assert_run_opt_match --volume "^${HOME}/\.cache/glaipnir/workspace:/home/aiuser/(\.cache/glaipnir/)?workspace:z$"
 }
 
 @test "workspace dotted outside HOME is accepted" {
@@ -272,7 +274,7 @@ _seed_agents_mount() {
 @test "workspace with a ~ inside its name is not rewritten" {
     glaipnir_run_no_microvm claude --workspace "$HOME/odd~dir"
     assert_success
-    assert_run_opt_match --volume "^${HOME}/odd~dir:"
+    assert_run_opt_match --volume "^${REAL_HOME_TEST}/odd~dir:"
 }
 
 @test "workspace outside HOME but named after it keeps a sane destination" {

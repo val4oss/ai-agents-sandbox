@@ -234,12 +234,17 @@ _assert_content() {
 
 @test "run says when the host config is newer than the copy" {
     # The birth time of the copy is needed
-    [ "$(stat -c %W "$BATS_TEST_TMPDIR" 2>/dev/null || echo 0)" != 0 ] ||
+    [ "$(file_btime "$BATS_TEST_TMPDIR")" != 0 ] ||
         skip "the filesystem has no birth time"
     _host "$HOME/.claude/settings.json" v1
     _run_agent claude
     assert_success
-    touch -d "@$(( $(date +%s) + 3600 ))" "$HOME/.claude"
+    _future_ts="$(
+        _t=$(( $(date +%s) + 3600 ))
+        date -d "@${_t}" +%Y%m%d%H%M.%S 2>/dev/null ||
+            date -r "${_t}" +%Y%m%d%H%M.%S
+    )"
+    touch -t "${_future_ts}" "$HOME/.claude"
     _run_agent claude -vv
     assert_success
     assert_output --partial "is newer than"
@@ -248,7 +253,7 @@ _assert_content() {
 
 @test "run does not say the host config is newer when it is older" {
     _host "$HOME/.claude/settings.json" v1
-    touch -d "2000-01-01" "$HOME/.claude"
+    touch -t "2000-01-01" "$HOME/.claude"
     _run_agent claude
     assert_success
     _run_agent claude -vv
@@ -363,7 +368,7 @@ _assert_content() {
     chmod 640 "$HOME/.claude/shared.json"
     _run_agent claude
     assert_success
-    [ "$(stat -c %a "$MNT/.claude.json")" = 600 ]
-    [ "$(stat -c %a "$MNT/.claude/.credentials.json")" = 600 ]
-    [ "$(stat -c %a "$MNT/.claude/shared.json")" = 640 ]
+    [ "$(file_mode "$MNT/.claude.json")" = 600 ]
+    [ "$(file_mode "$MNT/.claude/.credentials.json")" = 600 ]
+    [ "$(file_mode "$MNT/.claude/shared.json")" = 640 ]
 }

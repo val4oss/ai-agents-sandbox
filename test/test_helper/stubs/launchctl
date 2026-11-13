@@ -1,0 +1,27 @@
+#!/bin/sh
+# Fake launchctl for the testsuite: simulates LaunchAgent lifecycle without
+# touching real macOS launchd services.
+# LAUNCHCTL_STUB_RECORD logs invocations when set.
+if [ -n "${LAUNCHCTL_STUB_RECORD:-}" ]; then
+    printf '%s\n' "$*" >> "${LAUNCHCTL_STUB_RECORD}"
+fi
+
+_stub_state="${BATS_TEST_TMPDIR:-/tmp}/.launchctl-stub-running"
+
+case "$1" in
+    stop|unload|bootout)
+        rm -f "${_stub_state}"
+        ;;
+    start)
+        : > "${_stub_state}"
+        : > /tmp/ai-sandbox-enforcer.ready
+        ;;
+    print)
+        if [ -f "${_stub_state}" ]; then
+            printf ' state = running\n pid = 12345\n'
+        else
+            printf ' state = not running\n'
+        fi
+        ;;
+esac
+exit 0

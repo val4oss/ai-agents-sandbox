@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+bats_require_minimum_version 1.5.0
 
 # Tests of 'glaipnir build' against a fake podman: nothing is built, the
 # arguments given to 'podman build' and the build context are recorded.
@@ -123,7 +124,7 @@ _bad_hook() {
 @test "build without -vv does not add the debug log level" {
     glaipnir_build claude -v
     assert_success
-    ! grep -q -- "--log-level" "$PODMAN_STUB_LOG"
+    run ! grep -q -- "--log-level" "$PODMAN_STUB_LOG"
 }
 
 @test "build fails when podman build fails" {
@@ -159,11 +160,11 @@ _bad_hook() {
     touch "$BUILD_D/stale-file"
     glaipnir_build claude
     assert_success
-    ! grep -q "stale-file" "$PODMAN_STUB_BUILD_CTX"
+    run ! grep -q "stale-file" "$PODMAN_STUB_BUILD_CTX"
 }
 
 @test "build keeps a cache with spaces as one argument" {
-    _c="$BATS_TEST_TMPDIR/home/my cache"
+    _c="$(realpath "$BATS_TEST_TMPDIR")/home/my cache"
     glaipnir_build claude --cache "$_c"
     assert_success
     assert_build_opt --file "$_c/build/Containerfile"
@@ -204,9 +205,9 @@ _bad_hook() {
     assert_success
     grep -qx "./hooks/build/10-first.sh" "$PODMAN_STUB_BUILD_CTX"
     grep -qx "./hooks/build/20-second.sh" "$PODMAN_STUB_BUILD_CTX"
-    ! grep -q "no-number.sh" "$PODMAN_STUB_BUILD_CTX"
-    ! grep -q "1-short.sh" "$PODMAN_STUB_BUILD_CTX"
-    ! grep -q "30-not-a-script" "$PODMAN_STUB_BUILD_CTX"
+    run ! grep -q "no-number.sh" "$PODMAN_STUB_BUILD_CTX"
+    run ! grep -q "1-short.sh" "$PODMAN_STUB_BUILD_CTX"
+    run ! grep -q "30-not-a-script" "$PODMAN_STUB_BUILD_CTX"
 }
 
 @test "build with a hook failing shellcheck is aborted" {
@@ -256,9 +257,9 @@ LIST
     grep -q "^image rm aaaaaaaa" "$PODMAN_STUB_LOG"
     grep -q "^image rm bbbbbbbb" "$PODMAN_STUB_LOG"
     # the new image, a remote one and another agent are kept
-    ! grep -q "^image rm cccccccc" "$PODMAN_STUB_LOG"
-    ! grep -q "^image rm dddddddd" "$PODMAN_STUB_LOG"
-    ! grep -q "^image rm eeeeeeee" "$PODMAN_STUB_LOG"
+    run ! grep -q "^image rm cccccccc" "$PODMAN_STUB_LOG"
+    run ! grep -q "^image rm dddddddd" "$PODMAN_STUB_LOG"
+    run ! grep -q "^image rm eeeeeeee" "$PODMAN_STUB_LOG"
 }
 
 @test "build keeps the previous images when the build fails" {
@@ -269,5 +270,5 @@ LIST
     export PODMAN_STUB_BUILD_FAIL=1
     glaipnir_build claude
     assert_failure 1
-    ! grep -q "^image rm" "$PODMAN_STUB_LOG"
+    run ! grep -q "^image rm" "$PODMAN_STUB_LOG"
 }

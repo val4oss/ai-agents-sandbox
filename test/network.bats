@@ -43,6 +43,7 @@ _dns_count() {
 # ------------------
 
 @test "run binds pasta to the public interface of the default route" {
+    [ "$(uname -s)" != "Darwin" ] || skip "Linux ip route outbound-if4 policy"
     export IP_STUB_ROUTE="default via 198.51.100.1 dev enp3s0 proto dhcp"
     glaipnir_run_no_microvm claude
     assert_success
@@ -51,6 +52,7 @@ _dns_count() {
 }
 
 @test "run ignores the default routes of VPN and virtual interfaces" {
+    [ "$(uname -s)" != "Darwin" ] || skip "Linux ip route outbound-if4 policy"
     for _vpn in $VPN_IFACES; do
         export IP_STUB_ROUTE="default via 10.8.0.1 dev $_vpn
 default via 192.0.2.1 dev eth1 metric 600"
@@ -61,6 +63,7 @@ default via 192.0.2.1 dev eth1 metric 600"
 }
 
 @test "run keeps the first public interface when there are several" {
+    [ "$(uname -s)" != "Darwin" ] || skip "Linux ip route outbound-if4 policy"
     export IP_STUB_ROUTE="default via 192.0.2.1 dev eth1 metric 100
 default via 192.0.2.2 dev eth2 metric 200"
     glaipnir_run_no_microvm claude
@@ -69,6 +72,7 @@ default via 192.0.2.2 dev eth2 metric 200"
 }
 
 @test "run is aborted when the only default route is a VPN" {
+    [ "$(uname -s)" != "Darwin" ] || skip "Linux ip route outbound-if4 policy"
     for _vpn in $VPN_IFACES; do
         rm -f "$PODMAN_STUB_RUN_LOG"
         export IP_STUB_ROUTE="default via 10.8.0.1 dev $_vpn proto static"
@@ -81,6 +85,7 @@ default via 192.0.2.2 dev eth2 metric 200"
 }
 
 @test "run is aborted for a VPN route written without a gateway" {
+    [ "$(uname -s)" != "Darwin" ] || skip "Linux ip route outbound-if4 policy"
     # 'ip route' prints no 'via' for the routes of a tunnel
     for _route in "default dev wg0 scope link" \
         "default dev tun0 scope link metric 50" \
@@ -95,6 +100,7 @@ default via 192.0.2.2 dev eth2 metric 200"
 }
 
 @test "run uses the public interface of a route without a gateway" {
+    [ "$(uname -s)" != "Darwin" ] || skip "Linux ip route outbound-if4 policy"
     export IP_STUB_ROUTE="default dev wlan0 scope link metric 600"
     glaipnir_run_no_microvm claude
     assert_success
@@ -102,6 +108,7 @@ default via 192.0.2.2 dev eth2 metric 200"
 }
 
 @test "run is aborted when there is no default route" {
+    [ "$(uname -s)" != "Darwin" ] || skip "Linux ip route outbound-if4 policy"
     export IP_STUB_ROUTE=""
     glaipnir_run_no_microvm claude
     assert_failure 1
@@ -110,6 +117,7 @@ default via 192.0.2.2 dev eth2 metric 200"
 }
 
 @test "run without ip is aborted and starts nothing" {
+    [ "$(uname -s)" != "Darwin" ] || skip "ip is a Linux-only requirement"
     mkdir -p "$BATS_TEST_TMPDIR/bin"
     for cmd in sh bash cat rm mkdir touch dirname basename realpath sed grep \
         tr sort head cut tar xargs wc od mv cp find awk readlink uname id; do
@@ -149,6 +157,7 @@ default via 192.0.2.2 dev eth2 metric 200"
 }
 
 @test "run does not execute an interface name with shell metacharacters" {
+    [ "$(uname -s)" != "Darwin" ] || skip "Linux ip route outbound-if4 policy"
     for _n in 1 2 3; do
         rm -f "$PODMAN_STUB_RUN_LOG"
         case "$_n" in
@@ -172,7 +181,11 @@ default via 192.0.2.2 dev eth2 metric 200"
     glaipnir_run_no_microvm claude
     assert_success
     refute_output --partial "VPN leak protection is disabled"
-    assert_run_opt_match --network "--outbound-if4,"
+    if [ "$(uname -s)" = "Darwin" ]; then
+        assert_output --partial "VPN enforcer"
+    else
+        assert_run_opt_match --network "--outbound-if4,"
+    fi
 }
 
 @test "--no-vpn-protection warns and uses plain pasta" {
@@ -211,7 +224,11 @@ default via 192.0.2.2 dev eth2 metric 200"
         sed -n 's/.*listener on 127\.0\.0\.1:\([0-9]*\)\.\.\..*/\1/p')"
     [ -n "$_port" ]
     [ "$_port" -ge 1024 ] && [ "$_port" -le 65535 ]
-    assert_run_opt --network "pasta:--outbound-if4,eth0,-T,$_port"
+    if [ "$(uname -s)" = "Darwin" ]; then
+        assert_run_opt --network "pasta:-T,$_port"
+    else
+        assert_run_opt --network "pasta:--outbound-if4,eth0,-T,$_port"
+    fi
 }
 
 @test "run gives only the proxy port to pasta without VPN protection" {
