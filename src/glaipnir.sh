@@ -92,7 +92,7 @@ CLI_AWS_PROFILE=""
 CLI_AWS_REGION=""
 AWS_PROFILE="${AWS_PROFILE:-}"
 AWS_REGION="${AWS_REGION:-}"
-TOOLS_NEEDED="podman sed grep tar xargs"
+TOOLS_NEEDED="podman sed grep tar xargs realpath"
 
 # useful vars
 MIN_LIBKRUN_VER="1.18.0"

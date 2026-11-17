@@ -229,6 +229,15 @@ sudo zypper install podman passt crun libkrun1 libkrunfw5 ShellCheck
   versions cause fallback to container mode)
 * `libkrunfw ≥ 5`
 
+### macOS: `realpath`
+
+Glaipnir relies on the `realpath` command, which macOS ships from version 13.
+On macOS 12 or older, install `coreutils` with Homebrew
+(`brew install coreutils`) and put its unprefixed commands first in your
+`PATH` (`$(brew --prefix coreutils)/libexec/gnubin`): Homebrew only installs
+it as `grealpath` otherwise. Glaipnir reports `realpath` as a missing tool at
+startup when it cannot find it.
+
 ### Installing latest libkrun and crun
 
 If your distribution ships older versions of `libkrun` or `crun`, you can
