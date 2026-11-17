@@ -239,3 +239,25 @@ setup() {
     assert_failure 1
     assert_output --partial "Some tools are missing on your system: socat"
 }
+
+@test "realpath is a required tool" {
+    # Every command of PATH except realpath (missing on macOS < 13)
+    mkdir -p "$BATS_TEST_TMPDIR/bin_no_realpath"
+    IFS=:
+    for dir in $PATH; do
+        for f in "$dir"/*; do
+            [ -x "$f" ] || continue
+            bn="${f##*/}"
+            [ "$bn" = "realpath" ] && continue
+            [ -e "$BATS_TEST_TMPDIR/bin_no_realpath/$bn" ] && continue
+            ln -s "$f" "$BATS_TEST_TMPDIR/bin_no_realpath/$bn" 2>/dev/null \
+                || true
+        done
+    done
+    unset IFS
+
+    PATH="$BATS_TEST_TMPDIR/bin_no_realpath" run "$BIN_TEST" status
+    assert_failure 1
+    assert_output --partial "Some tools are missing on your system: realpath"
+    assert_output --partial "Please install the missing tools and try again. Aborting."
+}

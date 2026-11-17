@@ -11,7 +11,9 @@ setup() {
     load 'test_helper/podman-stub'
     stub_env "$BATS_TEST_TMPDIR"
     export NO_COLOR=1
+    # The tests must not depend on the environment of the caller
     unset GLAIPNIR_PROXY_PORT GLAIPNIR_PROXY_TOKEN GLAIPNIR_PROXY_HOST
+    unset GLAIPNIR_PROXY_ALLOWLIST GLAIPNIR_HOST_WORKSPACE DUMMY_RC AI_WORKSPACE
 
     # Place a dummy tool in PATH for proxy execution tests
     mkdir -p "$BATS_TEST_TMPDIR/bin"
@@ -28,6 +30,9 @@ EOF
     WRAPPER_P="$BATS_TEST_DIRNAME/../proxy/proxy-wrapper.sh"
     SHIM_P="$BATS_TEST_DIRNAME/../proxy/proxy-bin.sh"
     CTN="ai-agents-sandbox-claude"
+    # Answer of the wrapper for a cwd that is missing or outside of the workspace
+    _CWD_DENIED="Glaipnir Security Error: Directory is missing or outside of"
+    _CWD_DENIED="$_CWD_DENIED the workspace."
 }
 
 teardown() {
@@ -40,6 +45,11 @@ teardown() {
 _write_conf() {
     mkdir -p "$XDG_CONFIG_HOME/glaipnir"
     printf '%s\n' "$@" > "$XDG_CONFIG_HOME/glaipnir/glaipnir.conf"
+}
+
+# Encode the string $1 as one line of 3-digit octal bytes.
+_enc() {
+    printf '%s' "$1" | od -An -v -to1 | tr -d '[:space:]'; printf '\n';
 }
 
 # Send a raw request to proxy-wrapper.sh.
@@ -58,11 +68,18 @@ _call_wrapper() {
     local _count="$5"
     shift 5
     {
-        printf '%s\0' "$_token" "$_base" "$_cwd" "$_tool" "$_count"
-        for _arg in "$@"; do
-            printf '%s\0' "$_arg"
+        for _field in "$_token" "$_base" "$_cwd" "$_tool" "$_count" "$@"; do
+            _enc "$_field"
         done
-    } | bash "$WRAPPER_P"
+    } | sh "$WRAPPER_P"
+}
+
+# Assert that the last wrapper call answered with a failure. The wrapper always
+# exits 0, the failure is the marker line: some socat versions lose the end of
+# the reply when the wrapper exits with a non-zero status.
+assert_wrapper_failure() {
+    assert_success
+    assert_output --regexp "__GLAIPNIR_RC_.*__:1$"
 }
 
 # =============================================================================
@@ -276,14 +293,14 @@ EOF
 
     # Wrong token
     run _call_wrapper "wrong_token" "/ws" "/ws" "dummytool" "1" "run"
-    assert_failure 1
+    assert_wrapper_failure
     assert_output --partial "Glaipnir Security Error: Unauthorized proxy access."
     assert_output --partial "__GLAIPNIR_RC_wrong_token__:1"
 
     # Missing expected token in environment
     unset GLAIPNIR_PROXY_TOKEN
     run _call_wrapper "correct_token_12345" "/ws" "/ws" "dummytool" "1" "run"
-    assert_failure 1
+    assert_wrapper_failure
     assert_output --partial "Glaipnir Security Error: Unauthorized proxy access."
 }
 
@@ -295,12 +312,12 @@ EOF
 
     # Non-numeric argument count
     run _call_wrapper "$GLAIPNIR_PROXY_TOKEN" "/ws" "/ws" "dummytool" "invalid"
-    assert_failure 1
+    assert_wrapper_failure
     assert_output --partial "Glaipnir Proxy Error: Invalid argument count."
 
     # Missing tool name
     run _call_wrapper "$GLAIPNIR_PROXY_TOKEN" "/ws" "/ws" "" "0"
-    assert_failure 1
+    assert_wrapper_failure
     assert_output --partial "Glaipnir Proxy Error: Missing tool name."
 }
 
@@ -312,7 +329,7 @@ EOF
 
     # Unlisted command
     run _call_wrapper "$GLAIPNIR_PROXY_TOKEN" "/ws" "/ws" "dummytool" "1" "evil"
-    assert_failure 1
+    assert_wrapper_failure
     assert_output \
         --partial "Glaipnir Security Error: Command 'dummytool evil' is not whitelisted."
     assert_output --partial "__GLAIPNIR_RC_${GLAIPNIR_PROXY_TOKEN}__:1"
@@ -320,7 +337,7 @@ EOF
     # Missing allowlist file
     rm -f "$GLAIPNIR_PROXY_ALLOWLIST"
     run _call_wrapper "$GLAIPNIR_PROXY_TOKEN" "/ws" "/ws" "dummytool" "1" "run"
-    assert_failure 1
+    assert_wrapper_failure
     assert_output --partial "Command 'dummytool run' is not whitelisted."
 }
 
@@ -350,9 +367,8 @@ EOF
     # Directory traversal out of workspace
     run _call_wrapper "$GLAIPNIR_PROXY_TOKEN" "/home/aiuser/workspace" \
         "/home/aiuser/workspace/../../../../etc" "dummytool" "1" "run"
-    assert_failure 1
-    assert_output \
-        --partial "Glaipnir Security Error: Execution outside of workspace is blocked."
+    assert_wrapper_failure
+    assert_output --partial "$_CWD_DENIED"
 
     # Valid subdirectory inside workspace
     mkdir -p "$WS/sub"
@@ -364,9 +380,109 @@ EOF
     # Non-existent directory inside workspace
     run _call_wrapper "$GLAIPNIR_PROXY_TOKEN" "/home/aiuser/workspace" \
         "/home/aiuser/workspace/missing_dir" "dummytool" "1" "run"
-    assert_failure 1
-    assert_output \
-        --partial "Glaipnir Error: Directory '$WS/missing_dir' does not exist on host."
+    assert_wrapper_failure
+    assert_output --partial "$_CWD_DENIED"
+}
+
+@test "proxy wrapper blocks a symlink leading out of the workspace" {
+    export GLAIPNIR_PROXY_TOKEN="valid_token_12345"
+    export GLAIPNIR_PROXY_ALLOWLIST="$BATS_TEST_TMPDIR/allow.list"
+    export GLAIPNIR_HOST_WORKSPACE="$WS"
+    printf "dummytool run\n" > "$GLAIPNIR_PROXY_ALLOWLIST"
+
+    mkdir -p "$BATS_TEST_TMPDIR/outside" "$WS/real"
+    ln -s "$BATS_TEST_TMPDIR/outside" "$WS/escape"
+    ln -s real "$WS/inside"
+
+    # The last component is a symlink to a directory outside of the workspace
+    run _call_wrapper "$GLAIPNIR_PROXY_TOKEN" "/home/aiuser/workspace" \
+        "/home/aiuser/workspace/escape" "dummytool" "1" "run"
+    assert_wrapper_failure
+    assert_output --partial "$_CWD_DENIED"
+    refute_output --partial "pwd:"
+
+    # A symlink in the middle of the path
+    run _call_wrapper "$GLAIPNIR_PROXY_TOKEN" "/home/aiuser/workspace" \
+        "/home/aiuser/workspace/escape/.." "dummytool" "1" "run"
+    assert_wrapper_failure
+    assert_output --partial "$_CWD_DENIED"
+    refute_output --partial "pwd:"
+
+    # A symlink staying inside of the workspace is resolved and allowed
+    run _call_wrapper "$GLAIPNIR_PROXY_TOKEN" "/home/aiuser/workspace" \
+        "/home/aiuser/workspace/inside" "dummytool" "1" "run"
+    assert_success
+    assert_output --partial "pwd: $WS/real"
+}
+
+@test "proxy wrapper blocks a cwd ending with .. out of the workspace" {
+    export GLAIPNIR_PROXY_TOKEN="valid_token_12345"
+    export GLAIPNIR_PROXY_ALLOWLIST="$BATS_TEST_TMPDIR/allow.list"
+    export GLAIPNIR_HOST_WORKSPACE="$WS"
+    printf "dummytool run\n" > "$GLAIPNIR_PROXY_ALLOWLIST"
+    mkdir -p "$WS/sub"
+
+    for _cwd in "/home/aiuser/workspace/.." \
+        "/home/aiuser/workspace/sub/../.." \
+        "/home/aiuser/workspace/sub/../../.."; do
+        run _call_wrapper "$GLAIPNIR_PROXY_TOKEN" "/home/aiuser/workspace" \
+            "$_cwd" "dummytool" "1" "run"
+        assert_wrapper_failure
+        assert_output --partial "$_CWD_DENIED"
+        refute_output --partial "pwd:"
+    done
+
+    # Coming back to the workspace is allowed
+    run _call_wrapper "$GLAIPNIR_PROXY_TOKEN" "/home/aiuser/workspace" \
+        "/home/aiuser/workspace/sub/.." "dummytool" "1" "run"
+    assert_success
+    assert_output --partial "pwd: $WS"
+}
+
+@test "proxy wrapper refuses a cwd that is a file" {
+    export GLAIPNIR_PROXY_TOKEN="valid_token_12345"
+    export GLAIPNIR_PROXY_ALLOWLIST="$BATS_TEST_TMPDIR/allow.list"
+    export GLAIPNIR_HOST_WORKSPACE="$WS"
+    printf "dummytool run\n" > "$GLAIPNIR_PROXY_ALLOWLIST"
+    touch "$WS/a_file"
+
+    run _call_wrapper "$GLAIPNIR_PROXY_TOKEN" "/home/aiuser/workspace" \
+        "/home/aiuser/workspace/a_file" "dummytool" "1" "run"
+    assert_wrapper_failure
+    assert_output --partial "$_CWD_DENIED"
+}
+
+@test "proxy wrapper does not reveal which host paths exist" {
+    export GLAIPNIR_PROXY_TOKEN="valid_token_12345"
+    export GLAIPNIR_PROXY_ALLOWLIST="$BATS_TEST_TMPDIR/allow.list"
+    export GLAIPNIR_HOST_WORKSPACE="$WS"
+    printf "dummytool run\n" > "$GLAIPNIR_PROXY_ALLOWLIST"
+
+    # Outside of the workspace: one path exists, the other does not
+    run _call_wrapper "$GLAIPNIR_PROXY_TOKEN" "/home/aiuser/workspace" \
+        "/home/aiuser/workspace/.." "dummytool" "1" "run"
+    assert_wrapper_failure
+    _existing="$output"
+    run _call_wrapper "$GLAIPNIR_PROXY_TOKEN" "/home/aiuser/workspace" \
+        "/home/aiuser/workspace/../no_such_dir_xyz" "dummytool" "1" "run"
+    assert_wrapper_failure
+    [ "$output" = "$_existing" ]
+
+    # Neither the workspace nor the resolved path is printed back
+    refute_output --partial "$WS"
+    refute_output --partial "no_such_dir_xyz"
+}
+
+@test "proxy wrapper refuses a missing host workspace" {
+    export GLAIPNIR_PROXY_TOKEN="valid_token_12345"
+    export GLAIPNIR_PROXY_ALLOWLIST="$BATS_TEST_TMPDIR/allow.list"
+    export GLAIPNIR_HOST_WORKSPACE="$BATS_TEST_TMPDIR/no_such_workspace"
+    printf "dummytool run\n" > "$GLAIPNIR_PROXY_ALLOWLIST"
+
+    run _call_wrapper "$GLAIPNIR_PROXY_TOKEN" "/ws" "/ws" "dummytool" "1" "run"
+    assert_wrapper_failure
+    assert_output --partial \
+        "Glaipnir Error: Workspace '$GLAIPNIR_HOST_WORKSPACE' not found on host."
 }
 
 @test "proxy wrapper reports binary not found or not executable" {
@@ -376,7 +492,7 @@ EOF
     printf "nobinary run\n" > "$GLAIPNIR_PROXY_ALLOWLIST"
 
     run _call_wrapper "$GLAIPNIR_PROXY_TOKEN" "/ws" "/ws" "nobinary" "1" "run"
-    assert_failure 1
+    assert_wrapper_failure
     assert_output \
         --partial "Glaipnir Error: Binary 'nobinary' not found or not executable on host."
 }
@@ -386,7 +502,7 @@ EOF
 # =============================================================================
 
 @test "proxy-bin.sh fails when port or token is missing" {
-    run bash "$SHIM_P"
+    run sh "$SHIM_P"
     assert_failure 1
     assert_output \
         --partial "Glaipnir Error: Proxy configuration missing (PORT or TOKEN not set)."
@@ -451,5 +567,35 @@ EOF
 
     assert_failure 42
     assert_output --partial "args: run"
+    refute_output --partial "__GLAIPNIR_RC_"
+}
+
+@test "proxy-bin.sh shows the reason of a refused command and fails" {
+    command -v socat >/dev/null 2>&1 || skip "socat is not installed"
+
+    export GLAIPNIR_PROXY_TOKEN="valid_token_12345"
+    export GLAIPNIR_PROXY_ALLOWLIST="$BATS_TEST_TMPDIR/allow.list"
+    export GLAIPNIR_HOST_WORKSPACE="$WS"
+    printf "dummytool run\n" > "$GLAIPNIR_PROXY_ALLOWLIST"
+
+    _port=29878
+    socat -d0 "TCP-LISTEN:${_port},bind=127.0.0.1,reuseaddr,fork" \
+        "EXEC:${WRAPPER_P}" 2>/dev/null &
+    _socat_pid=$!
+    sleep 0.1
+
+    export GLAIPNIR_PROXY_PORT="$_port"
+    export GLAIPNIR_PROXY_HOST="127.0.0.1"
+    export AI_WORKSPACE="$WS"
+
+    mkdir -p "$BATS_TEST_TMPDIR/shims"
+    cp "$SHIM_P" "$BATS_TEST_TMPDIR/shims/dummytool"
+
+    run "$BATS_TEST_TMPDIR/shims/dummytool" evil
+    kill "$_socat_pid" 2>/dev/null || true
+    wait "$_socat_pid" 2>/dev/null || true
+
+    assert_failure 1
+    assert_output --partial "Command 'dummytool evil' is not whitelisted."
     refute_output --partial "__GLAIPNIR_RC_"
 }
