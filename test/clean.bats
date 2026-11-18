@@ -45,6 +45,7 @@ setup() {
 }
 
 @test "clean <agent> in microVM mode targets -microvm container and suffixes" {
+    [ "$(uname -s)" != "Darwin" ] || skip "microVM mode is not available on macOS"
     stub_container "ai-agents-sandbox-claude-microvm" running
     stub_container "ai-agents-sandbox-claude-microvm-1" running
     stub_container "ai-agents-sandbox-claude" running

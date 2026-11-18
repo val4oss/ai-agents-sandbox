@@ -51,3 +51,13 @@ _common_setup() {
     fi
     export VERSION
 }
+
+# Print the octal mode of the file $1 (GNU and BSD stat).
+file_mode() {
+    stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"
+}
+
+# Print the birth time of the file $1, 0 if unknown (GNU and BSD stat).
+file_btime() {
+    stat -c '%W' "$1" 2>/dev/null || stat -f '%B' "$1"
+}

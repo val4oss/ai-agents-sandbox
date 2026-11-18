@@ -10,6 +10,7 @@ setup() {
     load 'test_helper/podman-stub'
     stub_env "$BATS_TEST_TMPDIR"
     mkdir -p "$HOME/docs" "$HOME/other" "$HOME/a/docs"
+    REAL_HOME_TEST="$(realpath "$HOME")"
 }
 
 # Fail unless 'podman run' was not even called.
@@ -32,25 +33,25 @@ _write_conf() {
 @test "ro-mount source alone is mounted in the home of the sandbox" {
     glaipnir_run_no_microvm claude --ro-mount "$HOME/docs"
     assert_success
-    assert_run_opt --volume "${HOME}/docs:/home/aiuser/docs:ro,z"
+    assert_run_opt --volume "${REAL_HOME_TEST}/docs:/home/aiuser/docs:ro,z"
 }
 
 @test "ro-mount source:dst is mounted on dst" {
     glaipnir_run_no_microvm claude --ro-mount "$HOME/docs:/data"
     assert_success
-    assert_run_opt --volume "${HOME}/docs:/data:ro,z"
+    assert_run_opt --volume "${REAL_HOME_TEST}/docs:/data:ro,z"
 }
 
 @test "ro-mount trailing :ro of the destination is ignored" {
     glaipnir_run_no_microvm claude --ro-mount "$HOME/docs:/data:ro"
     assert_success
-    assert_run_opt --volume "${HOME}/docs:/data:ro,z"
+    assert_run_opt --volume "${REAL_HOME_TEST}/docs:/data:ro,z"
 }
 
 @test "ro-mount destination duplicate and trailing slashes are removed" {
     glaipnir_run_no_microvm claude --ro-mount "$HOME/docs://data//sub/"
     assert_success
-    assert_run_opt --volume "${HOME}/docs:/data/sub:ro,z"
+    assert_run_opt --volume "${REAL_HOME_TEST}/docs:/data/sub:ro,z"
 }
 
 @test "ro-mount destination is not resolved on the host" {
@@ -83,7 +84,7 @@ _write_conf() {
     cd "$HOME"
     glaipnir_run_no_microvm claude --ro-mount docs/../other
     assert_success
-    assert_run_opt --volume "${HOME}/other:/home/aiuser/other:ro,z"
+    assert_run_opt --volume "${REAL_HOME_TEST}/other:/home/aiuser/other:ro,z"
 }
 
 @test "ro-mount source ~ and HOME variables are expanded" {
@@ -92,15 +93,16 @@ _write_conf() {
         --ro-mount '$HOME/other:/d2' \
         --ro-mount '${HOME}/a:/d3'
     assert_success
-    assert_run_opt --volume "${HOME}/docs:/d1:ro,z"
-    assert_run_opt --volume "${HOME}/other:/d2:ro,z"
-    assert_run_opt --volume "${HOME}/a:/d3:ro,z"
+    assert_run_opt --volume "${REAL_HOME_TEST}/docs:/d1:ro,z"
+    assert_run_opt --volume "${REAL_HOME_TEST}/other:/d2:ro,z"
+    assert_run_opt --volume "${REAL_HOME_TEST}/a:/d3:ro,z"
 }
 
 @test "ro-mount source outside the allowed paths is refused" {
+    _real_etc="$(realpath /etc)"
     glaipnir_run_no_microvm claude --ro-mount /etc
     assert_failure 1
-    assert_output --partial "ro mount source '/etc' is not a valid directory"
+    assert_output --partial "ro mount source '${_real_etc}' is not a valid directory"
     _assert_not_started
 }
 
@@ -169,8 +171,8 @@ _write_conf() {
     glaipnir_run_no_microvm claude \
         --ro-mount "$HOME/docs" --ro-mount "$HOME/a/docs:/home/aiuser/a-docs"
     assert_success
-    assert_run_opt --volume "${HOME}/docs:/home/aiuser/docs:ro,z"
-    assert_run_opt --volume "${HOME}/a/docs:/home/aiuser/a-docs:ro,z"
+    assert_run_opt --volume "${REAL_HOME_TEST}/docs:/home/aiuser/docs:ro,z"
+    assert_run_opt --volume "${REAL_HOME_TEST}/a/docs:/home/aiuser/a-docs:ro,z"
 }
 
 @test "ro-mount on the home or on /tmp of the sandbox is refused" {
@@ -186,21 +188,21 @@ _write_conf() {
     mkdir -p "$HOME/my docs"
     glaipnir_run_no_microvm claude --ro-mount "$HOME/my docs"
     assert_success
-    assert_run_opt --volume "${HOME}/my docs:/home/aiuser/my docs:ro,z"
+    assert_run_opt --volume "${REAL_HOME_TEST}/my docs:/home/aiuser/my docs:ro,z"
 }
 
 @test "ro-mount source and destination with spaces and options" {
     mkdir -p "$HOME/my docs"
     glaipnir_run_no_microvm claude --ro-mount "$HOME/my docs:/my data:ro"
     assert_success
-    assert_run_opt --volume "${HOME}/my docs:/my data:ro,z"
+    assert_run_opt --volume "${REAL_HOME_TEST}/my docs:/my data:ro,z"
 }
 
 @test "ro-mount source with a quote is mounted" {
     mkdir -p "$HOME/it's"
     glaipnir_run_no_microvm claude --ro-mount "$HOME/it's"
     assert_success
-    assert_run_opt --volume "${HOME}/it's:/home/aiuser/it's:ro,z"
+    assert_run_opt --volume "${REAL_HOME_TEST}/it's:/home/aiuser/it's:ro,z"
 }
 
 @test "ro-mount source with a colon is refused" {
@@ -261,7 +263,7 @@ _write_conf() {
     _dst=/home/aiuser/.claude/x
     glaipnir_run_no_microvm claude --ro-mount "$HOME/docs:$_dst"
     assert_success
-    assert_run_opt --volume "${HOME}/docs:${_dst}:ro,z"
+    assert_run_opt --volume "${REAL_HOME_TEST}/docs:${_dst}:ro,z"
 }
 
 # ========
@@ -273,9 +275,9 @@ _write_conf() {
         --ro-mount "$HOME/docs" --ro-mount "$HOME/other" \
         --ro-mount "$HOME/a:/a"
     assert_success
-    assert_run_opt --volume "${HOME}/docs:/home/aiuser/docs:ro,z"
-    assert_run_opt --volume "${HOME}/other:/home/aiuser/other:ro,z"
-    assert_run_opt --volume "${HOME}/a:/a:ro,z"
+    assert_run_opt --volume "${REAL_HOME_TEST}/docs:/home/aiuser/docs:ro,z"
+    assert_run_opt --volume "${REAL_HOME_TEST}/other:/home/aiuser/other:ro,z"
+    assert_run_opt --volume "${REAL_HOME_TEST}/a:/a:ro,z"
 }
 
 @test "RO_MOUNTS of the configuration and --ro-mount accumulate" {
@@ -287,9 +289,9 @@ RO_MOUNTS=(
 EOF
     glaipnir_run_no_microvm claude --ro-mount "$HOME/other"
     assert_success
-    assert_run_opt --volume "${HOME}/docs:/conf-docs:ro,z"
-    assert_run_opt --volume "${HOME}/a:/home/aiuser/a:ro,z"
-    assert_run_opt --volume "${HOME}/other:/home/aiuser/other:ro,z"
+    assert_run_opt --volume "${REAL_HOME_TEST}/docs:/conf-docs:ro,z"
+    assert_run_opt --volume "${REAL_HOME_TEST}/a:/home/aiuser/a:ro,z"
+    assert_run_opt --volume "${REAL_HOME_TEST}/other:/home/aiuser/other:ro,z"
 }
 
 # ========
@@ -301,8 +303,8 @@ EOF
         --ro-mount "$HOME/docs:/d1:rw" --ro-mount "$HOME/other:/d2:z" \
         --ro-mount "$HOME/a:/d3:rw,z"
     assert_success
-    _vols="$(run_opt_values --volume | grep -E "^${HOME}/(docs|other|a):")"
-    [ "$(printf '%s\n' "$_vols" | wc -l)" -eq 3 ]
+    _vols="$(run_opt_values --volume | grep -E "^${REAL_HOME_TEST}/(docs|other|a):" || true)"
+    [ "$(printf '%s\n' "$_vols" | grep -c .)" -eq 3 ]
     _bad="$(printf '%s\n' "$_vols" | grep -v ':ro,z$' || true)"
     [ -z "$_bad" ] || fail "mount not read-only:"$'\n'"$_bad"
 }

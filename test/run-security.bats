@@ -9,6 +9,8 @@ setup() {
     _common_setup
     load 'test_helper/podman-stub'
     stub_env "$BATS_TEST_TMPDIR"
+    REAL_HOME_TEST="$(realpath "$HOME")"
+    REAL_WS_TEST="$(realpath "$WS")"
 }
 
 # =========================
@@ -78,7 +80,11 @@ setup() {
 @test "run uses pasta bound to the public interface" {
     glaipnir_run_no_microvm claude
     assert_success
-    assert_run_opt --network 'pasta:--outbound-if4,eth0'
+    if [ "$(uname -s)" = "Darwin" ]; then
+        assert_run_opt --network 'pasta'
+    else
+        assert_run_opt --network 'pasta:--outbound-if4,eth0'
+    fi
 }
 
 @test "run never uses the host or the default network" {
@@ -103,7 +109,7 @@ setup() {
 @test "run mounts the workspace" {
     glaipnir_run_no_microvm claude
     assert_success
-    assert_run_opt --volume "${WS}:/home/aiuser/ws:z"
+    assert_run_opt --volume "${REAL_WS_TEST}:/home/aiuser/ws:z"
 }
 
 @test "run never mounts a sensitive host path" {
@@ -111,14 +117,14 @@ setup() {
     assert_success
     _srcs="$(run_opt_values --volume | cut -d: -f1)"
     [ -n "$_srcs" ]
-    for _bad in / /etc /root /var /var/run /run /proc /sys /dev "$HOME" \
-        "$REAL_HOME"; do
+    for _bad in / /etc /private/etc /root /var /private/var /var/run /run \
+        /proc /sys /dev "$HOME" "$REAL_HOME_TEST" "$REAL_HOME"; do
         [ -n "$_bad" ] || continue
         ! printf '%s\n' "$_srcs" | grep -Fxq -- "$_bad" ||
             fail "sensitive path mounted: $_bad"
     done
     if printf '%s\n' "$_srcs" |
-        grep -Eq 'podman\.sock|docker\.sock|^/(etc|root|proc|sys|dev|run)(/|$)'
+        grep -Eq 'podman\.sock|docker\.sock|^/(private/)?(etc|root|proc|sys|dev|run)(/|$)'
     then
         fail "sensitive path mounted:"$'\n'"$_srcs"
     fi
@@ -262,8 +268,9 @@ setup() {
     for _ws in "$HOME/my ws" "$HOME/it's ws"; do
         glaipnir_run_no_microvm claude --workspace "$_ws"
         assert_success
+        _real_ws="$(realpath "$_ws")"
         assert_run_opt_match --volume \
-            "^$(printf '%s' "$_ws" | sed 's/[][\.*^$]/\\&/g'):/home/aiuser/"
+            "^$(printf '%s' "$_real_ws" | sed 's/[][\.*^$]/\\&/g'):/home/aiuser/"
     done
 }
 
@@ -271,5 +278,5 @@ setup() {
     glaipnir_run_no_microvm claude --cache "$HOME/my cache"
     assert_success
     assert_run_opt --volume \
-        "${HOME}/my cache/agents-mount/.claude:/home/aiuser/.claude:z"
+        "${REAL_HOME_TEST}/my cache/agents-mount/.claude:/home/aiuser/.claude:z"
 }

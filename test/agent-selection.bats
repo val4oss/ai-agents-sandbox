@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+bats_require_minimum_version 1.5.0
 
 setup() {
     load 'test_helper/common-setup'
@@ -43,7 +44,7 @@ setup() {
     assert_output \
         --partial "Building container image ai-agents-sandbox:${VERSION}"
     grep -q "BUILD_AGENTS=copilot claude gemini opencode antigravity agy pi" "$PODMAN_STUB_LOG"
-    ! grep -q "hermes-agent" "$PODMAN_STUB_LOG"
+    run ! grep -q "hermes-agent" "$PODMAN_STUB_LOG"
 }
 
 @test "hermes-agent on build/run: disclaimer prompt; answer n (or EOF) exits 1" {

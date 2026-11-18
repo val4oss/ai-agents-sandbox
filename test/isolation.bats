@@ -4,6 +4,8 @@
 # into a temporary directory, then build a tiny offline image named like the
 # real one.
 setup_file() {
+    [ "$(uname -s)" != "Darwin" ] ||
+        skip "local containers-storage isolation is Linux-specific (macOS uses a remote Podman Machine)"
     command -v podman >/dev/null 2>&1 || skip "podman is not installed"
     load 'test_helper/common-setup'
     _common_setup

@@ -18,7 +18,8 @@ setup() {
             > "$ROOT_T/test/$_n.bats"
     done
     # Any executable does, the fixtures do not use it
-    export BIN_TEST=/bin/true
+    BIN_TEST="$(type -P true)"
+    export BIN_TEST
     export NO_COLOR=1
 }
 

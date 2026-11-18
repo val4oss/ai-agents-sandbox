@@ -788,6 +788,7 @@ _verify_allowed_path() {
             _allowed_paths="${_vap_home} /tmp /var/tmp /opt"
             _vap_rc="${FAILURE}"
             for _apath in ${_allowed_paths}; do
+                _apath="$(_real_path "${_apath}")"
                 case "${_vap_path}" in
                     "${_apath}"/*) _vap_rc="${SUCCESS}"; break ;;
                 esac
@@ -909,7 +910,7 @@ _copy_agent_files() {
     _dst="$2"
     [ -d "$_src" ] || return "$SUCCESS"
     mkdir -p "$_dst"
-    cp -rn "$_src/." "$_dst/"
+    cp -RPn "$_src/." "$_dst/"
     return "$SUCCESS"
 }
 
@@ -931,8 +932,10 @@ _copy_host_files() {
     _chf_rc="${SUCCESS}"
     if [ ! -e "$_src" ]; then _chf_rc="$FAILURE"
     elif [ -e "${_dst}" ]; then
-        _src_last_modified="$(stat -c %Y "${_src}" 2>/dev/null || :)"
-        _dst_created="$(stat -c %W "${_dst}" 2>/dev/null || :)"
+        _src_last_modified="$(stat -c %Y "${_src}" 2>/dev/null ||
+            stat -f %m "${_src}" 2>/dev/null || :)"
+        _dst_created="$(stat -c %W "${_dst}" 2>/dev/null ||
+            stat -f %B "${_dst}" 2>/dev/null || :)"
         if [ -n "${_src_last_modified}" ] && [ -n "${_dst_created}" ] &&
            [ "${_dst_created}" != "0" ]; then
             if [ "${_src_last_modified}" -gt "${_dst_created}" ]; then
@@ -945,7 +948,7 @@ _copy_host_files() {
         print_debug "Copying the host '$_src' into '$_dst'"
         if [ -d "$_src" ]; then
             mkdir -p "$_dst"
-            cp -rn "$_src/." "$_dst/" 2>/dev/null || _chf_rc="$FAILURE"
+            cp -RPn "$_src/." "$_dst/" 2>/dev/null || _chf_rc="$FAILURE"
         else
             cp -n "$_src" "$_dst" 2>/dev/null || _chf_rc="$FAILURE"
         fi
@@ -1354,6 +1357,29 @@ _stop_proxy_listener() {
         PROXY_PID=""
     fi
     [ -n "$PROXY_RUN_D" ] && rm -rf "$PROXY_RUN_D"
+}
+
+###
+# Print the first destination used by two mounts of the podman arguments given
+# ARGUMENTS:
+#   @ - the arguments of podman, words of --volume and --tmpfs are checked
+# OUTPUTS:
+#   fd 1: the duplicated destination, nothing if there is none
+###
+_find_dup_mount() {
+    _prev_arg=""
+    for _arg in "$@"; do
+        case "$_prev_arg" in
+            --volume)
+                _mnt_dst="${_arg%:*}"
+                printf '%s\n' "${_mnt_dst##*:}"
+                ;;
+            --tmpfs)
+                printf '%s\n' "${_arg%%:*}"
+                ;;
+        esac
+        _prev_arg="$_arg"
+    done | sed 's|//*|/|g;s|/$||' | sort | uniq -d | head -n 1
 }
 
 ###
@@ -1965,21 +1991,7 @@ new container."
     # podman refuses two mounts on the same destination, tell it before. The
     # arguments of the mounts are given back to eval to be read as words.
     eval "set -- ${_agent_mounts} ${_ro_mounts} ${_args}"
-    _mnt_dup="$(
-        _prev_arg=""
-        for _arg in "$@"; do
-            case "$_prev_arg" in
-                --volume)
-                    _mnt_dst="${_arg%:*}"
-                    printf '%s\n' "${_mnt_dst##*:}"
-                    ;;
-                --tmpfs)
-                    printf '%s\n' "${_arg%%:*}"
-                    ;;
-            esac
-            _prev_arg="$_arg"
-        done | sed 's|//*|/|g;s|/$||' | sort | uniq -d | head -n 1
-    )"
+    _mnt_dup="$(_find_dup_mount "$@")"
     if [ -n "$_mnt_dup" ]; then
         print_error "Two mounts use the destination '${_mnt_dup}'."
         print_error "    -> Use another destination for one of them."
