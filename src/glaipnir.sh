@@ -251,7 +251,7 @@ _add_agent() {
         else
             AGENT="$_agt $AGENT"
             AGENT="$( printf "%s" "${AGENT}" | xargs -n1 |  sort -u | xargs)"
-        fi 
+        fi
     fi
     return "${_aa_rc}"
 }
@@ -278,7 +278,7 @@ _add_proxy_cmd() {
         else
             PROXY_CMDS="$_cmd $PROXY_CMDS"
             PROXY_CMDS="$( printf "%s" "${PROXY_CMDS}" | xargs -n1 |  sort -u | xargs)"
-        fi 
+        fi
     fi
     return "${_apc_rc}"
 }
@@ -375,7 +375,7 @@ _parse_conf() {
                     *)
                         # Assigning to keys
                         case "$_key" in
-                            AGENT)       
+                            AGENT)
                                 [ ${_CLI_AGENT_SET} -eq 0 ] && \
                                     {
                                         _add_agent "$_value" || \
@@ -384,7 +384,7 @@ _parse_conf() {
                                 ;;
                             USE_MICROVM)        USE_MICROVM="$_value" ;;
                             USE_GCLOUD)         USE_GCLOUD="$_value" ;;
-                            GCLOUD_PROJECT)     
+                            GCLOUD_PROJECT)
                                 GCLOUD_PROJECT="$_value"
                                 USE_GCLOUD="1"
                                 ;;
@@ -1559,7 +1559,7 @@ Notes:
     risks.
   - To enable microVM isolation, ensure that KVM is available and the user is in
     the kvm group.
-  - To configure the sandbox, you can 
+  - To configure the sandbox, you can
     1. create a configuration file at ${CONF_P} with the following format:
     AGENT=<agent_name>
     USE_MICROVM=1
@@ -1856,7 +1856,8 @@ new container."
     if ! _podman_img_exists "${IMG_NAME}" ||\
        [ "$(_podman_img_repo)" = "${_default_repo}" ]; then
         if [ "$(_host_arch)" != "amd64" ]; then
-            print_info "Prebuilt registry image is amd64-only; building native $(_host_arch) image..."
+            print_info "Prebuilt registry image is amd64-only; building \
+native $(_host_arch) image..."
             if ! build; then
                 print_error "Failed to build image ${IMG_NAME}"
                 return "${FAILURE}"

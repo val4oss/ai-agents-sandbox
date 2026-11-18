@@ -14,6 +14,7 @@ setup() {
     _common_setup
     load 'test_helper/podman-stub'
     stub_env "$BATS_TEST_TMPDIR"
+    stub_arch x86_64
     export NO_COLOR=1
     BUILD_D="$XDG_CACHE_HOME/glaipnir/build"
 }
@@ -65,25 +66,13 @@ _bad_hook() {
     assert_build_opt --tag "ai-agents-sandbox-claude:latest"
 }
 
-_is_arm64() {
-    case "$(uname -m)" in
-        arm64|aarch64) return 0 ;;
-        *)             return 1 ;;
-    esac
-}
-
 @test "build gives the build args to the Containerfile" {
     _write_conf "IMG_TAG=7.8.9"
     glaipnir_build claude
     assert_success
-    if _is_arm64; then
-        assert_build_opt --platform "linux/arm64"
-        assert_build_opt --build-arg "TARGET_STAGE=from-scratch"
-    else
-        assert_build_opt --platform "linux/amd64"
-        assert_build_opt --build-arg \
-            "TARGET_STAGE=$REPO/ai-agents-sandbox-claude:latest"
-    fi
+    assert_build_opt --platform "linux/amd64"
+    assert_build_opt --build-arg \
+        "TARGET_STAGE=$REPO/ai-agents-sandbox-claude:latest"
     assert_build_opt --build-arg "BUILD_AGENTS=claude"
     assert_build_opt --build-arg "IMG_TAG=7.8.9"
     assert_build_opt_match --build-arg "^PKGS="
@@ -94,25 +83,33 @@ _is_arm64() {
     for _a in claude opencode pi; do
         glaipnir_build "$_a"
         assert_success
-        if _is_arm64; then
-            assert_build_opt --build-arg "TARGET_STAGE=from-scratch"
-        else
-            assert_build_opt --build-arg \
-                "TARGET_STAGE=$REPO/ai-agents-sandbox-${_a}:latest"
-        fi
+        assert_build_opt --build-arg \
+            "TARGET_STAGE=$REPO/ai-agents-sandbox-${_a}:latest"
         assert_build_opt --tag "ai-agents-sandbox-${_a}:latest"
     done
+}
+
+@test "build on arm64 uses the from-scratch stage for the platform" {
+    stub_arch aarch64
+    glaipnir_build claude
+    assert_success
+    assert_build_opt --platform "linux/arm64"
+    assert_build_opt --build-arg "TARGET_STAGE=from-scratch"
+}
+
+@test "build on an arm64 Mac (arm64) gives the same result as aarch64" {
+    stub_arch arm64
+    glaipnir_build claude pi
+    assert_success
+    assert_build_opt --platform "linux/arm64"
+    assert_build_opt --build-arg "TARGET_STAGE=from-scratch"
 }
 
 @test "build of several agents targets the base stage" {
     glaipnir_build claude pi
     assert_success
-    if _is_arm64; then
-        assert_build_opt --build-arg "TARGET_STAGE=from-scratch"
-    else
-        assert_build_opt --build-arg \
-            "TARGET_STAGE=$REPO/ai-agents-sandbox-base:latest"
-    fi
+    assert_build_opt --build-arg \
+        "TARGET_STAGE=$REPO/ai-agents-sandbox-base:latest"
     assert_build_opt --build-arg "BUILD_AGENTS=claude pi"
     assert_build_opt --tag "ai-agents-sandbox-claude-pi:latest"
 }

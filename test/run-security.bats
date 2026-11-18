@@ -123,8 +123,9 @@ setup() {
         ! printf '%s\n' "$_srcs" | grep -Fxq -- "$_bad" ||
             fail "sensitive path mounted: $_bad"
     done
-    if printf '%s\n' "$_srcs" |
-        grep -Eq 'podman\.sock|docker\.sock|^/(private/)?(etc|root|proc|sys|dev|run)(/|$)'
+    _bad_re='podman\.sock|docker\.sock'
+    _bad_re="${_bad_re}|^/(private/)?(etc|root|proc|sys|dev|run)(/|\$)"
+    if printf '%s\n' "$_srcs" | grep -Eq "$_bad_re"
     then
         fail "sensitive path mounted:"$'\n'"$_srcs"
     fi
@@ -269,8 +270,8 @@ setup() {
         glaipnir_run_no_microvm claude --workspace "$_ws"
         assert_success
         _real_ws="$(realpath "$_ws")"
-        assert_run_opt_match --volume \
-            "^$(printf '%s' "$_real_ws" | sed 's/[][\.*^$]/\\&/g'):/home/aiuser/"
+        _ws_re="$(printf '%s' "$_real_ws" | sed 's/[][\.*^$]/\\&/g')"
+        assert_run_opt_match --volume "^${_ws_re}:/home/aiuser/"
     done
 }
 

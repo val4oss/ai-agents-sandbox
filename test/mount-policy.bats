@@ -147,7 +147,8 @@ _skip_if_root() {
 @test "refused hidden workspace is reported" {
     glaipnir_run_no_microvm claude --workspace "$HOME/.ssh"
     assert_success
-    assert_output --partial "Path '${REAL_HOME_TEST}/.ssh' is forbidden (hidden)"
+    assert_output --partial \
+        "Path '${REAL_HOME_TEST}/.ssh' is forbidden (hidden)"
 }
 
 @test "refused cache is reported with the fallback used" {
@@ -175,7 +176,8 @@ _skip_if_root() {
 @test "cache under HOME is used for the agents mounts" {
     glaipnir_run_no_microvm claude --cache "$HOME/mycache"
     assert_success
-    assert_run_opt_match --volume "^${REAL_HOME_TEST}/mycache/agents-mount/\.claude:"
+    assert_run_opt_match --volume \
+        "^${REAL_HOME_TEST}/mycache/agents-mount/\.claude:"
     [ -d "$HOME/mycache/agents-mount" ]
 }
 

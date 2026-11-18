@@ -61,3 +61,14 @@ file_mode() {
 file_btime() {
     stat -c '%W' "$1" 2>/dev/null || stat -f '%B' "$1"
 }
+
+# Make 'uname -m' print the machine $1, the tests must not depend on the host.
+stub_arch() {
+    mkdir -p "$BATS_TEST_TMPDIR/archbin"
+    printf '#!/bin/sh\nif [ "$1" = "-m" ]; then echo "%s"; exit 0; fi\n%s\n' \
+        "$1" 'exec "$(command -v -p uname)" "$@"' \
+        > "$BATS_TEST_TMPDIR/archbin/uname"
+    chmod +x "$BATS_TEST_TMPDIR/archbin/uname"
+    PATH="$BATS_TEST_TMPDIR/archbin:$PATH"
+    export PATH
+}

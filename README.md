@@ -118,18 +118,22 @@ sudo zypper refresh
 sudo zypper install glaipnir
 ```
 
-## macOS
+### macOS
 
 ```bash
 # Install Homebrew via https://brew.sh
 
 # Install build and runtime requirements
-brew install bash coreutils gnu-sed grep podman
+brew install bash gnu-sed grep podman socat shellcheck
 
-# Create and start a Podman machine, see https://podman.io/docs/installation#macos
+# Create and start a Podman machine, see
+# https://podman.io/docs/installation#macos
 podman machine init
 podman machine start
 ```
+
+On macOS there is no microVM, and `realpath` needs macOS 13 or newer, see
+[macOS: `realpath`](#macos-realpath).
 
 ---
 

@@ -102,7 +102,8 @@ _write_conf() {
     _real_etc="$(realpath /etc)"
     glaipnir_run_no_microvm claude --ro-mount /etc
     assert_failure 1
-    assert_output --partial "ro mount source '${_real_etc}' is not a valid directory"
+    assert_output --partial \
+        "ro mount source '${_real_etc}' is not a valid directory"
     _assert_not_started
 }
 
@@ -188,7 +189,8 @@ _write_conf() {
     mkdir -p "$HOME/my docs"
     glaipnir_run_no_microvm claude --ro-mount "$HOME/my docs"
     assert_success
-    assert_run_opt --volume "${REAL_HOME_TEST}/my docs:/home/aiuser/my docs:ro,z"
+    assert_run_opt --volume \
+        "${REAL_HOME_TEST}/my docs:/home/aiuser/my docs:ro,z"
 }
 
 @test "ro-mount source and destination with spaces and options" {
@@ -303,7 +305,8 @@ EOF
         --ro-mount "$HOME/docs:/d1:rw" --ro-mount "$HOME/other:/d2:z" \
         --ro-mount "$HOME/a:/d3:rw,z"
     assert_success
-    _vols="$(run_opt_values --volume | grep -E "^${REAL_HOME_TEST}/(docs|other|a):" || true)"
+    _vols="$(run_opt_values --volume |
+        grep -E "^${REAL_HOME_TEST}/(docs|other|a):" || true)"
     [ "$(printf '%s\n' "$_vols" | grep -c .)" -eq 3 ]
     _bad="$(printf '%s\n' "$_vols" | grep -v ':ro,z$' || true)"
     [ -z "$_bad" ] || fail "mount not read-only:"$'\n'"$_bad"

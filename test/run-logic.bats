@@ -13,6 +13,7 @@ setup() {
     _common_setup
     load 'test_helper/podman-stub'
     stub_env "$BATS_TEST_TMPDIR"
+    stub_arch x86_64
     export NO_COLOR=1
     CACHE="$XDG_CACHE_HOME/glaipnir"
     CTN="ai-agents-sandbox-claude"
@@ -44,7 +45,8 @@ _bad_hook() {
 # -------
 
 @test "run without microVM needs passt and ip" {
-    [ "$(uname -s)" != "Darwin" ] || skip "passt and ip are Linux-only requirements"
+    [ "$(uname -s)" != "Darwin" ] ||
+        skip "passt and ip are Linux-only requirements"
     # A PATH holding the stub of podman only, and the tools glaipnir needs
     mkdir -p "$BATS_TEST_TMPDIR/bin"
     for cmd in sh bash cat rm mkdir touch dirname basename realpath sed grep \
@@ -70,7 +72,8 @@ _bad_hook() {
 # ----------
 
 @test "run falls back to the container mode when microVM is unavailable" {
-    [ "$(uname -s)" != "Darwin" ] || skip "microVM fallback prompt is Linux-specific"
+    [ "$(uname -s)" != "Darwin" ] ||
+        skip "microVM fallback prompt is Linux-specific"
     # Without krun or KVM the check fails before any question to the user
     if [ -x /usr/bin/krun ] && [ -c /dev/kvm ]; then
         skip "this host can run microVMs"
@@ -245,26 +248,33 @@ _bad_hook() {
     assert_run_arg "$CTN:latest"
 }
 
-_is_arm64() {
-    case "$(uname -m)" in
-        arm64|aarch64) return 0 ;;
-        *)             return 1 ;;
-    esac
+@test "run builds the image on arm64 when there is no local one" {
+    stub_arch aarch64
+    export PODMAN_STUB_NO_IMAGE=1
+    glaipnir_run_no_microvm claude
+    assert_success
+    assert_output --partial "Prebuilt registry image is amd64-only"
+    refute_podman_call pull
+    [ -s "$PODMAN_STUB_BUILD_LOG" ]
+    assert_run_arg "$CTN:latest"
+}
+
+@test "run builds on arm64 instead of pulling the default image" {
+    stub_arch aarch64
+    export PODMAN_STUB_IMG_REPO="$REPO/$CTN"
+    glaipnir_run_no_microvm claude
+    assert_success
+    refute_podman_call pull
+    [ -s "$PODMAN_STUB_BUILD_LOG" ]
 }
 
 @test "run pulls the image when there is no local one" {
     export PODMAN_STUB_NO_IMAGE=1
     glaipnir_run_no_microvm claude
     assert_success
-    if _is_arm64; then
-        assert_output --partial "Prebuilt registry image is amd64-only; building native arm64 image"
-        refute_podman_call pull
-        [ -s "$PODMAN_STUB_BUILD_LOG" ]
-    else
-        assert_output --partial "Pulling image: $REPO/$CTN"
-        assert_podman_call pull -q "$REPO/$CTN"
-        refute_podman_call build
-    fi
+    assert_output --partial "Pulling image: $REPO/$CTN"
+    assert_podman_call pull -q "$REPO/$CTN"
+    refute_podman_call build
     assert_run_arg "$CTN:latest"
 }
 
@@ -272,13 +282,8 @@ _is_arm64() {
     export PODMAN_STUB_IMG_REPO="$REPO/$CTN"
     glaipnir_run_no_microvm claude
     assert_success
-    if _is_arm64; then
-        refute_podman_call pull
-        [ -s "$PODMAN_STUB_BUILD_LOG" ]
-    else
-        assert_podman_call pull -q "$REPO/$CTN"
-        refute_podman_call build
-    fi
+    assert_podman_call pull -q "$REPO/$CTN"
+    refute_podman_call build
 }
 
 @test "run builds the image when the pull fails" {
@@ -286,11 +291,7 @@ _is_arm64() {
     export PODMAN_STUB_FAIL="pull"
     glaipnir_run_no_microvm claude
     assert_success
-    if _is_arm64; then
-        assert_output --partial "Prebuilt registry image is amd64-only; building native arm64 image"
-    else
-        assert_output --partial "No Image built and cannot pull $REPO/$CTN"
-    fi
+    assert_output --partial "No Image built and cannot pull $REPO/$CTN"
     [ -s "$PODMAN_STUB_BUILD_LOG" ]
     assert_run_arg "$CTN:latest"
 }
